@@ -1,9 +1,6 @@
 local M = {}
 
-local has_cmp, cmp = pcall(require, 'cmp')
-if not has_cmp then
-  return M
-end
+local kinds = require('magenta.completion.kinds')
 
 local fzf = require('magenta.completion.fzf')
 local jobctl = require('magenta.completion.jobctl')
@@ -53,7 +50,7 @@ function source:complete(params, callback)
       label = '@file:',
       filterText = filter_text,
       data = { path = nil, is_buffer = true },
-      kind = cmp.lsp.CompletionItemKind.Text
+      kind = kinds.Text
     } },
     isIncomplete = true
   })
@@ -74,10 +71,10 @@ function source:complete(params, callback)
             file_path = file_path:gsub('^%./', '')
 
             if file_path ~= '' then
-              local file_kind = cmp.lsp.CompletionItemKind.File
+              local file_kind = kinds.File
               local stat = vim.loop and vim.loop.fs_stat(file_path)
               if stat and stat.type == 'directory' then
-                file_kind = cmp.lsp.CompletionItemKind.Folder
+                file_kind = kinds.Folder
               end
 
               local has_ws = file_path:find('%s') ~= nil

@@ -44,7 +44,7 @@ REQUIREMENTS                                            *magenta-requirements*
 
 - Neovim >= 0.8.0
 - Node.js >= v20 (check with `node --version`)
-- nvim-cmp (for input command completions)
+- blink.cmp or nvim-cmp (for input command completions)
 
 Recommended tools:~
   - fd (sharkdp/fd) - Fast file finding that respects .gitignore

@@ -2,7 +2,6 @@ local M = {}
 
 local has_cmp, cmp = pcall(require, 'cmp')
 if not has_cmp then
-  vim.notify('nvim-cmp not found, magenta completion unavailable', vim.log.levels.WARN)
   return M
 end
 

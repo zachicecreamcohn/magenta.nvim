@@ -1,9 +1,6 @@
 local M = {}
 
-local has_cmp, cmp = pcall(require, 'cmp')
-if not has_cmp then
-  return M
-end
+local kinds = require('magenta.completion.kinds')
 
 local git = require('magenta.completion.git')
 local jobctl = require('magenta.completion.jobctl')
@@ -54,7 +51,7 @@ function source:complete(params, callback)
         label = '@diff:',
         filterText = filter_text,
         data = { path = nil, score = -1000 },
-        kind = cmp.lsp.CompletionItemKind.Text
+        kind = kinds.Text
       } },
       isIncomplete = false
     })
@@ -78,7 +75,7 @@ function source:complete(params, callback)
         label = '@diff:no-unstaged-changes',
         filterText = filter_text,
         data = { path = nil, score = -1000 },
-        kind = cmp.lsp.CompletionItemKind.Text
+        kind = kinds.Text
       } },
       isIncomplete = true
     })

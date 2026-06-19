@@ -10,35 +10,35 @@ vim.opt.runtimepath:append(".")
 -- Add test plugins directory if it exists
 local test_plugins_dir = project_root .. "/test-plugins"
 if vim.fn.isdirectory(test_plugins_dir) == 1 then
-  vim.opt.runtimepath:append(test_plugins_dir .. "/nvim-cmp")
+  vim.opt.runtimepath:append(test_plugins_dir .. "/blink.cmp")
 
-  -- Configure nvim-cmp for testing
-  vim.defer_fn(function()
-    local ok, cmp = pcall(require, 'cmp')
-    if ok then
-      cmp.setup({
-        mapping = {
-          ['<Down>'] = cmp.mapping.select_next_item(),
-          ['<Up>'] = cmp.mapping.select_prev_item(),
-          ['<CR>'] = cmp.mapping.confirm({ select = true }),
-          ['<C-Space>'] = cmp.mapping.complete(),
+  -- Configure blink.cmp for testing. The magenta provider is auto-registered by
+  -- magenta on startup, but we also list it in `default` so it's queried in the
+  -- markdown input buffer. We force the lua fuzzy implementation to avoid
+  -- depending on a native binary / blink.lib in CI.
+  local ok, blink = pcall(require, 'blink.cmp')
+  if ok then
+    blink.setup({
+      fuzzy = { implementation = 'lua' },
+      sources = {
+        default = { 'magenta', 'buffer' },
+        providers = {
+          magenta = { name = 'magenta', module = 'magenta.completion.blink' },
         },
-        sources = {
-          { name = 'buffer', keyword_length = 1, option = { keyword_pattern = [[\k\+]] } },
-        },
-        completion = {
-          autocomplete = { 'TextChanged', 'InsertEnter' },
-        },
-        enabled = function()
-          -- Disable during command line and search modes
-          if vim.api.nvim_get_mode().mode == 'c' then
-            return false
-          end
-          return true
-        end,
-      })
-    end
-  end, 100)
+      },
+      completion = {
+        menu = { auto_show = true },
+        trigger = { show_on_trigger_character = true },
+      },
+      keymap = {
+        preset = 'none',
+        ['<Down>'] = { 'select_next', 'fallback' },
+        ['<Up>'] = { 'select_prev', 'fallback' },
+        ['<CR>'] = { 'select_and_accept', 'fallback' },
+        ['<C-Space>'] = { 'show' },
+      },
+    })
+  end
 end
 
 -- Set default restrictive options for tests

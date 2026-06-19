@@ -9,27 +9,30 @@ export async function setup() {
     "../..",
   );
   const pluginDir = path.join(projectRoot, "test-plugins");
-  const cmpDir = path.join(pluginDir, "nvim-cmp");
+  const blinkDir = path.join(pluginDir, "blink.cmp");
+  const blinkTag = "v1.10.2";
   const forceSetup = process.env.FORCE_SETUP === "true";
 
   // Force remove existing directories if FORCE_SETUP is set
   if (forceSetup) {
     try {
-      await $`rm -rf ${cmpDir}`;
+      await $`rm -rf ${blinkDir}`;
     } catch {
       // Ignore errors if directory doesn't exist
     }
   }
 
   try {
-    await access(cmpDir);
+    await access(blinkDir);
   } catch {
     try {
-      // Plugin doesn't exist, need to download it
+      // Plugin doesn't exist, need to download it. We pin to a v1 tag so the
+      // tests don't depend on blink.lib / a native fuzzy binary (the lua fuzzy
+      // implementation is configured in minimal-init.lua).
       await $`mkdir -p ${pluginDir}`;
-      await $`git clone --depth=1 https://github.com/hrsh7th/nvim-cmp.git ${cmpDir}`;
+      await $`git clone --depth=1 --branch ${blinkTag} https://github.com/saghen/blink.cmp.git ${blinkDir}`;
     } catch (e) {
-      console.error(`Uh-oh. nvim-cmp setup failed`);
+      console.error(`Uh-oh. blink.cmp setup failed`);
       console.error(e);
     }
   }

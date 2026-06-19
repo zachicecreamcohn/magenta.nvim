@@ -4,10 +4,7 @@ local jobctl = require('magenta.completion.jobctl')
 local fzf = require('magenta.completion.fzf')
 local text_utils = require('magenta.text-utils')
 
-local has_cmp, cmp = pcall(require, 'cmp')
-if not has_cmp then
-  return M
-end
+local kinds = require('magenta.completion.kinds')
 
 -- Git status cache
 local git_cache = {
@@ -70,7 +67,7 @@ M.get_git_status = function()
           table.insert(files.staged, {
             path = file_path,
             status = staged_status,
-            kind = cmp.lsp.CompletionItemKind.File
+            kind = kinds.File
           })
         end
 
@@ -79,13 +76,13 @@ M.get_git_status = function()
             table.insert(files.untracked, {
               path = file_path,
               status = 'untracked',
-              kind = cmp.lsp.CompletionItemKind.File
+              kind = kinds.File
             })
           else
             table.insert(files.unstaged, {
               path = file_path,
               status = unstaged_status,
-              kind = cmp.lsp.CompletionItemKind.File
+              kind = kinds.File
             })
           end
         end
@@ -116,7 +113,7 @@ M.create_git_completion_items_async = function(job_state, git_files, search_term
       label = prefix,
       filterText = filter_text,
       data = { path = nil, score = -1000 },
-      kind = cmp.lsp.CompletionItemKind.Text
+      kind = kinds.Text
     } },
     isIncomplete = true
   })
@@ -159,7 +156,7 @@ M.create_git_completion_items_async = function(job_state, git_files, search_term
             label = prefix,
             filterText = filter_text,
             data = { path = nil, score = -1000 },
-            kind = cmp.lsp.CompletionItemKind.Text
+            kind = kinds.Text
           } },
           isIncomplete = true
         })

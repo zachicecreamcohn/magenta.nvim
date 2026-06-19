@@ -1,28 +1,25 @@
 local M = {}
 
-local has_cmp, cmp = pcall(require, 'cmp')
-if not has_cmp then
-  return M
-end
 local constants = require('magenta.completion.constants')
+local kinds = require('magenta.completion.kinds')
 
 -- Keywords completion source
 local source = {}
 
 local BUILTIN_KEYWORDS = {
-  { label = '@qf',          kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Add quickfix entries to context' },
-  { label = '@diag',        kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Add diagnostics to context' },
-  { label = '@buf',         kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Add current buffer to context' },
-  { label = '@buffers',     kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Add all open buffers to context' },
-  { label = '@quickfix',    kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Add quickfix entries to context' },
-  { label = '@diagnostics', kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Add diagnostics to context' },
-  { label = '@compact',       kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Compact the conversation thread and continue with a new prompt' },
-  { label = '@implementplan', kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Instruct the agent to implement the current plan' },
-  { label = '@fork',        kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Fork the thread' },
-  { label = '@async',       kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Process message asynchronously without interrupting current operation' },
-  { label = '@file:',       kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Add file to context (supports fuzzy path completion)' },
-  { label = '@staged:',     kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Add staged file to context (supports file completion)' },
-  { label = '@diff:',       kind = cmp.lsp.CompletionItemKind.Keyword, documentation = 'Add unstaged/untracked file to context (supports file completion)' },
+  { label = '@qf',          kind = kinds.Keyword, documentation = 'Add quickfix entries to context' },
+  { label = '@diag',        kind = kinds.Keyword, documentation = 'Add diagnostics to context' },
+  { label = '@buf',         kind = kinds.Keyword, documentation = 'Add current buffer to context' },
+  { label = '@buffers',     kind = kinds.Keyword, documentation = 'Add all open buffers to context' },
+  { label = '@quickfix',    kind = kinds.Keyword, documentation = 'Add quickfix entries to context' },
+  { label = '@diagnostics', kind = kinds.Keyword, documentation = 'Add diagnostics to context' },
+  { label = '@compact',       kind = kinds.Keyword, documentation = 'Compact the conversation thread and continue with a new prompt' },
+  { label = '@implementplan', kind = kinds.Keyword, documentation = 'Instruct the agent to implement the current plan' },
+  { label = '@fork',        kind = kinds.Keyword, documentation = 'Fork the thread' },
+  { label = '@async',       kind = kinds.Keyword, documentation = 'Process message asynchronously without interrupting current operation' },
+  { label = '@file:',       kind = kinds.Keyword, documentation = 'Add file to context (supports fuzzy path completion)' },
+  { label = '@staged:',     kind = kinds.Keyword, documentation = 'Add staged file to context (supports file completion)' },
+  { label = '@diff:',       kind = kinds.Keyword, documentation = 'Add unstaged/untracked file to context (supports file completion)' },
 }
 
 local function get_all_keywords()
@@ -33,7 +30,7 @@ local function get_all_keywords()
     for _, command in ipairs(Options.options.customCommands) do
       table.insert(keywords, {
         label = command.name,
-        kind = cmp.lsp.CompletionItemKind.Keyword,
+        kind = kinds.Keyword,
         documentation = command.description or 'Custom command'
       })
     end

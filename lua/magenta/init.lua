@@ -226,10 +226,23 @@ M.bridge = function(channelId)
   -- cleared on node exit / channel death.
   M.bridge_augroup = vim.api.nvim_create_augroup("MagentaBridge", { clear = true })
 
-  -- Initialize completion support
+  -- Initialize nvim-cmp completion support (no-op when nvim-cmp isn't installed)
   local completion_source = require('magenta.completion.source')
   if completion_source.setup then
     completion_source.setup()
+  end
+
+  -- Auto-register the blink.cmp source when blink.cmp is installed. The source's
+  -- own `enabled()` gate keeps it scoped to magenta input buffers.
+  local has_blink, blink = pcall(require, 'blink.cmp')
+  if has_blink and type(blink.add_source_provider) == 'function' then
+    pcall(function()
+      blink.add_source_provider('magenta', {
+        name = 'magenta',
+        module = 'magenta.completion.blink',
+      })
+      blink.add_filetype_source('markdown', 'magenta')
+    end)
   end
 
   vim.api.nvim_create_user_command(

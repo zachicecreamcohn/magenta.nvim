@@ -3,20 +3,20 @@ import { $ } from "zx";
 import { getcwd } from "../nvim/nvim.ts";
 import { withDriver } from "./preamble.ts";
 
-it("should have nvim-cmp available", async () => {
+it("should have blink.cmp available with the magenta source registered", async () => {
   await withDriver({}, async (driver) => {
-    // Check if nvim-cmp is available
-    const cmpAvailable = await driver.completions.isAvailable();
-    expect(cmpAvailable).toBe(true);
+    // Check if blink.cmp is available
+    const blinkAvailable = await driver.completions.isAvailable();
+    expect(blinkAvailable).toBe(true);
 
-    // Wait for cmp to be fully configured - sources may take a moment to register
+    // Wait for the sidebar so magenta has registered its provider
     await driver.showSidebar();
     await driver.waitForChatReady();
 
-    // Check if it's properly configured
-    const cmpSetupInfo = await driver.completions.getSetupInfo();
-    expect(cmpSetupInfo.has_sources).toBe(true);
-    expect(cmpSetupInfo.has_mapping).toBe(true);
+    // Check that the magenta source provider is configured
+    const setupInfo = await driver.completions.getSetupInfo();
+    expect(setupInfo.has_sources).toBe(true);
+    expect(setupInfo.has_magenta_provider).toBe(true);
   });
 });
 
@@ -83,6 +83,28 @@ it("should show keyword completions when typing '@' in magenta input buffer", as
     expect(entryWords).toContain("@diff:");
     expect(entryWords).toContain("@compact");
     expect(entryWords).toContain("@implementplan");
+  });
+});
+
+it("should filter keyword completions by what was typed", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+    await driver.waitForChatReady();
+
+    // Type '@di' - should narrow to keywords containing 'di'
+    await driver.sendKeysToInputBuffer("i@di");
+
+    const entries =
+      await driver.completions.waitForCompletionContaining("@diag");
+    const entryWords = entries.map((e) => e.word);
+
+    // 'di' keywords should be present
+    expect(entryWords).toContain("@diag");
+    expect(entryWords).toContain("@diff:");
+
+    // Unrelated keywords should be filtered out
+    expect(entryWords).not.toContain("@qf");
+    expect(entryWords).not.toContain("@buf");
   });
 });
 

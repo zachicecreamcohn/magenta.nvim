@@ -5,12 +5,12 @@ export class CompletionsInteraction {
   constructor(private nvim: Nvim) {}
 
   /**
-   * Check if nvim-cmp is available
+   * Check if blink.cmp is available
    */
   async isAvailable(): Promise<boolean> {
     return (await this.nvim.call("nvim_exec_lua", [
       `
-      local ok, cmp = pcall(require, 'cmp')
+      local ok = pcall(require, 'blink.cmp')
       return ok
       `,
       [],
@@ -18,30 +18,36 @@ export class CompletionsInteraction {
   }
 
   /**
-   * Check if nvim-cmp is properly configured
+   * Check whether the magenta blink.cmp source provider is registered
    */
   async getSetupInfo(): Promise<{
     has_sources: boolean;
-    has_mapping: boolean;
+    has_magenta_provider: boolean;
   }> {
     return (await this.nvim.call("nvim_exec_lua", [
       `
-      local cmp = require('cmp')
+      local config = require('blink.cmp.config')
+      local providers = config.sources.providers or {}
+      local has_sources = false
+      for _ in pairs(providers) do
+        has_sources = true
+        break
+      end
       return {
-        has_sources = #cmp.get_config().sources > 0,
-        has_mapping = cmp.get_config().mapping ~= nil
+        has_sources = has_sources,
+        has_magenta_provider = providers.magenta ~= nil
       }
       `,
       [],
-    ])) as { has_sources: boolean; has_mapping: boolean };
+    ])) as { has_sources: boolean; has_magenta_provider: boolean };
   }
 
   /**
-   * Check if nvim-cmp completion menu is visible
+   * Check if the blink.cmp completion menu is visible
    */
   async isVisible(): Promise<boolean> {
     return (await this.nvim.call("nvim_exec_lua", [
-      `return require('cmp').visible()`,
+      `return require('blink.cmp').is_menu_visible()`,
       [],
     ])) as boolean;
   }
@@ -52,13 +58,12 @@ export class CompletionsInteraction {
   async getEntries(): Promise<Array<{ word: string; kind?: number }>> {
     return (await this.nvim.call("nvim_exec_lua", [
       `
-      local cmp = require('cmp')
-      local entries = cmp.get_entries()
+      local items = require('blink.cmp').get_items() or {}
       local result = {}
-      for i, entry in ipairs(entries) do
+      for _, item in ipairs(items) do
         table.insert(result, {
-          word = entry.completion_item.label,
-          kind = entry.completion_item.kind
+          word = item.label,
+          kind = item.kind
         })
       end
       return result
@@ -75,11 +80,10 @@ export class CompletionsInteraction {
   > {
     return (await this.nvim.call("nvim_exec_lua", [
       `
-      local cmp = require('cmp')
-      local selected = cmp.get_selected_entry()
+      local selected = require('blink.cmp').get_selected_item()
       return selected and {
-        word = selected.completion_item.label,
-        kind = selected.completion_item.kind
+        word = selected.label,
+        kind = selected.kind
       } or nil
       `,
       [],
@@ -90,7 +94,7 @@ export class CompletionsInteraction {
    * Manually trigger completion
    */
   async trigger(): Promise<void> {
-    await this.nvim.call("nvim_exec_lua", [`require('cmp').complete()`, []]);
+    await this.nvim.call("nvim_exec_lua", [`require('blink.cmp').show()`, []]);
   }
 
   /**
@@ -98,7 +102,7 @@ export class CompletionsInteraction {
    */
   async accept(): Promise<void> {
     await this.nvim.call("nvim_exec_lua", [
-      `require('cmp').confirm({ select = true })`,
+      `require('blink.cmp').select_and_accept()`,
       [],
     ]);
   }
@@ -108,7 +112,7 @@ export class CompletionsInteraction {
    */
   async selectNext(): Promise<void> {
     await this.nvim.call("nvim_exec_lua", [
-      `require('cmp').select_next_item()`,
+      `require('blink.cmp').select_next()`,
       [],
     ]);
   }
@@ -118,7 +122,7 @@ export class CompletionsInteraction {
    */
   async selectPrev(): Promise<void> {
     await this.nvim.call("nvim_exec_lua", [
-      `require('cmp').select_prev_item()`,
+      `require('blink.cmp').select_prev()`,
       [],
     ]);
   }
@@ -127,11 +131,11 @@ export class CompletionsInteraction {
    * Close/abort completion menu
    */
   async close(): Promise<void> {
-    await this.nvim.call("nvim_exec_lua", [`require('cmp').abort()`, []]);
+    await this.nvim.call("nvim_exec_lua", [`require('blink.cmp').hide()`, []]);
   }
 
   /**
-   * Get debug information about nvim-cmp state
+   * Get debug information about blink.cmp state
    */
   async getDebugInfo(): Promise<{
     mode: string;
@@ -139,18 +143,16 @@ export class CompletionsInteraction {
     cursor_pos: [number, number];
     buffer_lines: string[];
     entries_count: number;
-    sources: Array<{ name: string; [key: string]: unknown }>;
   }> {
     return (await this.nvim.call("nvim_exec_lua", [
       `
-      local cmp = require('cmp')
+      local blink = require('blink.cmp')
       return {
         mode = vim.fn.mode(),
-        cmp_visible = cmp.visible(),
+        cmp_visible = blink.is_menu_visible(),
         cursor_pos = vim.api.nvim_win_get_cursor(0),
         buffer_lines = vim.api.nvim_buf_get_lines(0, 0, -1, false),
-        sources = cmp.get_config().sources,
-        entries_count = #cmp.get_entries()
+        entries_count = #(blink.get_items() or {})
       }
       `,
       [],
@@ -160,7 +162,6 @@ export class CompletionsInteraction {
       cursor_pos: [number, number];
       buffer_lines: string[];
       entries_count: number;
-      sources: Array<{ name: string; [key: string]: unknown }>;
     };
   }
 
@@ -174,7 +175,7 @@ export class CompletionsInteraction {
         if (!visible) {
           const debug = await this.getDebugInfo();
           throw new Error(
-            `nvim-cmp completion menu not visible yet. Debug: ${JSON.stringify(debug)}`,
+            `blink.cmp completion menu not visible yet. Debug: ${JSON.stringify(debug)}`,
           );
         }
         return true;

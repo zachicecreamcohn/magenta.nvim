@@ -162,7 +162,7 @@ I haven't actually used other neovim AI plugins in a while, so take this with a 
 
 # Installation
 
-**Requirements:** Neovim 0.12.1+, Node.js v24+ (`node --version`), [nvim-cmp](https://github.com/hrsh7th/nvim-cmp)
+**Requirements:** Neovim 0.12.1+, Node.js v24+ (`node --version`), and a completion plugin — either [blink.cmp](https://github.com/saghen/blink.cmp) or [nvim-cmp](https://github.com/hrsh7th/nvim-cmp)
 
 **Recommended:** [fd](https://github.com/sharkdp/fd) and [ripgrep](https://github.com/BurntSushi/ripgrep) for better file discovery
 
