@@ -25,11 +25,9 @@ export function resetNotificationLog(): void {
  * Notify the user that something needs their attention: play the chime sound
  * (respecting `chimeVolume`) and ring the bell (respecting `bellOnNotify`).
  *
- * The bell is sent both to the host terminal (channel 2) and to the neovim
- * editor itself so the notification surfaces regardless of where the user is
- * looking. The editor bell is triggered by feeding <Esc> in normal mode, which
- * is neovim's standard way of producing an error-bell programmatically (there
- * is no dedicated "beep" API); it respects the user's 'belloff' setting.
+ * The bell is sent to the host terminal (channel 2). We deliberately avoid
+ * feeding <Esc> to the editor itself to produce a beep, since that yanks the
+ * user out of insert mode while they're composing.
  */
 export function notifyUser(context: NotifyContext, reason: NotifyReason): void {
   notificationLog.push({ reason });
@@ -45,12 +43,6 @@ function sendBell(context: NotifyContext): void {
   context.nvim.call("nvim_chan_send", [2, "\x07"]).catch((err) => {
     context.nvim.logger.error(
       `Failed to send terminal bell: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  });
-
-  context.nvim.call("nvim_input", ["<Esc>"]).catch((err) => {
-    context.nvim.logger.error(
-      `Failed to ring editor bell: ${err instanceof Error ? err.message : String(err)}`,
     );
   });
 }
