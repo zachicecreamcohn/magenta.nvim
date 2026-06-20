@@ -70,10 +70,11 @@ export function renderProgress(
     const timing =
       progress.startTime !== undefined
         ? d`(${String(Math.floor((Date.now() - progress.startTime) / 1000))}s / 300s) `
-        : d``;
-    return formattedOutput
-      ? d`${timing}${withCode(d`${formattedOutput}`)}`
-      : undefined;
+        : undefined;
+    if (formattedOutput) {
+      return d`${timing ?? d``}${withCode(d`${formattedOutput}`)}`;
+    }
+    return timing;
   }
 
   return renderOutputDetail(progress.liveOutput, undefined, context);
