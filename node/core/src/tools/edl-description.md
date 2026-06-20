@@ -3,6 +3,11 @@ Execute an EDL (Edit Description Language) script to perform programmatic file e
 ```
 # file commands
 file `path` # Select a file to edit, resets the selection to the entire contents of the file.
+# Paths resolve against the thread's working directory (nvim cwd), NOT the cwd of any
+# subagent or bash command. If you are operating in a git worktree or a directory other
+# than the thread cwd, relative paths may resolve to a different copy of the file. Use
+# absolute paths to be safe. The result output echoes the resolved absolute path of each
+# mutated file so you can confirm what was written.
 newfile `path` # Create a new file (must not already exist)
 
 # selection commands

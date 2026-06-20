@@ -1,4 +1,5 @@
 import type { FileIO } from "../capabilities/file-io.ts";
+import { type HomeDir, type NvimCwd, resolveFilePath } from "../utils/files.ts";
 import { ExecutionError, Executor } from "./executor.ts";
 import { lexWithPos, ParseError, parse } from "./parser.ts";
 import type {
@@ -215,7 +216,16 @@ export async function runScript(
   script: string,
   fileIO?: FileIO,
   edlRegisters?: EdlRegisters,
+  pathContext?: { cwd: NvimCwd; homeDir: HomeDir },
 ): Promise<RunScriptResult> {
+  const toDisplayPath = (p: string): string =>
+    pathContext
+      ? resolveFilePath(
+          pathContext.cwd,
+          p as Parameters<typeof resolveFilePath>[1],
+          pathContext.homeDir,
+        )
+      : p;
   try {
     const commands = parse(script);
     const executor = new Executor(fileIO);
@@ -235,7 +245,7 @@ export async function runScript(
       })),
       mutations: Array.from(result.mutations.entries()).map(
         ([path, summary]) => ({
-          path,
+          path: toDisplayPath(path),
           summary,
           content: result.fileContents.get(path) ?? "",
         }),
@@ -250,7 +260,7 @@ export async function runScript(
           }
         : undefined,
       fileErrors: result.fileErrors.map((fe) => ({
-        path: fe.path,
+        path: toDisplayPath(fe.path),
         error: fe.error,
         failedMutations: fe.failedMutations,
         trace: fe.trace.map((t) => ({
@@ -269,7 +279,16 @@ export async function runScript(
     return {
       status: "ok",
       data,
-      formatted: formatResult(result),
+      formatted: formatResult({
+        ...result,
+        mutations: new Map(
+          Array.from(result.mutations, ([p, m]) => [toDisplayPath(p), m]),
+        ),
+        fileErrors: result.fileErrors.map((fe) => ({
+          ...fe,
+          path: toDisplayPath(fe.path),
+        })),
+      }),
       edlRegisters: updatedRegisters,
     };
   } catch (e) {

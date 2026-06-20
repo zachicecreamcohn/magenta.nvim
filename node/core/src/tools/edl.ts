@@ -67,6 +67,7 @@ export function execute(
         script,
         context.fileIO,
         context.edlRegisters,
+        { cwd: context.cwd, homeDir: context.homeDir },
       );
 
       if (aborted) {
