@@ -140,6 +140,95 @@ ${this.state.items.map((item) => d`- ${item}\n`)}
 }
 ```
 
+## Complete Controller Example
+
+A controller owns its state, wraps its local messages into a `RootMsg` variant
+via `myDispatch`, filters incoming `RootMsg`s in `update`, and renders state in
+`view()`. Async work dispatches a follow-up message rather than mutating state
+directly:
+
+```typescript
+// make sure to grab appropriate imports relative to the file path
+
+// Define a simple message type for toggling
+export type Msg = { type: "toggle" } | { type: "request-finished" };
+
+// this should be imported from node/root-msg.ts
+export type ToggleRootMsg = {
+  type: "toggle-msg";
+  id: ToggleId;
+  msg: Msg;
+};
+
+export type ToggleId = number & { __toggleId: true };
+
+export class Toggle {
+  public state: {
+    isOn: boolean;
+  };
+
+  private myDispatch: Dispatch<Msg>;
+
+  constructor(
+    public id: ToggleId,
+    private context: { dispatch: Dispatch<RootMsg>; nvim: Nvim },
+  ) {
+    this.myDispatch = (msg) =>
+      this.context.dispatch({
+        type: "toggle-msg",
+        id: this.id,
+        msg,
+      });
+
+    this.state = {
+      isOn: false,
+    };
+  }
+
+  update(msg: RootMsg): void {
+    if (msg.type === "toggle-msg" && msg.id === this.id) {
+      this.myUpdate(msg.msg);
+    }
+  }
+
+  private myUpdate(msg: Msg): void {
+    switch (msg.type) {
+      case "toggle":
+        this.state.isOn = !this.state.isOn;
+
+        if (this.state.isOn) {
+          this.notifyServer().catch((error) => {
+            this.context.nvim.logger.error("Failed to notify server:", error);
+          });
+        }
+        return;
+      case "request-finished":
+        this.context.nvim.logger.info("Server notification completed");
+        return;
+      default:
+        assertUnreachable(msg);
+    }
+  }
+
+  private async notifyServer(): Promise<void> {
+    await new Promise<void>((resolve) => {
+      setTimeout(() => resolve(), 500);
+    });
+    // Dispatch the request-finished message when done
+    this.myDispatch({ type: "request-finished" });
+  }
+
+  view() {
+    return d`
+Current state: ${this.state.isOn ? "ON" : "OFF"}
+
+${withBindings(d`[Toggle]`, {
+  "<CR>": () => this.myDispatch({ type: "toggle" }),
+})}`;
+  }
+}
+```
+
 ## Rendering Cycle
 
 1. User action triggers a keybinding or command

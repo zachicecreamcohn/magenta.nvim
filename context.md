@@ -15,6 +15,20 @@ Key entry points:
 - `lua/magenta/keymaps.lua` — neovim keymaps
 - `node/sidebar.ts` — manages the sidebar (chat/input buffers, keymaps)
 
+# Semantic search (pkb)
+
+This repo has a semantic search index over its code and docs, built with [pkb](https://github.com/dlants/pkb). For exploratory / orientation questions ("where is X handled?", "how does Y work?"), use `pkb search` rather than grepping with `rg`. Reserve `rg` for exact symbol/string lookups.
+
+```bash
+pkb search "<natural language query>"   # -k N sets result count (default 5)
+```
+
+Each result is a snippet with its file path — treat it as a pointer and open the file to read the real code. The index reflects the last indexed commit on `main`, not your working tree. The `plans/` dir is excluded from the index (see `pkb.toml`).
+
+<system_reminder>
+Prefer `pkb search <query>` to rg for exploratory queries.
+</system_reminder>
+
 # Architecture
 
 ## Core layer (`@magenta/core`)
@@ -66,107 +80,14 @@ For comprehensive view system documentation and templating patterns, use `get_fi
 
 **Important**: This is NOT React - it's a TUI templating system for neovim buffers.
 
-# Putting it all together
-
-Here's a minimal example of a controller with just one message type and two states:
-
-```typescript
-// make sure to grab appropriate imports relative to the file path
-
-// Define a simple message type for toggling
-export type Msg = { type: "toggle" } | { type: "request-finished" };
-
-// this should be imported from node/root-msg.ts
-export type ToggleRootMsg = {
-  type: "toggle-msg";
-  id: ToggleId;
-  msg: Msg;
-};
-
-export type ToggleId = number & { __toggleId: true };
-
-export class Toggle {
-  public state: {
-    isOn: boolean;
-  };
-
-  private myDispatch: Dispatch<Msg>;
-
-  constructor(
-    public id: ToggleId,
-    private context: { dispatch: Dispatch<RootMsg>; nvim: Nvim },
-  ) {
-    this.myDispatch = (msg) =>
-      this.context.dispatch({
-        type: "toggle-msg",
-        id: this.id,
-        msg,
-      });
-
-    this.state = {
-      isOn: false,
-    };
-  }
-
-  update(msg: RootMsg): void {
-    if (msg.type === "toggle-msg" && msg.id === this.id) {
-      this.myUpdate(msg.msg);
-    }
-  }
-
-  private myUpdate(msg: Msg): void {
-    switch (msg.type) {
-      case "toggle":
-        this.state.isOn = !this.state.isOn;
-
-        if (this.state.isOn) {
-          this.notifyServer().catch((error) => {
-            this.context.nvim.logger.error("Failed to notify server:", error);
-          });
-        }
-        return;
-      case "request-finished":
-        this.context.nvim.logger.info("Server notification completed");
-        return;
-      default:
-        assertUnreachable(msg);
-    }
-  }
-
-  private async notifyServer(): Promise<void> {
-    await new Promise<void>((resolve) => {
-      setTimeout(() => resolve(), 500);
-    });
-    // Dispatch the request-finished message when done
-    this.myDispatch({ type: "request-finished" });
-  }
-
-  view() {
-    return d`
-Current state: ${this.state.isOn ? "ON" : "OFF"}
-
-${withBindings(d`[Toggle]`, {
-  "<CR>": () => this.myDispatch({ type: "toggle" }),
-})}`;
-  }
-}
-```
-
 # Testing
 
-For comprehensive testing documentation, patterns, and best practices, use `get_file` to access the `doc-testing` skill at `.magenta/skills/doc-testing/skill.md`.
+See `.magenta/skills/doc-testing/skill.md`.
 
 Quick reference:
 
-- Run tests: `TEST_MODE=sandbox npx vitest run` (from project root, for local development)
-- Run specific test: `TEST_MODE=sandbox npx vitest run <file>`
-- Use `withDriver()` helper for integration tests
-- Prefer realistic nvim interactions over internal API access for integration tests
-- Prefer unit tests over core classes for things that don't require neovim / UX interaction
-
-## Test Modes
-
-- `npx vitest run` — runs all tests.
+- Run tests: `npx vitest run` (from project root, for local development)
+- Run specific test: `npx vitest run <file>`
 
 # Type checks
 
@@ -179,14 +100,3 @@ To run just the core tests: `npx vitest run node/core/`
 # Linting and Formatting
 
 Use `npx biome check .` to run linting and formatting checks. Use `npx biome check --write .` to auto-fix issues.
-
-# Notes
-
-To avoid complexity, keep variable names on the lua side camelCase, to match the variables defined in typescript.
-
-Any markdown file (notably a skill's `skill.md`) may contain a `<system_reminder>` block; when the agent reads it via `get_file` or while it is held as a context file, the block is folded into the recurring system reminder. These markdown-sourced reminders are dropped at compaction.
-
-Do not use dynamic `import()` expressions. Use static `import` statements at the top of the file instead.
-We only want to use a single bottom value, so use undefined whenever you can and avoid null. When external libraries use null, only use null at the boundary, and convert to undefined as early as possible, so the internals of the plugin only use undefined.
-
-You must **NEVER** introduce new `any` types. Always check with the user if you're thinking about doing so.
