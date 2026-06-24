@@ -32,11 +32,16 @@ export function createLogWriter(
   fs.mkdirSync(logDir, { recursive: true });
   const logFilePath = path.join(logDir, "bashCommand.log");
   const logStream = fs.createWriteStream(logFilePath, { flags: "w" });
+  // Avoid crashing the process on stream errors (e.g. write-after-end caused
+  // by late data events from a killed detached process group).
+  logStream.on("error", () => {});
   logStream.write(`$ ${command}\n`);
   let currentStream: "stdout" | "stderr" | undefined;
+  let ended = false;
 
   return {
     write(stream: "stdout" | "stderr", text: string) {
+      if (ended) return;
       if (currentStream !== stream) {
         logStream.write(`${stream}:\n`);
         currentStream = stream;
@@ -44,9 +49,12 @@ export function createLogWriter(
       logStream.write(`${text}\n`);
     },
     writeRaw(text: string) {
+      if (ended) return;
       logStream.write(text);
     },
     end() {
+      if (ended) return;
+      ended = true;
       logStream.end();
     },
     filePath: logFilePath,
