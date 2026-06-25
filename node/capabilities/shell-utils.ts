@@ -17,18 +17,22 @@ export type LogWriter = {
   filePath: string;
 };
 
-export function createLogWriter(
-  threadId: string,
-  toolRequestId: string,
-  command: string,
-): LogWriter {
-  const logDir = path.join(
+export function toolLogDir(threadId: string, toolRequestId: string): string {
+  return path.join(
     MAGENTA_TEMP_DIR,
     "threads",
     threadId,
     "tools",
     toolRequestId,
   );
+}
+
+export function createLogWriter(
+  threadId: string,
+  toolRequestId: string,
+  command: string,
+): LogWriter {
+  const logDir = toolLogDir(threadId, toolRequestId);
   fs.mkdirSync(logDir, { recursive: true });
   const logFilePath = path.join(logDir, "bashCommand.log");
   const logStream = fs.createWriteStream(logFilePath, { flags: "w" });

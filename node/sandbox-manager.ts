@@ -5,6 +5,7 @@ import type {
   SandboxViolationEvent,
 } from "@anthropic-ai/sandbox-runtime";
 import { SandboxManager } from "@anthropic-ai/sandbox-runtime";
+import { assertStraceAvailable } from "./capabilities/strace.ts";
 import type { SandboxConfig } from "./options.ts";
 import type { HomeDir, NvimCwd } from "./utils/files.ts";
 
@@ -258,6 +259,11 @@ export async function initializeSandbox(
       logger.warn(`Sandbox dependency warning: ${warning}`);
     }
   }
+
+  // On Linux, sandbox violations are captured by running commands under strace.
+  // There is no regex fallback, so strace is a hard requirement: throw (refusing
+  // to start) if it is missing or cannot attach.
+  assertStraceAvailable(process.platform);
 
   const runtimeConfig = resolveConfigPaths(config, cwd, homeDir);
   await SandboxManager.initialize(runtimeConfig, askCallback, true);

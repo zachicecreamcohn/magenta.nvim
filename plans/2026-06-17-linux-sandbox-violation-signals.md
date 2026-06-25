@@ -449,6 +449,38 @@ Repro scripts used: `/tmp/strace-spike.sh` (basic bwrap nesting) and
 
 ## Stage 4 — strace wrapping + parser + remove heuristic + startup check
 
+**Status: DONE.** New `node/capabilities/strace.ts` module provides
+`buildStraceCommand` (wraps the user command as
+`strace -f -qq -e trace=file,network,process -e signal=none -o <file> -- bash -c '<cmd>'`),
+`parseStraceViolations` (parses trace lines, capturing only EPERM/EACCES
+syscalls as `SandboxViolationEvent`s with a readable `line` like
+`openat("/secret.txt") -> EACCES`, de-duplicated), and the startup capability
+check `assertStraceAvailable(platform, probe)` + `StraceUnavailableError` +
+`defaultStraceProbe` (runs `strace ... -- true` to verify it can actually
+attach, not just that the binary exists). `SandboxShell.execute` now, on Linux,
+computes a per-command trace path (`toolLogDir(...)/command.strace`, with
+`MAGENTA_TEMP_DIR` added to `allowWrite` so strace can write there), wraps the
+user command with `buildStraceCommand` *before* `wrapWithSandbox` (strace nested
+under bwrap), parses the trace file at the old detection point, and cleans up
+the trace file in the `finally` block. The process-group/termination rationale
+(strace nested under bwrap; SIGKILL escalation load-bearing) is documented as a
+comment at the strace-wrapping call site. `detectLinuxSandboxViolations`,
+`compileViolationPatterns`, and the `bwrapSandboxViolationPatterns` option
+(type/default/merge/parse + all test literals) are **deleted**. The startup
+check is wired into `initializeSandbox` (after the dependency check) and
+`magenta.ts` rethrows `StraceUnavailableError` (refusing to start) instead of
+swallowing it into "continue without sandbox". New `strace.test.ts` covers the
+parser (denied-only, dedup, path extraction, empty), `buildStraceCommand`
+shape/quoting, and the startup check (no-op off-Linux, throws on Linux when
+probe fails). The Linux describe block in `sandbox-shell.test.ts` was rewritten
+to drive the strace path via a fixture trace file. Shared `toolLogDir` helper
+extracted in `shell-utils.ts`. `npx tsgo -b`, `npx biome check .`, and all
+sandbox/options/capabilities tests pass.
+
+Decision: trace files live under `MAGENTA_TEMP_DIR` (`/tmp/magenta/...`), and the
+Linux path appends `MAGENTA_TEMP_DIR` to `allowWrite` so the sandbox permits
+strace to record there.
+
 - Goal: `SandboxShell` wraps the user command with strace on Linux and parses the
   trace file into `SandboxViolationEvent`s at the point
   `detectLinuxSandboxViolations` is called today. **Delete**

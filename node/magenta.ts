@@ -4,6 +4,7 @@ import type { InputMessage, NativeMessageIdx, ThreadId } from "@magenta/core";
 import { probeAndSaveClipboardImage } from "@magenta/core";
 import { type BufferInfo, BufferManager } from "./buffer-manager.ts";
 import { Lsp } from "./capabilities/lsp.ts";
+import { StraceUnavailableError } from "./capabilities/strace.ts";
 import { Chat } from "./chat/chat.ts";
 import { CommandRegistry } from "./chat/commands/registry.ts";
 import {
@@ -1045,6 +1046,11 @@ ${lines.join("\n")}
         askCallback,
         { warn: (msg) => nvim.logger.warn(`Sandbox: ${msg}`) },
       ).catch((err) => {
+        // strace is a hard requirement on Linux (no regex fallback). If it is
+        // missing/cannot attach, refuse to start rather than silently degrading.
+        if (err instanceof StraceUnavailableError) {
+          throw err;
+        }
         const reason = err instanceof Error ? err.message : String(err);
         nvim.logger.warn(
           `Failed to initialize sandbox, continuing without it: ${reason}`,

@@ -1,6 +1,8 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import type { SandboxViolationEvent } from "@anthropic-ai/sandbox-runtime";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import type { ThreadId } from "@magenta/core";
+import { MAGENTA_TEMP_DIR } from "@magenta/core";
 import type { MagentaOptions } from "../options.ts";
 import type { NetworkAskTarget, Sandbox } from "../sandbox-manager.ts";
 import { withTimeout } from "../utils/async.ts";
@@ -12,7 +14,9 @@ import {
   escalateToSigkill,
   processStreamData,
   terminateProcess,
+  toolLogDir,
 } from "./shell-utils.ts";
+import { buildStraceCommand, parseStraceViolations } from "./strace.ts";
 
 /** Grace period (ms) after first violation before terminating the process */
 export const VIOLATION_GRACE_PERIOD_MS = 5000;
@@ -205,8 +209,48 @@ export class SandboxShell implements Shell {
       );
     }
 
+    // On Linux (bubblewrap) there is no live violation-log channel, so we run
+    // the user command under strace and synthesize violation events from the
+    // syscalls the sandbox denied (EPERM/EACCES). strace must trace the *user
+    // command*, not bwrap's namespace setup, so we wrap the user command with
+    // strace first and hand the straced command to wrapWithSandbox below —
+    // bwrap stays the outermost process.
+    //
+    // Process-group / termination interaction: spawnCommand runs
+    // `bash -c <wrapped>` detached, so bwrap is the process-group leader
+    // (childProcess.pid == bwrap). With strace nested *inside* bwrap the tree is
+    // `bwrap -> strace -f -> bash -c <command>`; the negative-pid group kill in
+    // terminateProcess reaches strace, bash, and all descendants. strace must
+    // stay nested under bwrap (never the outermost process) or it becomes the
+    // group leader. A group SIGTERM also hits strace, which detaches and dies;
+    // there is a race where a tracee is left in a ptrace-stop, so the
+    // SIGTERM->SIGKILL escalation in terminate() is load-bearing (SIGKILL cannot
+    // be held by a ptrace-stop).
+    const isLinux = process.platform === "linux";
+    let traceFilePath: string | undefined;
+    let commandToWrap = command;
+    let sandboxConfig = options.sandbox;
+    if (isLinux) {
+      const logDir = toolLogDir(this.context.threadId, opts.toolRequestId);
+      fs.mkdirSync(logDir, { recursive: true });
+      traceFilePath = path.join(logDir, "command.strace");
+      commandToWrap = buildStraceCommand(command, traceFilePath);
+      // The trace file lives under MAGENTA_TEMP_DIR, which must be writable
+      // inside the sandbox for strace to record there.
+      sandboxConfig = {
+        ...options.sandbox,
+        filesystem: {
+          ...options.sandbox.filesystem,
+          allowWrite: [
+            ...options.sandbox.filesystem.allowWrite,
+            MAGENTA_TEMP_DIR,
+          ],
+        },
+      };
+    }
+
     this.sandbox.updateConfigIfChanged(
-      options.sandbox,
+      sandboxConfig,
       this.context.cwd,
       this.context.homeDir,
     );
@@ -214,7 +258,7 @@ export class SandboxShell implements Shell {
     const store = this.sandbox.getViolationStore();
     const preCount = store.getTotalCount();
 
-    const wrapped = await this.sandbox.wrapWithSandbox(command);
+    const wrapped = await this.sandbox.wrapWithSandbox(commandToWrap);
 
     try {
       return await this.runWrappedAndHandleViolations(
@@ -223,13 +267,20 @@ export class SandboxShell implements Shell {
         opts,
         store,
         preCount,
-        options,
+        traceFilePath,
       );
     } finally {
       // Always clean up bwrap mount points (e.g. ghost .env / .magenta files
       // bwrap creates in cwd as denyWrite mount points). Without try/finally,
       // violation early-returns and exceptions would skip cleanup and leak
       // empty files into the working directory.
+      if (traceFilePath) {
+        try {
+          fs.rmSync(traceFilePath, { force: true });
+        } catch {
+          // best-effort cleanup of the trace file
+        }
+      }
       this.sandbox.cleanupAfterCommand();
     }
   }
@@ -244,7 +295,7 @@ export class SandboxShell implements Shell {
     },
     store: ReturnType<Sandbox["getViolationStore"]>,
     preCount: number,
-    options: MagentaOptions,
+    traceFilePath: string | undefined,
   ): Promise<ShellResult> {
     // Monitor violations during execution and terminate early if a violation
     // is detected and the process doesn't finish within the grace period.
@@ -271,19 +322,19 @@ export class SandboxShell implements Shell {
 
     let postCount = store.getTotalCount();
 
-    // On Linux (bubblewrap / bwrap), the sandbox has no log monitor to populate the
-    // violation store. Violations manifest only as EPERM / "Permission denied"
-    // errors in stderr. Detect these heuristically and synthesize violation
-    // events so the user gets the same approval prompt as on macOS.
-    if (
-      result.exitCode !== 0 &&
-      postCount === preCount &&
-      process.platform === "linux"
-    ) {
-      const compiled = compileViolationPatterns(
-        options.sandbox.bwrapSandboxViolationPatterns,
-      );
-      const synthetic = detectLinuxSandboxViolations(command, result, compiled);
+    // On Linux (bubblewrap / bwrap), the sandbox has no log monitor to populate
+    // the violation store. Instead we ran the user command under strace; parse
+    // the trace file for syscalls the sandbox denied (EPERM/EACCES) and
+    // synthesize violation events so the user gets the same approval prompt as
+    // on macOS.
+    if (result.exitCode !== 0 && postCount === preCount && traceFilePath) {
+      let traceContent = "";
+      try {
+        traceContent = fs.readFileSync(traceFilePath, "utf8");
+      } catch {
+        // No trace file (strace produced none); nothing to synthesize.
+      }
+      const synthetic = parseStraceViolations(traceContent, command);
       for (const v of synthetic) {
         store.addViolation(v);
       }
@@ -362,37 +413,4 @@ export class SandboxShell implements Shell {
       },
     };
   }
-}
-
-function compileViolationPatterns(patterns: string[]): RegExp[] {
-  return patterns.map((p) => new RegExp(p));
-}
-
-function detectLinuxSandboxViolations(
-  command: string,
-  result: ShellResult,
-  patterns: RegExp[],
-): SandboxViolationEvent[] {
-  const stderrLines = result.output
-    .filter((l) => l.stream === "stderr")
-    .flatMap((l) => l.text.split("\n"))
-    .filter((line) => line.trim().length > 0);
-
-  const violations: SandboxViolationEvent[] = [];
-  const seen = new Set<string>();
-
-  for (const line of stderrLines) {
-    if (patterns.some((p) => p.test(line))) {
-      if (!seen.has(line)) {
-        seen.add(line);
-        violations.push({
-          line,
-          command,
-          timestamp: new Date(),
-        });
-      }
-    }
-  }
-
-  return violations;
 }

@@ -87,8 +87,6 @@ describe("parseSandboxConfig", () => {
       requireApprovalPatterns: [
         ...DEFAULT_SANDBOX_CONFIG.requireApprovalPatterns,
       ],
-      bwrapSandboxViolationPatterns:
-        DEFAULT_SANDBOX_CONFIG.bwrapSandboxViolationPatterns,
     });
   });
 
@@ -152,7 +150,6 @@ describe("mergeOptions", () => {
           allowAllUnixSockets: false,
         },
         requireApprovalPatterns: [],
-        bwrapSandboxViolationPatterns: ["Permission denied"],
       },
     });
 
@@ -171,7 +168,6 @@ describe("mergeOptions", () => {
           allowAllUnixSockets: false,
         },
         requireApprovalPatterns: [],
-        bwrapSandboxViolationPatterns: [],
       },
     });
 
