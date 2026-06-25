@@ -86,7 +86,9 @@ export class StraceUnavailableError extends Error {
   }
 }
 
-export type StraceProbe = () => { ok: boolean; error?: string };
+export type StraceProbeResult = { ok: true } | { ok: false; error: string };
+
+export type StraceProbe = () => StraceProbeResult;
 
 // Default probe: actually run strace on a trivial command so we verify it can
 // attach (ptrace), not merely that the binary exists.
@@ -113,6 +115,6 @@ export function assertStraceAvailable(
   if (platform !== "linux") return;
   const result = probe();
   if (!result.ok) {
-    throw new StraceUnavailableError(result.error ?? "unknown error");
+    throw new StraceUnavailableError(result.error);
   }
 }

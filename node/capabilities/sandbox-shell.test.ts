@@ -1,7 +1,7 @@
 import type { ChildProcess } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type { ThreadId } from "@magenta/core";
+import { MAGENTA_TEMP_DIR, type ThreadId } from "@magenta/core";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { MagentaOptions, SandboxConfig } from "../options.ts";
 import type { SandboxState } from "../sandbox-manager.ts";
@@ -992,6 +992,27 @@ describe("SandboxShell", () => {
       expect(handler.addViolation).not.toHaveBeenCalled();
       expect(result.exitCode).toBe(1);
       expect(mockCleanupAfterCommand).toHaveBeenCalled();
+    });
+
+    test("adds MAGENTA_TEMP_DIR to allowWrite so strace can write the trace", async () => {
+      setupStoreWithSyntheticSupport();
+
+      const proc = createMockChildProcess();
+      mockSpawn.mockReturnValueOnce(proc);
+
+      const handler = createMockViolationHandler();
+      const shell = new SandboxShell(createContext(), mockSandbox, handler);
+      const executePromise = shell.execute("echo hi", createOpts());
+      await pollUntil(() => {
+        if (!mockSpawn.mock.calls.length) throw new Error("waiting for spawn");
+      });
+
+      const sandboxConfig = mockUpdateConfigIfChanged.mock
+        .calls[0][0] as SandboxConfig;
+      expect(sandboxConfig.filesystem.allowWrite).toContain(MAGENTA_TEMP_DIR);
+
+      proc._emit("close", 0, null);
+      await executePromise;
     });
   });
 

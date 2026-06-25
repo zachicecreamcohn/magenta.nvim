@@ -481,6 +481,22 @@ Decision: trace files live under `MAGENTA_TEMP_DIR` (`/tmp/magenta/...`), and th
 Linux path appends `MAGENTA_TEMP_DIR` to `allowWrite` so the sandbox permits
 strace to record there.
 
+**Code-review follow-up (Stage 4/5):**
+- `StraceProbe` now returns a discriminated union
+  `StraceProbeResult = { ok: true } | { ok: false; error: string }`, so invalid
+  states (`{ ok: true, error }`, `{ ok: false }`) are unrepresentable. This let
+  `assertStraceAvailable` drop the `result.error ?? "unknown error"` fallback —
+  the failure branch now statically guarantees `error`.
+- Added a unit test in `sandbox-shell.test.ts` ("Linux strace violation
+  detection") asserting that on Linux the config passed to
+  `updateConfigIfChanged` contains `MAGENTA_TEMP_DIR` in `filesystem.allowWrite`
+  (the load-bearing augmentation that lets strace write its trace inside the
+  sandbox).
+- The `magenta.ts` sandbox-init catch handler (rethrow `StraceUnavailableError`
+  vs. warn-and-degrade) was left as inline thin glue: extracting it for a unit
+  test would over-engineer the wiring, and the throw contract is already covered
+  at the `assertStraceAvailable` site.
+
 - Goal: `SandboxShell` wraps the user command with strace on Linux and parses the
   trace file into `SandboxViolationEvent`s at the point
   `detectLinuxSandboxViolations` is called today. **Delete**
