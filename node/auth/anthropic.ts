@@ -197,6 +197,26 @@ export async function refresh(refreshToken: string): Promise<OAuthTokens> {
   };
 }
 
+// Coalesces concurrent token refreshes. Anthropic rotates refresh tokens, so
+// firing two refreshes with the same refresh token (e.g. the agent stream and
+// the thread-title forceToolUse request) makes the second fail and clear the
+// freshly-stored tokens, which would then trigger a spurious interactive login.
+let pendingRefresh: Promise<string | undefined> | undefined;
+
+async function refreshAccessToken(
+  refreshToken: string,
+): Promise<string | undefined> {
+  try {
+    const newTokens = await refresh(refreshToken);
+    await storeTokens(newTokens);
+    return newTokens.access;
+  } catch {
+    // Refresh failed, clear invalid tokens
+    await clearTokens();
+    return undefined;
+  }
+}
+
 export async function getAccessToken(): Promise<string | undefined> {
   const tokens = await loadTokens();
   if (!tokens) {
@@ -208,16 +228,12 @@ export async function getAccessToken(): Promise<string | undefined> {
     return tokens.access;
   }
 
-  // Try to refresh the token
-  try {
-    const newTokens = await refresh(tokens.refresh);
-    await storeTokens(newTokens);
-    return newTokens.access;
-  } catch {
-    // Refresh failed, clear invalid tokens
-    await clearTokens();
-    return undefined;
+  if (!pendingRefresh) {
+    pendingRefresh = refreshAccessToken(tokens.refresh).finally(() => {
+      pendingRefresh = undefined;
+    });
   }
+  return pendingRefresh;
 }
 
 export async function isAuthenticated(): Promise<boolean> {
