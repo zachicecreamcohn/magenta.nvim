@@ -377,6 +377,57 @@ unrelated to this stage.)
       prompts again.
 - Before moving on: tests, type checks, lint pass.
 
+### Stage 3 finding (DONE — Stage 4 is GO)
+
+Spike run on Linux (OrbStack/aarch64, `debian:bookworm-slim`, bubblewrap 0.8.0,
+strace 6.1) confirms the strace-nested-under-bwrap approach works. **Stage 4 is
+unblocked; no redesign needed.**
+
+Setup mirrored the library's bwrap shape (`--new-session --die-with-parent
+--ro-bind / / --bind <work> <work> --dev /dev --unshare-pid --proc /proc
+--unshare-user --bind /proc /proc`), denied a path via `--ro-bind /dev/null
+/secret.txt`, and wrapped the user command as
+`strace -f -qq -e trace=file,network,process -e signal=none -o <traceFile> -- bash -c '<cmd>'`
+*inside* the bwrap `-- bash -c` (i.e. strace nested under bwrap, exactly as the
+plan's "wrap user command with strace, then wrapWithSandbox" prescribes).
+
+Results:
+- The denied `cat /secret.txt` produced a parseable trace line:
+  `openat(AT_FDCWD, "/secret.txt", O_RDONLY) = -1 EACCES (Permission denied)`
+  in the writable trace file (`/work/trace.out`, inside the writable bind).
+- The user trace contains only the user command's syscalls (its `execve` +
+  descendants). bwrap's own namespace-setup `EPERM`s are absent because strace
+  starts at the user command, not at bwrap — so the "never parse bwrap setup"
+  invariant holds for free.
+- **ptrace_scope (yama):** works with `kernel.yama.ptrace_scope=2`
+  (admin-only ATTACH). strace traces its **own forked child** via
+  `PTRACE_TRACEME`, which is exempt from yama scope restrictions (yama only
+  gates `PTRACE_ATTACH` to non-children). So restrictive ptrace_scope on the
+  host does not break this.
+- **PR_SET_DUMPABLE=0:** works. Even with the parent process set non-dumpable
+  (as apply-seccomp's inner init does) and inside the bwrap pid/user namespace,
+  the denied syscall was still captured. `dumpable` governs whether *others* can
+  trace *you*; the child resets `dumpable` to 1 on `execve` of a non-setuid
+  binary, and strace is tracing its own descendant — so attach succeeds.
+
+Why this generalizes to the seccomp-active path: the library's seccomp filter is
+the *unix-socket-block* BPF (`socket(AF_UNIX, ...)`); it does **not** block the
+`ptrace` syscall, so strace's TRACEME/wait machinery is unaffected. When seccomp
+is active the user command is wrapped as `apply-seccomp <filter> <straced-cmd>`;
+apply-seccomp simply execs the straced command, and the dumpable/ptrace_scope
+analysis above already covers that nesting.
+
+Residual risks to watch in Stage 4 (not blockers):
+- The SIGTERM→SIGKILL escalation remains load-bearing for the ptrace-stop race
+  documented in "Process-group / termination interaction"; keep it.
+- If a future seccomp profile starts blocking `ptrace`, attach would fail; the
+  Stage 4 startup capability check (verify strace can actually attach, not just
+  that the binary exists) is what catches that — keep it as a real attach probe.
+
+Repro scripts used: `/tmp/strace-spike.sh` (basic bwrap nesting) and
+`/tmp/strace-spike-b.sh` (ptrace_scope=2 + PR_SET_DUMPABLE=0), run via
+`docker run --rm --privileged debian:bookworm-slim`.
+
 ## Stage 3 — strace feasibility spike (Linux)
 
 - Goal: decide whether `strace` can attach to and trace the user command inside
