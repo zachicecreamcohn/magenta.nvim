@@ -29,6 +29,9 @@ const mockSandbox = {
   getFsWriteConfig: () => ({ allowOnly: ["/"], denyWithinAllow: [] }),
   updateConfigIfChanged: (...args: [SandboxConfig, NvimCwd, HomeDir]) =>
     mockUpdateConfigIfChanged(...args),
+  pushNetworkAskTarget: () => {},
+  popNetworkAskTarget: () => {},
+  routeNetworkAsk: () => Promise.resolve(false),
 };
 
 // Mock child_process

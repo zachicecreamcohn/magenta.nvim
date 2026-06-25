@@ -27,17 +27,42 @@ type PendingWriteApprovalPrompt = {
   absPath: string;
 };
 
-type PendingPrompt =
+type PendingNetworkAccessPrompt = {
+  kind: "network-access";
+  host: string;
+  port: number | undefined;
+};
+
+type PendingShellPrompt =
   | PendingApprovalPrompt
   | PendingViolationPrompt
   | PendingWriteApprovalPrompt;
 
-export type PendingViolation = {
-  id: string;
-  prompt: PendingPrompt;
-  resolve: (result: ShellResult) => void;
-  reject: (err: Error) => void;
-};
+// The network-access prompt resolves to a boolean (allow/deny the connection)
+// rather than a ShellResult, so it carries its own resolve type instead of
+// widening the shared shell-result resolve.
+export type PendingViolation =
+  | {
+      id: string;
+      prompt: PendingShellPrompt;
+      resolve: (result: ShellResult) => void;
+      reject: (err: Error) => void;
+    }
+  | {
+      id: string;
+      prompt: PendingNetworkAccessPrompt;
+      resolve: (allowed: boolean) => void;
+      reject: (err: Error) => void;
+    };
+
+type NetworkPending = Extract<
+  PendingViolation,
+  { prompt: PendingNetworkAccessPrompt }
+>;
+
+function isNetworkPending(entry: PendingViolation): entry is NetworkPending {
+  return entry.prompt.kind === "network-access";
+}
 
 function normalizeViolationLine(line: string): string {
   // Strip process-specific PIDs so e.g. "sysctl(77444)" and "sysctl(77445)"
@@ -107,11 +132,37 @@ export class SandboxViolationHandler {
     });
   }
 
+  promptForNetworkAccess(params: {
+    host: string;
+    port: number | undefined;
+  }): Promise<boolean> {
+    return new Promise<boolean>((resolve, reject) => {
+      const id = String(this.nextId++);
+      this.pending.set(id, {
+        id,
+        prompt: {
+          kind: "network-access",
+          host: params.host,
+          port: params.port,
+        },
+        resolve,
+        reject,
+      });
+      this.onPendingChange();
+    });
+  }
+
   approve(id: string): void {
     const entry = this.pending.get(id);
     if (!entry) return;
 
     this.pending.delete(id);
+
+    if (isNetworkPending(entry)) {
+      entry.resolve(true);
+      this.onPendingChange();
+      return;
+    }
 
     if (entry.prompt.kind === "write-approval") {
       entry.resolve(undefined as unknown as ShellResult);
@@ -131,6 +182,12 @@ export class SandboxViolationHandler {
     if (!entry) return;
 
     this.pending.delete(id);
+
+    if (isNetworkPending(entry)) {
+      entry.resolve(false);
+      this.onPendingChange();
+      return;
+    }
 
     if (entry.prompt.kind === "violation") {
       const { result } = entry.prompt.violation;
@@ -203,6 +260,30 @@ ${withBindings(
   }),
   {
     "<CR>": () => this.reject(id),
+  },
+)}
+`;
+  }
+  if (entry.prompt.kind === "network-access") {
+    const target =
+      entry.prompt.port !== undefined
+        ? `${entry.prompt.host}:${entry.prompt.port}`
+        : entry.prompt.host;
+    return d`🌐 Allow network access to ${withInlineCode(d`\`${target}\``)}?
+${withBindings(
+  withExtmark(d`> REJECT`, {
+    hl_group: ["ErrorMsg", "@markup.strong.markdown"],
+  }),
+  {
+    "<CR>": () => this.reject(id),
+  },
+)}
+${withBindings(
+  withExtmark(d`> APPROVE`, {
+    hl_group: ["String", "@markup.strong.markdown"],
+  }),
+  {
+    "<CR>": () => this.approve(id),
   },
 )}
 `;

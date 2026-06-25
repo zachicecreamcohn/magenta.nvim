@@ -1051,6 +1051,9 @@ ${lines.join("\n")}
           getFsWriteConfig: () => ({ allowOnly: [], denyWithinAllow: [] }),
           updateConfigIfChanged: () => {},
           cleanupAfterCommand: () => {},
+          pushNetworkAskTarget: () => {},
+          popNetworkAskTarget: () => {},
+          routeNetworkAsk: () => Promise.resolve(false),
         } satisfies Sandbox;
       }));
 

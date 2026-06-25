@@ -7,7 +7,7 @@ User request, verbatim:
 Referring to the two recommendations from the preceding discussion:
 
 > 1. **Now:** wire the `SandboxAskCallback` into `SandboxViolationHandler` — instant robust network prompts on Linux, and it removes a whole class of stderr-heuristic guessing.
-> 2. **Near-term:** replace `detectLinuxSandboxViolations`' stderr parsing with strace-based EPERM capture for filesystem/exec denials.
+> 2. **Near-term:** replace `detectLinuxSandboxViolations`' stderr parsing with strace-based EPERM capture for filesystem/exec denials. (Now: drop the stderr heuristic entirely and make strace a hard requirement on Linux.)
 
 ## What we're building and why
 
@@ -29,10 +29,13 @@ Two independent improvements:
   errors. Wiring it gives a real, live, "may I connect to X?" prompt on both
   platforms, with no kernel work.
 
-- **(2) Filesystem/exec:** replace the `stderr` regex heuristic with running the
-  user command under `strace`, capturing syscalls that return `EPERM`/`EACCES`,
-  and synthesizing structured violation events from those. Keep the regex
-  heuristic as a fallback when `strace` is unavailable or cannot attach.
+- **(2) Filesystem/exec:** replace the `stderr` regex heuristic entirely with
+  running the user command under `strace`, capturing syscalls that return
+  `EPERM`/`EACCES`, and synthesizing structured violation events from those. The
+  old `detectLinuxSandboxViolations` heuristic and `bwrapSandboxViolationPatterns`
+  option are **removed**, not kept as a fallback. `strace` becomes a hard
+  requirement on Linux: if it is missing (or cannot attach), magenta **refuses
+  to start** with a clear error rather than silently degrading.
 
 ## Key entities
 
@@ -52,11 +55,15 @@ Two independent improvements:
   (`node/environment.ts`).
 - `SandboxShell` (`node/capabilities/sandbox-shell.ts`) — runs commands. Holds
   `runWrappedAndHandleViolations`, the Linux heuristic
-  (`detectLinuxSandboxViolations`, `compileViolationPatterns`), and `spawnCommand`
-  (the raw `bash -c` runner). Wraps the user command via
+  (`detectLinuxSandboxViolations`, `compileViolationPatterns` — to be **removed**),
+  and `spawnCommand` (the raw `bash -c` runner). Wraps the user command via
   `sandbox.wrapWithSandbox(command)` before spawning.
 - `bwrapSandboxViolationPatterns` (`node/options.ts`) — user-configurable regexes
-  for the current Linux heuristic.
+  for the current Linux heuristic. To be **removed** along with the heuristic.
+- `SandboxConfig` (`node/options.ts`) — the `sandbox` options block, parsed by
+  `parseSandboxConfig` and merged by `mergeSandboxConfigs`. Already supports
+  layered configuration (defaults → user-level → project-level), so any new
+  field automatically inherits project/user override + merge semantics.
 - `MockSandboxManager` (`node/test/mock-sandbox-manager.ts`) — test double
   implementing `Sandbox`; `simulateViolation` feeds the violation store.
 
@@ -148,18 +155,53 @@ strace -f -qq -e trace=file,network,process -e signal=none \
   is `EPERM`/`EACCES`, extract syscall + the relevant path/target argument, and
   build `SandboxViolationEvent`s (reusing the existing `{ line, command,
   timestamp }` shape, with `line` a human-readable rendering like
-  `openat("/etc/shadow") -> EACCES`). Feed these into the violation store exactly
-  where `detectLinuxSandboxViolations` does today, so the rest of the flow
-  (annotate, `addViolation`, approval prompt, re-run-unsandboxed) is unchanged.
+  `openat("/etc/shadow") -> EACCES`). Feed these into the violation store at the
+  point `detectLinuxSandboxViolations` is called today (that call is being
+  deleted), so the rest of the flow (annotate, `addViolation`, approval prompt,
+  re-run-unsandboxed) is unchanged.
 
-### Availability & fallback
+### Process-group / termination interaction
 
-`strace` is a new optional runtime dependency. Add a capability check
-(presence of the `strace` binary; on first use, cache the result). If `strace`
-is missing **or** the straced run shows signs that tracing did not attach (e.g.
-empty/garbage trace file, or strace's own startup error), fall back to the
-existing `detectLinuxSandboxViolations` regex path. The regex code stays as the
-fallback; `bwrapSandboxViolationPatterns` remains supported.
+Today `spawnCommand` spawns `bash -c <command>` with `detached: true`, making
+bash a process-group leader (pgid == pid). Termination signals the whole group
+via `process.kill(-pid, SIGTERM)` then escalates to SIGKILL
+(`terminateProcess`/`escalateToSigkill` in `shell-utils.ts`), so any children
+bash spawned are also killed.
+
+With strace the spawned tree becomes `bwrap → strace -f → bash -c <command>`
+(strace wraps the user command, then `wrapWithSandbox` wraps the straced
+command, so **bwrap remains the outermost process and the group leader**, and
+`childProcess.pid` is bwrap's host pid). This preserves the kill path: the
+negative-pid group-kill still reaches strace, bash, and all descendants. Rules
+to keep this invariant:
+
+- Keep strace **inside** the bwrap wrap (strace nested under bwrap). Never make
+  strace the outermost process, or it becomes the group leader and we'd be
+  relying on strace's own teardown to bring down bwrap.
+- `strace -f` follows forks/clones, so the traced set matches the process group
+  we corral — they stay aligned.
+- Signal delivery to a ptraced process is mediated by its tracer (strace).
+  strace is in the same group, so a group SIGTERM hits strace too; its default
+  behavior is to detach and die, after which the directly-signaled tracees
+  terminate. There is a race window where strace dies before forwarding/detaching
+  and a tracee is left in a ptrace-stop. We rely on the existing SIGTERM→SIGKILL
+  escalation to defeat this, since SIGKILL cannot be blocked or held by a
+  ptrace-stop.
+
+When implementing Stage 4, copy the essence of this section into a comment at
+the strace-wrapping call site in `SandboxShell`, so future readers understand
+why strace must stay nested under bwrap and why the SIGKILL escalation is
+load-bearing.
+
+### Availability — hard requirement (no fallback)
+
+`strace` is a new **required** runtime dependency on Linux. Add a startup
+capability check (presence of the `strace` binary; verify it can actually attach
+inside the sandbox, not just that the binary exists). If `strace` is missing or
+cannot attach, magenta **refuses to start** on Linux with a clear, actionable
+error (how to install strace / why it is required). There is no regex fallback:
+`detectLinuxSandboxViolations`, `compileViolationPatterns`, and
+`bwrapSandboxViolationPatterns` are deleted.
 
 ### Risk: ptrace inside the sandbox (spike first)
 
@@ -168,20 +210,90 @@ The library applies a seccomp + nested PID-namespace isolation layer
 `PR_SET_DUMPABLE=0`, and `kernel.yama.ptrace_scope` may restrict attach. `strace`
 relies on `ptrace`, so it may fail to attach in some configurations. This must be
 validated by a spike before building the parser, since if `strace` cannot run
-inside the sandbox the whole approach is moot and we keep the heuristic. Outcome
-of the spike decides whether Part 2 proceeds as designed, runs strace *outside*
-bwrap around the wrapped command, or is dropped.
+inside the sandbox the whole approach is moot. Because there is no fallback,
+the spike is load-bearing: if attach fails everywhere, we must either run strace
+*outside* bwrap around the wrapped command or rethink Part 2 — we cannot ship a
+"refuse to start" requirement for a mechanism that can't work.
 
 Invariants (Part 2):
 - strace wraps the user command only; bwrap setup syscalls are never parsed.
 - Trace file lives in a sandbox-writable path and is cleaned up with the command.
-- Missing/failed strace degrades gracefully to the existing regex heuristic — no
-  regression in current behavior.
+- Missing/failed strace ⇒ magenta refuses to start on Linux (no regex fallback).
 - Only `EPERM`/`EACCES` results become violations; other syscalls are ignored.
+- strace stays nested under bwrap so bwrap remains the process-group leader and
+  the existing negative-pid group-kill + SIGKILL escalation still terminates the
+  whole tree.
+
+## Part 3 — configurable auto-allow behavior (options)
+
+### Why
+
+The default for both new signals is "prompt the user". But some users/projects
+run trusted automation where prompting is undesirable, and others want to lock
+things down. Expose configuration so both the network ask (Part 1) and the
+strace capture (Part 2) can be tuned per-project or per-user. Because these go
+in `SandboxConfig`, they automatically pick up the existing defaults → user →
+project layering via `parseSandboxConfig` + `mergeSandboxConfigs`.
+
+### New options
+
+Add to `SandboxConfig` (`node/options.ts`), with defaults that preserve today's
+"safe + prompt" behavior:
+
+- `network.onUnknownHost: "prompt" | "allow" | "deny"` (default `"prompt"`).
+  Controls what the global `askCallback` does for a host that is neither allow-
+  nor deny-listed:
+  - `"prompt"` — surface a `network-access` prompt (Part 1 default behavior).
+  - `"allow"` — resolve `true` without prompting (auto-allow; still records the
+    host in the in-session allowlist for symmetry).
+  - `"deny"` — resolve `false` without prompting (fail closed, no UI).
+  The empty-active-target-stack case still always denies, regardless of this
+  setting.
+- `strace.autoAllowViolations: boolean` (default `false`).
+  When `true`, a captured filesystem/exec violation is auto-approved (re-run
+  unsandboxed) without prompting, mirroring `network.onUnknownHost: "allow"`.
+  When `false`, the existing approval prompt flow is used.
+
+### Parsing & merging
+
+- Extend `parseSandboxConfig` to read `network.onUnknownHost` (validate against
+  the enum, warn + default on bad values) and a new `strace` object
+  (`autoAllowViolations` boolean; strace itself is mandatory, so there is no
+  enable/disable toggle).
+- Extend `mergeSandboxConfigs` so project-level overrides user-level for the
+  scalar fields (last-writer-wins; these are not arrays to concatenate).
+- Extend `DEFAULT_SANDBOX_CONFIG` with the defaults above.
+
+### Wiring
+
+- Part 1 `askCallback` consults `sandbox` config's `network.onUnknownHost`
+  before deciding whether to call `promptForNetworkAccess`.
+- Part 2 `SandboxShell` always wraps with strace on Linux and consults
+  `strace.autoAllowViolations` to decide prompt vs auto-approve.
+
+Invariants (Part 3):
+- Defaults reproduce current behavior exactly (`"prompt"`, `false`).
+- Invalid enum values warn and fall back to the default, never throw.
+- Project settings override user settings for these scalars via the existing
+  merge path.
 
 # Stages
 
 ## Stage 1 — Network ask plumbing in the Sandbox + handler (no UI yet)
+
+**Status: DONE.** Implemented `NetworkAskStack` (shared LIFO router) in
+`node/sandbox-manager.ts`, exported `NetworkAskParams`/`NetworkAskTarget`, and
+added `pushNetworkAskTarget`/`popNetworkAskTarget`/`routeNetworkAsk` to the
+`Sandbox` interface (RealSandbox + MockSandboxManager + inline test/magenta
+stubs). Empty stack fails closed (deny). Added `promptForNetworkAccess({host,
+port}): Promise<boolean>` and a boolean-resolving `network-access` pending kind
+to `SandboxViolationHandler`; the pending union carries its own boolean resolve
+type (no widening, no `any`), with a `isNetworkPending` type guard so
+`approve`/`reject` narrow cleanly. `approveAll`/`rejectAll` handle it via
+`approve`/`reject`. `view()` renders a `🌐 Allow network access to host:port?`
+prompt. Unit tests cover approve→true, reject→false, approveAll/rejectAll,
+rendering, and empty-stack deny + stack routing/pop. All tests, `npx tsgo -b`,
+and `npx biome check .` pass.
 
 - Goal: `Sandbox` can register/clear an active network-ask target (stack), and
   `SandboxViolationHandler` has `promptForNetworkAccess({host, port}): Promise<boolean>`
@@ -237,15 +349,23 @@ Invariants (Part 2):
     - Expected: trace file contains the denied syscall with the right path; the
       file is readable back by the harness.
   - Behavior: confirm behavior both with and without Unix-socket seccomp active.
-- Before moving on: record the outcome; if attach fails everywhere, stop Part 2
-  and keep the heuristic.
+- Before moving on: record the outcome. Since there is no regex fallback, if
+  attach fails everywhere we must redesign (e.g. strace outside bwrap) rather
+  than ship a hard requirement that cannot be satisfied.
 
-## Stage 4 — strace wrapping + parser + fallback
+## Stage 4 — strace wrapping + parser + remove heuristic + startup check
 
-- Goal: `SandboxShell` wraps the user command with strace on Linux, parses the
+- Goal: `SandboxShell` wraps the user command with strace on Linux and parses the
   trace file into `SandboxViolationEvent`s at the point
-  `detectLinuxSandboxViolations` is called today, and falls back to the regex
-  heuristic when strace is absent/failed. Trace file cleaned up with the command.
+  `detectLinuxSandboxViolations` is called today. **Delete**
+  `detectLinuxSandboxViolations`, `compileViolationPatterns`, and the
+  `bwrapSandboxViolationPatterns` option. Add a startup capability check that
+  refuses to start magenta on Linux when strace is missing or cannot attach.
+  Trace file cleaned up with the command.
+- Add a comment at the strace-wrapping call site documenting the process-group /
+  termination interaction (strace nested under bwrap; SIGKILL escalation is
+  load-bearing for ptrace-stop races), per the "Process-group / termination
+  interaction" section above.
 - Verification:
   - Behavior (unit): the trace parser turns fixture strace output into the
     expected violation events.
@@ -254,12 +374,28 @@ Invariants (Part 2):
     - Actions: run the parser.
     - Expected: only denied syscalls become events, each with a readable `line`
       and the correct path/target; successes ignored; dedup preserved.
-  - Behavior (unit): strace-unavailable ⇒ falls back to existing heuristic and
-    current behavior is unchanged.
+  - Behavior (unit): strace-unavailable ⇒ startup capability check fails.
     - Setup: capability check stubbed to "absent".
-    - Actions: run a failing command whose stderr matches a configured pattern.
-    - Expected: a synthetic violation is produced via the regex path exactly as
-      today.
+    - Actions: invoke the startup check on Linux.
+    - Expected: magenta refuses to start with a clear error; no command runs.
+- Before moving on: tests, type checks, lint pass.
+
+## Stage 5 — configurable auto-allow options (Part 3)
+
+- Goal: add `network.onUnknownHost` and `strace.autoAllowViolations` to
+  `SandboxConfig`/`DEFAULT_SANDBOX_CONFIG`, parse them in `parseSandboxConfig`,
+  merge them in `mergeSandboxConfigs`, and consult them in the Part 1
+  `askCallback` and Part 2 `SandboxShell`.
+- Verification:
+  - Behavior (unit): `parseSandboxConfig` reads valid values; invalid enum
+    values warn and fall back to defaults; omitted fields use defaults.
+  - Behavior (unit): `mergeSandboxConfigs` lets a project-level scalar override a
+    user-level scalar (last-writer-wins).
+  - Behavior (integration): `network.onUnknownHost: "allow"` auto-resolves the
+    ask callback `true` with no prompt; `"deny"` auto-resolves `false` with no
+    prompt; `"prompt"` reproduces Stage 2 behavior.
+  - Behavior (integration): `strace.autoAllowViolations: true` re-runs
+    unsandboxed without a prompt; `false` surfaces the approval prompt.
 - Before moving on: tests, type checks, lint pass.
 
 # Notes / open questions for the implementer

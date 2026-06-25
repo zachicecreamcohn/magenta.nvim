@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SandboxConfig } from "./options.ts";
 import { DEFAULT_SANDBOX_CONFIG } from "./options.ts";
+import { NetworkAskStack } from "./sandbox-manager.ts";
 import type { HomeDir, NvimCwd } from "./utils/files.ts";
 
 const mockInitialize = vi.fn().mockResolvedValue(undefined);
@@ -258,5 +259,42 @@ describe("sandbox-manager", () => {
         .calls[0][0] as import("@anthropic-ai/sandbox-runtime").SandboxRuntimeConfig;
       expect(calledConfig.filesystem.allowWrite).toContain("/tmp");
     });
+  });
+});
+
+describe("NetworkAskStack", () => {
+  it("denies when stack is empty", async () => {
+    const stack = new NetworkAskStack();
+    await expect(stack.route({ host: "example.com", port: 443 })).resolves.toBe(
+      false,
+    );
+  });
+
+  it("routes to the top of the stack", async () => {
+    const stack = new NetworkAskStack();
+    const a = vi.fn().mockResolvedValue(false);
+    const b = vi.fn().mockResolvedValue(true);
+    stack.push(a);
+    stack.push(b);
+
+    await expect(stack.route({ host: "h", port: undefined })).resolves.toBe(
+      true,
+    );
+    expect(a).not.toHaveBeenCalled();
+    expect(b).toHaveBeenCalledOnce();
+  });
+
+  it("pops back to the previous target", async () => {
+    const stack = new NetworkAskStack();
+    const a = vi.fn().mockResolvedValue(false);
+    const b = vi.fn().mockResolvedValue(true);
+    stack.push(a);
+    stack.push(b);
+    stack.pop(b);
+
+    await expect(stack.route({ host: "h", port: undefined })).resolves.toBe(
+      false,
+    );
+    expect(a).toHaveBeenCalledOnce();
   });
 });

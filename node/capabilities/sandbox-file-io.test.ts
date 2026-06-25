@@ -29,6 +29,9 @@ function createMockSandbox(): Sandbox {
     annotateStderrWithSandboxFailures: (_cmd: string, stderr: string) => stderr,
     updateConfigIfChanged: () => {},
     cleanupAfterCommand: () => {},
+    pushNetworkAskTarget: () => {},
+    popNetworkAskTarget: () => {},
+    routeNetworkAsk: () => Promise.resolve(false),
   };
 }
 

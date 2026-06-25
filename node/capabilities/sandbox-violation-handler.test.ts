@@ -187,6 +187,66 @@ describe("SandboxViolationHandler", () => {
     });
   });
 
+  describe("promptForNetworkAccess", () => {
+    it("resolves true on approve", async () => {
+      const promise = handler.promptForNetworkAccess({
+        host: "example.com",
+        port: 443,
+      });
+
+      expect(handler.getPendingViolations().size).toBe(1);
+      expect(onPendingChange).toHaveBeenCalledOnce();
+
+      const [[id]] = [...handler.getPendingViolations().entries()];
+      handler.approve(id);
+
+      await expect(promise).resolves.toBe(true);
+      expect(handler.getPendingViolations().size).toBe(0);
+      expect(onPendingChange).toHaveBeenCalledTimes(2);
+    });
+
+    it("resolves false on reject", async () => {
+      const promise = handler.promptForNetworkAccess({
+        host: "example.com",
+        port: undefined,
+      });
+
+      const [[id]] = [...handler.getPendingViolations().entries()];
+      handler.reject(id);
+
+      await expect(promise).resolves.toBe(false);
+      expect(handler.getPendingViolations().size).toBe(0);
+    });
+
+    it("renders host:port prompt", () => {
+      void handler.promptForNetworkAccess({ host: "example.com", port: 443 });
+
+      const text = serializeVDOM(handler.view());
+      expect(text).toContain("Allow network access");
+      expect(text).toContain("example.com:443");
+      expect(text).toContain("APPROVE");
+      expect(text).toContain("REJECT");
+    });
+
+    it("approveAll resolves true", async () => {
+      const promise = handler.promptForNetworkAccess({
+        host: "a.com",
+        port: 80,
+      });
+      handler.approveAll();
+      await expect(promise).resolves.toBe(true);
+    });
+
+    it("rejectAll resolves false", async () => {
+      const promise = handler.promptForNetworkAccess({
+        host: "a.com",
+        port: 80,
+      });
+      handler.rejectAll();
+      await expect(promise).resolves.toBe(false);
+    });
+  });
+
   describe("operations on non-existent IDs", () => {
     it("approve is a no-op for non-existent ID", () => {
       handler.approve("non-existent");

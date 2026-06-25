@@ -16,6 +16,9 @@ export type SandboxState =
 export type FsReadConfig = { denyOnly: string[]; allowWithinDeny?: string[] };
 export type FsWriteConfig = { allowOnly: string[]; denyWithinAllow: string[] };
 
+export type NetworkAskParams = { host: string; port: number | undefined };
+export type NetworkAskTarget = (params: NetworkAskParams) => Promise<boolean>;
+
 export interface Sandbox {
   getState(): SandboxState;
   wrapWithSandbox(command: string): Promise<string>;
@@ -33,6 +36,13 @@ export interface Sandbox {
     homeDir: HomeDir,
   ): void;
   cleanupAfterCommand(): void;
+  // The sandbox owns a single global network-ask callback, but UI prompts live
+  // in per-command handlers. Each in-flight sandboxed command pushes itself as
+  // the active target; routeNetworkAsk forwards to the top of the stack. An
+  // empty stack fails closed (deny).
+  pushNetworkAskTarget(target: NetworkAskTarget): void;
+  popNetworkAskTarget(target: NetworkAskTarget): void;
+  routeNetworkAsk(params: NetworkAskParams): Promise<boolean>;
 }
 
 // -- Path resolution helpers --
@@ -87,11 +97,37 @@ export function resolveConfigPaths(
   };
 }
 
+// Shared LIFO routing for the active network-ask target. Reused by RealSandbox
+// and test doubles so routing semantics stay identical.
+export class NetworkAskStack {
+  private stack: NetworkAskTarget[] = [];
+
+  push(target: NetworkAskTarget): void {
+    this.stack.push(target);
+  }
+
+  pop(target: NetworkAskTarget): void {
+    const idx = this.stack.lastIndexOf(target);
+    if (idx !== -1) {
+      this.stack.splice(idx, 1);
+    }
+  }
+
+  route(params: NetworkAskParams): Promise<boolean> {
+    const target = this.stack[this.stack.length - 1];
+    if (!target) {
+      return Promise.resolve(false);
+    }
+    return target(params);
+  }
+}
+
 // -- Real implementation wrapping @anthropic-ai/sandbox-runtime --
 
 class RealSandbox implements Sandbox {
   private state: SandboxState;
   private lastConfigJson: string | undefined;
+  private networkAskStack = new NetworkAskStack();
 
   constructor(state: SandboxState, lastConfigJson?: string) {
     this.state = state;
@@ -138,6 +174,18 @@ class RealSandbox implements Sandbox {
 
   cleanupAfterCommand(): void {
     SandboxManager.cleanupAfterCommand();
+  }
+
+  pushNetworkAskTarget(target: NetworkAskTarget): void {
+    this.networkAskStack.push(target);
+  }
+
+  popNetworkAskTarget(target: NetworkAskTarget): void {
+    this.networkAskStack.pop(target);
+  }
+
+  routeNetworkAsk(params: NetworkAskParams): Promise<boolean> {
+    return this.networkAskStack.route(params);
   }
 }
 

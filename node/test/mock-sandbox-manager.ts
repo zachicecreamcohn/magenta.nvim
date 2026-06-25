@@ -1,5 +1,11 @@
 import type { SandboxViolationEvent } from "@anthropic-ai/sandbox-runtime";
-import type { Sandbox, SandboxState } from "../sandbox-manager.ts";
+import {
+  type NetworkAskParams,
+  NetworkAskStack,
+  type NetworkAskTarget,
+  type Sandbox,
+  type SandboxState,
+} from "../sandbox-manager.ts";
 
 export class MockSandboxManager implements Sandbox {
   private state: SandboxState = { status: "ready" };
@@ -42,6 +48,20 @@ export class MockSandboxManager implements Sandbox {
 
   updateConfigIfChanged(): void {}
   cleanupAfterCommand(): void {}
+
+  private networkAskStack = new NetworkAskStack();
+
+  pushNetworkAskTarget(target: NetworkAskTarget): void {
+    this.networkAskStack.push(target);
+  }
+
+  popNetworkAskTarget(target: NetworkAskTarget): void {
+    this.networkAskStack.pop(target);
+  }
+
+  routeNetworkAsk(params: NetworkAskParams): Promise<boolean> {
+    return this.networkAskStack.route(params);
+  }
 
   // -- Test configuration methods --
 
