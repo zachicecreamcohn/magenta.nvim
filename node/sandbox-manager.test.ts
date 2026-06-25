@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SandboxConfig } from "./options.ts";
 import { DEFAULT_SANDBOX_CONFIG } from "./options.ts";
-import { NetworkAskStack } from "./sandbox-manager.ts";
+import { mergeApprovedDomains, NetworkAskStack } from "./sandbox-manager.ts";
 import type { HomeDir, NvimCwd } from "./utils/files.ts";
 
 const mockInitialize = vi.fn().mockResolvedValue(undefined);
@@ -259,6 +259,44 @@ describe("sandbox-manager", () => {
         .calls[0][0] as import("@anthropic-ai/sandbox-runtime").SandboxRuntimeConfig;
       expect(calledConfig.filesystem.allowWrite).toContain("/tmp");
     });
+    it("merges session-approved hosts into allowedDomains", async () => {
+      const config = makeConfig();
+      const sandbox = await initializeSandbox(
+        config,
+        cwd,
+        homeDir,
+        undefined,
+        logger,
+      );
+      sandbox.recordSessionApprovedHost("approved.example.com");
+      mockUpdateConfig.mockClear();
+      sandbox.updateConfigIfChanged(config, cwd, homeDir);
+      expect(mockUpdateConfig).toHaveBeenCalledOnce();
+      const calledConfig = mockUpdateConfig.mock
+        .calls[0][0] as import("@anthropic-ai/sandbox-runtime").SandboxRuntimeConfig;
+      expect(calledConfig.network.allowedDomains).toContain(
+        "approved.example.com",
+      );
+    });
+  });
+});
+describe("mergeApprovedDomains", () => {
+  it("appends approved hosts not already present", () => {
+    expect(mergeApprovedDomains(["a.com"], ["b.com"])).toEqual([
+      "a.com",
+      "b.com",
+    ]);
+  });
+  it("skips hosts already in allowedDomains (dedup)", () => {
+    expect(mergeApprovedDomains(["a.com", "b.com"], ["b.com"])).toEqual([
+      "a.com",
+      "b.com",
+    ]);
+  });
+  it("does not mutate the input array", () => {
+    const input = ["a.com"];
+    mergeApprovedDomains(input, ["b.com"]);
+    expect(input).toEqual(["a.com"]);
   });
 });
 

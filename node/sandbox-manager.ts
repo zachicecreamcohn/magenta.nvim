@@ -72,6 +72,21 @@ function resolvePaths(
   return paths.map((p) => resolvePath(p, cwd, homeDir));
 }
 
+// Merge session-approved network hosts into the runtime allowedDomains list,
+// skipping any host that is already present so the proxy stops re-prompting.
+export function mergeApprovedDomains(
+  allowedDomains: string[],
+  approvedHosts: string[],
+): string[] {
+  const merged = [...allowedDomains];
+  for (const host of approvedHosts) {
+    if (!merged.includes(host)) {
+      merged.push(host);
+    }
+  }
+  return merged;
+}
+
 function dedup(arr: string[]): string[] {
   return [...new Set(arr)];
 }
@@ -183,11 +198,10 @@ class RealSandbox implements Sandbox {
     homeDir: HomeDir,
   ): void {
     const runtimeConfig = resolveConfigPaths(config, cwd, homeDir);
-    for (const host of this.networkAskStack.getApprovedHosts()) {
-      if (!runtimeConfig.network.allowedDomains.includes(host)) {
-        runtimeConfig.network.allowedDomains.push(host);
-      }
-    }
+    runtimeConfig.network.allowedDomains = mergeApprovedDomains(
+      runtimeConfig.network.allowedDomains,
+      this.networkAskStack.getApprovedHosts(),
+    );
     const configJson = JSON.stringify(runtimeConfig);
     if (configJson === this.lastConfigJson) {
       return;

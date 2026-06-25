@@ -343,6 +343,16 @@ MockSandboxManager, and the inline test stubs (sandbox-shell/file-io tests).
 Integration tests in `sandbox-shell.test.ts` ("network ask routing") cover
 approve-once-then-no-reprompt, reject-without-persist (reprompts), and
 empty-stack deny. `npx tsgo -b` and `npx biome check .` pass; all sandbox test
+**Code-review follow-up (Stage 2):** Extracted the approved-host merge from
+`RealSandbox.updateConfigIfChanged` into a pure exported `mergeApprovedDomains`
+helper (`node/sandbox-manager.ts`) and added focused unit tests for it
+(append, dedup, no-mutation) plus an instance-level test asserting a
+session-approved host lands in `network.allowedDomains` via `updateConfig`.
+This covers the previously-untested allowedDomains merge/dedup branch. The
+`proc._emit("close", 0, null)` finding was left as-is: it intentionally mirrors
+the Node child_process `close` event signal convention (external-library
+boundary).
+
 files pass. (The only full-suite failures are pre-existing flaky nvim
 integration tests — spawn-subagents/script-manager stream+socket races and a
 notification-bell rendering timing diff — which pass in isolation and are
