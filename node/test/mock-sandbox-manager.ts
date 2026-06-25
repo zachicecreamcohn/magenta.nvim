@@ -63,6 +63,10 @@ export class MockSandboxManager implements Sandbox {
     return this.networkAskStack.route(params);
   }
 
+  recordSessionApprovedHost(host: string): void {
+    this.networkAskStack.recordApprovedHost(host);
+  }
+
   // -- Test configuration methods --
 
   setState(state: SandboxState): void {

@@ -325,6 +325,29 @@ and `npx biome check .` pass.
 
 ## Stage 2 — Build the global askCallback and wire it at initialize
 
+**Status: DONE.** `node/magenta.ts` now builds a single global
+`SandboxAskCallback` that forwards `{host, port}` to `sandbox.routeNetworkAsk`
+via a mutable `sandboxRef` (assigned right after construction, since the sandbox
+is created by `initializeSandbox`); it is passed to `initializeSandbox` instead
+of `undefined`, and the on-failure fallback stub gained
+`recordSessionApprovedHost`. `SandboxShell` holds a stable `networkAskTarget`
+that calls `violationHandler.promptForNetworkAccess` and, on approval, calls
+`sandbox.recordSessionApprovedHost(host)`; it pushes/pops that target around the
+wrapped `spawnCommand` (in `runWrappedAndHandleViolations`, via try/finally).
+Approve-for-session is implemented in `NetworkAskStack` (shared by RealSandbox
+and MockSandboxManager): an `approvedHosts` set short-circuits `route()` to
+`true`, and `RealSandbox.updateConfigIfChanged` merges those hosts into
+`allowedDomains` so the underlying proxy also stops asking. Added
+`recordSessionApprovedHost` to the `Sandbox` interface, RealSandbox,
+MockSandboxManager, and the inline test stubs (sandbox-shell/file-io tests).
+Integration tests in `sandbox-shell.test.ts` ("network ask routing") cover
+approve-once-then-no-reprompt, reject-without-persist (reprompts), and
+empty-stack deny. `npx tsgo -b` and `npx biome check .` pass; all sandbox test
+files pass. (The only full-suite failures are pre-existing flaky nvim
+integration tests — spawn-subagents/script-manager stream+socket races and a
+notification-bell rendering timing diff — which pass in isolation and are
+unrelated to this stage.)
+
 - Goal: `node/magenta.ts` constructs a real `SandboxAskCallback` that routes to
   the Sandbox's active target, and passes it to `initializeSandbox` instead of
   `undefined`. `SandboxShell` registers/unregisters itself around each sandboxed

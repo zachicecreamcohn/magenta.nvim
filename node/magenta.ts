@@ -1,4 +1,5 @@
 import * as os from "node:os";
+import type { SandboxAskCallback } from "@anthropic-ai/sandbox-runtime";
 import type { InputMessage, NativeMessageIdx, ThreadId } from "@magenta/core";
 import { probeAndSaveClipboardImage } from "@magenta/core";
 import { type BufferInfo, BufferManager } from "./buffer-manager.ts";
@@ -1020,13 +1021,28 @@ ${lines.join("\n")}
     );
     const parsedOptions = optionsLoader.getOptions();
 
+    // The sandbox owns exactly one global network-ask callback, but UI prompts
+    // live in per-command handlers. Each in-flight sandboxed command pushes
+    // itself as the active target; this callback forwards to the top of that
+    // stack via routeNetworkAsk. An empty stack fails closed (deny). The
+    // sandbox is created below, so we route through a mutable reference that is
+    // assigned immediately after construction.
+    let sandboxRef: Sandbox | undefined;
+    const askCallback: SandboxAskCallback = (params) => {
+      if (!sandboxRef) return Promise.resolve(false);
+      return sandboxRef.routeNetworkAsk({
+        host: params.host,
+        port: params.port,
+      });
+    };
+
     const sandbox =
       sandboxOverride ??
       (await initializeSandbox(
         parsedOptions.sandbox,
         cwd,
         resolvedHomeDir,
-        undefined,
+        askCallback,
         { warn: (msg) => nvim.logger.warn(`Sandbox: ${msg}`) },
       ).catch((err) => {
         const reason = err instanceof Error ? err.message : String(err);
@@ -1054,8 +1070,10 @@ ${lines.join("\n")}
           pushNetworkAskTarget: () => {},
           popNetworkAskTarget: () => {},
           routeNetworkAsk: () => Promise.resolve(false),
+          recordSessionApprovedHost: () => {},
         } satisfies Sandbox;
       }));
+    sandboxRef = sandbox;
 
     // Initialize highlight groups in the magenta namespace
     try {

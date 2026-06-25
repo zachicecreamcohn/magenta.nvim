@@ -2,7 +2,7 @@ import { type ChildProcess, spawn } from "node:child_process";
 import type { SandboxViolationEvent } from "@anthropic-ai/sandbox-runtime";
 import type { ThreadId } from "@magenta/core";
 import type { MagentaOptions } from "../options.ts";
-import type { Sandbox } from "../sandbox-manager.ts";
+import type { NetworkAskTarget, Sandbox } from "../sandbox-manager.ts";
 import { withTimeout } from "../utils/async.ts";
 import type { HomeDir, NvimCwd } from "../utils/files.ts";
 import type { SandboxViolationHandler } from "./sandbox-violation-handler.ts";
@@ -44,6 +44,22 @@ export class SandboxShell implements Shell {
     this.violationPollIntervalMs =
       opts?.violationPollIntervalMs ?? VIOLATION_POLL_INTERVAL_MS;
   }
+
+  // For the duration of a sandboxed command, this shell registers itself as the
+  // sandbox's active network-ask target. The single global ask callback (in
+  // magenta.ts) routes unknown-host connection requests to the top of the
+  // sandbox's target stack, i.e. here, so we can surface a UI prompt. Approval
+  // is remembered for the session so the same host is not re-prompted.
+  private networkAskTarget: NetworkAskTarget = async ({ host, port }) => {
+    const approved = await this.violationHandler.promptForNetworkAccess({
+      host,
+      port,
+    });
+    if (approved) {
+      this.sandbox.recordSessionApprovedHost(host);
+    }
+    return approved;
+  };
 
   terminate(): void {
     const childProcess = this.runningProcess;
@@ -235,7 +251,13 @@ export class SandboxShell implements Shell {
     // This prevents commands from spinning for minutes hitting the same
     // denied syscall repeatedly.
     const monitor = this.startViolationMonitor(store, preCount);
-    const result = await this.spawnCommand(wrapped, opts);
+    this.sandbox.pushNetworkAskTarget(this.networkAskTarget);
+    let result: ShellResult;
+    try {
+      result = await this.spawnCommand(wrapped, opts);
+    } finally {
+      this.sandbox.popNetworkAskTarget(this.networkAskTarget);
+    }
     monitor.stop();
 
     // If the monitor didn't catch a violation during execution, poll briefly

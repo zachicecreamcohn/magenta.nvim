@@ -3,6 +3,7 @@ import type { ThreadId } from "@magenta/core";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { MagentaOptions, SandboxConfig } from "../options.ts";
 import type { SandboxState } from "../sandbox-manager.ts";
+import { MockSandboxManager } from "../test/mock-sandbox-manager.ts";
 import { pollUntil } from "../utils/async.ts";
 import type { HomeDir, NvimCwd } from "../utils/files.ts";
 import { SandboxShell } from "./sandbox-shell.ts";
@@ -32,6 +33,7 @@ const mockSandbox = {
   pushNetworkAskTarget: () => {},
   popNetworkAskTarget: () => {},
   routeNetworkAsk: () => Promise.resolve(false),
+  recordSessionApprovedHost: () => {},
 };
 
 // Mock child_process
@@ -86,6 +88,7 @@ function createMockViolationHandler(): SandboxViolationHandler & {
   promptForApproval: ReturnType<typeof vi.fn>;
   addViolation: ReturnType<typeof vi.fn>;
   promptForWriteApproval: ReturnType<typeof vi.fn>;
+  promptForNetworkAccess: ReturnType<typeof vi.fn>;
   approve: ReturnType<typeof vi.fn>;
   reject: ReturnType<typeof vi.fn>;
   approveAll: ReturnType<typeof vi.fn>;
@@ -97,6 +100,7 @@ function createMockViolationHandler(): SandboxViolationHandler & {
     promptForApproval: vi.fn(),
     addViolation: vi.fn(),
     promptForWriteApproval: vi.fn(),
+    promptForNetworkAccess: vi.fn(),
     approve: vi.fn(),
     reject: vi.fn(),
     approveAll: vi.fn(),
@@ -995,6 +999,76 @@ describe("SandboxShell", () => {
       );
       expect(mockWrapWithSandbox).not.toHaveBeenCalled();
       expect(result.exitCode).toBe(0);
+    });
+  });
+
+  describe("network ask routing", () => {
+    // Drive a sandboxed command whose underlying proxy "asks" about a host
+    // mid-execution by invoking the sandbox's routed ask callback while the
+    // command is in flight (i.e. while SandboxShell has registered itself as the
+    // active network-ask target).
+    function runCommandThatAsks(
+      sandbox: MockSandboxManager,
+      handler: ReturnType<typeof createMockViolationHandler>,
+      host: string,
+      onAskResult: (approved: boolean) => void,
+    ): Promise<ShellResult> {
+      const proc = createMockChildProcess();
+      mockSpawn.mockReturnValueOnce(proc);
+      setTimeout(() => {
+        void sandbox.routeNetworkAsk({ host, port: 443 }).then((approved) => {
+          onAskResult(approved);
+          proc._emit("close", 0, null);
+        });
+      }, 0);
+      const shell = new SandboxShell(createContext(), sandbox, handler);
+      return shell.execute(`curl https://${host}`, createOpts());
+    }
+
+    test("approve records host for the session — no second prompt", async () => {
+      const sandbox = new MockSandboxManager();
+      const handler = createMockViolationHandler();
+      handler.promptForNetworkAccess.mockResolvedValue(true);
+
+      const results: boolean[] = [];
+      await runCommandThatAsks(sandbox, handler, "example.com", (r) =>
+        results.push(r),
+      );
+      await runCommandThatAsks(sandbox, handler, "example.com", (r) =>
+        results.push(r),
+      );
+
+      expect(results).toEqual([true, true]);
+      // Only the first request prompted; the second was auto-approved from the
+      // session allowlist.
+      expect(handler.promptForNetworkAccess).toHaveBeenCalledTimes(1);
+    });
+
+    test("reject blocks and is not persisted — prompts again", async () => {
+      const sandbox = new MockSandboxManager();
+      const handler = createMockViolationHandler();
+      handler.promptForNetworkAccess.mockResolvedValue(false);
+
+      const results: boolean[] = [];
+      await runCommandThatAsks(sandbox, handler, "blocked.com", (r) =>
+        results.push(r),
+      );
+      await runCommandThatAsks(sandbox, handler, "blocked.com", (r) =>
+        results.push(r),
+      );
+
+      expect(results).toEqual([false, false]);
+      // Rejections are not remembered, so the same host prompts on each command.
+      expect(handler.promptForNetworkAccess).toHaveBeenCalledTimes(2);
+    });
+
+    test("empty active-target stack fails closed (deny)", async () => {
+      const sandbox = new MockSandboxManager();
+      const approved = await sandbox.routeNetworkAsk({
+        host: "nobody.com",
+        port: 443,
+      });
+      expect(approved).toBe(false);
     });
   });
 });

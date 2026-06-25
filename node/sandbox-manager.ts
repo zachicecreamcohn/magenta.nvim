@@ -43,6 +43,10 @@ export interface Sandbox {
   pushNetworkAskTarget(target: NetworkAskTarget): void;
   popNetworkAskTarget(target: NetworkAskTarget): void;
   routeNetworkAsk(params: NetworkAskParams): Promise<boolean>;
+  // Remember a host approved by the user for the rest of the session so the
+  // network-ask callback (and the underlying proxy, via merged allowedDomains)
+  // stops prompting for it.
+  recordSessionApprovedHost(host: string): void;
 }
 
 // -- Path resolution helpers --
@@ -101,6 +105,7 @@ export function resolveConfigPaths(
 // and test doubles so routing semantics stay identical.
 export class NetworkAskStack {
   private stack: NetworkAskTarget[] = [];
+  private approvedHosts = new Set<string>();
 
   push(target: NetworkAskTarget): void {
     this.stack.push(target);
@@ -113,7 +118,21 @@ export class NetworkAskStack {
     }
   }
 
+  // A host approved during this session is remembered so subsequent requests to
+  // the same host (within the command or in later commands) are auto-approved
+  // without re-prompting. Rejections are intentionally not remembered.
+  recordApprovedHost(host: string): void {
+    this.approvedHosts.add(host);
+  }
+
+  getApprovedHosts(): string[] {
+    return [...this.approvedHosts];
+  }
+
   route(params: NetworkAskParams): Promise<boolean> {
+    if (this.approvedHosts.has(params.host)) {
+      return Promise.resolve(true);
+    }
     const target = this.stack[this.stack.length - 1];
     if (!target) {
       return Promise.resolve(false);
@@ -164,6 +183,11 @@ class RealSandbox implements Sandbox {
     homeDir: HomeDir,
   ): void {
     const runtimeConfig = resolveConfigPaths(config, cwd, homeDir);
+    for (const host of this.networkAskStack.getApprovedHosts()) {
+      if (!runtimeConfig.network.allowedDomains.includes(host)) {
+        runtimeConfig.network.allowedDomains.push(host);
+      }
+    }
     const configJson = JSON.stringify(runtimeConfig);
     if (configJson === this.lastConfigJson) {
       return;
@@ -186,6 +210,10 @@ class RealSandbox implements Sandbox {
 
   routeNetworkAsk(params: NetworkAskParams): Promise<boolean> {
     return this.networkAskStack.route(params);
+  }
+
+  recordSessionApprovedHost(host: string): void {
+    this.networkAskStack.recordApprovedHost(host);
   }
 }
 

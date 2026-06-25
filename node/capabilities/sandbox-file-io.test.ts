@@ -32,6 +32,7 @@ function createMockSandbox(): Sandbox {
     pushNetworkAskTarget: () => {},
     popNetworkAskTarget: () => {},
     routeNetworkAsk: () => Promise.resolve(false),
+    recordSessionApprovedHost: () => {},
   };
 }
 
