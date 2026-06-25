@@ -1149,6 +1149,7 @@ describe("SandboxShell", () => {
     }
     test('onUnknownHost "allow" auto-approves without prompting', async () => {
       const sandbox = new MockSandboxManager();
+      const recordSpy = vi.spyOn(sandbox, "recordSessionApprovedHost");
       const handler = createMockViolationHandler();
       const results: boolean[] = [];
       await runCommandThatAsks(
@@ -1160,9 +1161,12 @@ describe("SandboxShell", () => {
       );
       expect(results).toEqual([true]);
       expect(handler.promptForNetworkAccess).not.toHaveBeenCalled();
+      // "allow" still records the host for session symmetry.
+      expect(recordSpy).toHaveBeenCalledWith("auto.com");
     });
     test('onUnknownHost "deny" rejects without prompting', async () => {
       const sandbox = new MockSandboxManager();
+      const recordSpy = vi.spyOn(sandbox, "recordSessionApprovedHost");
       const handler = createMockViolationHandler();
       const results: boolean[] = [];
       await runCommandThatAsks(
@@ -1174,6 +1178,8 @@ describe("SandboxShell", () => {
       );
       expect(results).toEqual([false]);
       expect(handler.promptForNetworkAccess).not.toHaveBeenCalled();
+      // "deny" does not record the host.
+      expect(recordSpy).not.toHaveBeenCalled();
     });
   });
 });

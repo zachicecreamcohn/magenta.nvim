@@ -550,7 +550,9 @@ Tests: `options.test.ts` covers parse of valid values, invalid-enum
 warn+default, omitted-field defaults, and project-over-user scalar override via
 `mergeOptions`. `sandbox-shell.test.ts` covers `onUnknownHost: "allow"`
 auto-approve-no-prompt, `"deny"` reject-no-prompt, and
-`strace.autoAllowViolations: true` re-run-unsandboxed-without-prompt. Updated
+`strace.autoAllowViolations: true` re-run-unsandboxed-without-prompt, plus the
+session-symmetry invariant (a `recordSessionApprovedHost` spy fires for
+`"allow"` but not for `"deny"`). Updated
 existing `SandboxConfig` literals (sandbox-shell/options/sandbox-manager tests)
 for the new required fields. `npx tsgo -b`, `npx biome check .`, and all
 options/sandbox/core test suites pass.
