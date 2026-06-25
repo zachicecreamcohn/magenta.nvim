@@ -83,11 +83,48 @@ describe("parseSandboxConfig", () => {
         ],
         allowUnixSockets: [...DEFAULT_SANDBOX_CONFIG.network.allowUnixSockets],
         allowAllUnixSockets: DEFAULT_SANDBOX_CONFIG.network.allowAllUnixSockets,
+        onUnknownHost: DEFAULT_SANDBOX_CONFIG.network.onUnknownHost,
       },
       requireApprovalPatterns: [
         ...DEFAULT_SANDBOX_CONFIG.requireApprovalPatterns,
       ],
+      strace: { ...DEFAULT_SANDBOX_CONFIG.strace },
     });
+  });
+
+  it("parses network.onUnknownHost and strace.autoAllowViolations", () => {
+    const input = {
+      profiles: [{ name: "test", provider: "mock" }],
+      sandbox: {
+        network: { onUnknownHost: "allow" },
+        strace: { autoAllowViolations: true },
+      },
+    };
+    const result = parseOptions(input, noopLogger);
+    expect(result.sandbox.network.onUnknownHost).toBe("allow");
+    expect(result.sandbox.strace.autoAllowViolations).toBe(true);
+  });
+
+  it("warns and defaults on invalid network.onUnknownHost", () => {
+    const warnings: string[] = [];
+    const logger = { warn: (m: string) => warnings.push(m), error: () => {} };
+    const input = {
+      profiles: [{ name: "test", provider: "mock" }],
+      sandbox: { network: { onUnknownHost: "bogus" } },
+    };
+    const result = parseOptions(input, logger);
+    expect(result.sandbox.network.onUnknownHost).toBe("prompt");
+    expect(warnings.some((w) => w.includes("onUnknownHost"))).toBe(true);
+  });
+
+  it("defaults onUnknownHost to prompt and autoAllowViolations to false", () => {
+    const input = {
+      profiles: [{ name: "test", provider: "mock" }],
+      sandbox: {},
+    };
+    const result = parseOptions(input, noopLogger);
+    expect(result.sandbox.network.onUnknownHost).toBe("prompt");
+    expect(result.sandbox.strace.autoAllowViolations).toBe(false);
   });
 
   it("should fill defaults for missing fields", () => {
@@ -148,8 +185,12 @@ describe("mergeOptions", () => {
           deniedDomains: [],
           allowUnixSockets: [],
           allowAllUnixSockets: false,
+          onUnknownHost: "prompt",
         },
         requireApprovalPatterns: [],
+        strace: {
+          autoAllowViolations: false,
+        },
       },
     });
 
@@ -166,8 +207,12 @@ describe("mergeOptions", () => {
           deniedDomains: ["evil.com"],
           allowUnixSockets: [],
           allowAllUnixSockets: false,
+          onUnknownHost: "prompt",
         },
         requireApprovalPatterns: [],
+        strace: {
+          autoAllowViolations: false,
+        },
       },
     });
 
@@ -188,6 +233,21 @@ describe("mergeOptions", () => {
     const base = makeBaseOptions();
     const merged = mergeOptions(base, {});
     expect(merged.sandbox).toEqual(base.sandbox);
+  });
+  it("lets project scalars override user scalars (last-writer-wins)", () => {
+    const base = makeBaseOptions();
+    const projectSandbox = parseProjectOptions(
+      {
+        sandbox: {
+          network: { onUnknownHost: "deny" },
+          strace: { autoAllowViolations: true },
+        },
+      },
+      noopLogger,
+    ).sandbox!;
+    const merged = mergeOptions(base, { sandbox: projectSandbox });
+    expect(merged.sandbox.network.onUnknownHost).toBe("deny");
+    expect(merged.sandbox.strace.autoAllowViolations).toBe(true);
   });
 });
 

@@ -125,8 +125,12 @@ const defaultSandboxConfig: SandboxConfig = {
     deniedDomains: [],
     allowUnixSockets: [],
     allowAllUnixSockets: false,
+    onUnknownHost: "prompt",
   },
   requireApprovalPatterns: [],
+  strace: {
+    autoAllowViolations: false,
+  },
 };
 
 function createContext() {
@@ -964,6 +968,50 @@ describe("SandboxShell", () => {
       expect(result.exitCode).toBe(0);
     });
 
+    test("autoAllowViolations re-runs unsandboxed without prompting", async () => {
+      setupStoreWithSyntheticSupport();
+      mockAnnotateStderrWithSandboxFailures.mockImplementation(
+        (_cmd: string, stderr: string) => stderr,
+      );
+      const handler = createMockViolationHandler();
+      const proc = createMockChildProcess();
+      mockSpawn.mockReturnValueOnce(proc);
+      const context = {
+        ...createContext(),
+        getOptions: () =>
+          ({
+            sandbox: {
+              ...defaultSandboxConfig,
+              strace: { autoAllowViolations: true },
+            },
+          }) as MagentaOptions,
+      };
+      const shell = new SandboxShell(context, mockSandbox, handler);
+      const executePromise = shell.execute("cat /secret.txt", createOpts());
+      await pollUntil(() => {
+        if (!mockSpawn.mock.calls.length) throw new Error("waiting for spawn");
+      });
+      writeTraceFile(
+        'openat(AT_FDCWD, "/secret.txt", O_RDONLY) = -1 EACCES (Permission denied)\n',
+      );
+      // The retry (unsandboxed) command spawns directly without a prompt.
+      const retryProc = createMockChildProcess();
+      mockSpawn.mockReturnValueOnce(retryProc);
+      proc._emit("close", 1, null);
+      await pollUntil(() => {
+        if (mockSpawn.mock.calls.length < 2)
+          throw new Error("waiting for auto retry spawn");
+      });
+      expect(handler.addViolation).not.toHaveBeenCalled();
+      expect(mockSpawn).toHaveBeenLastCalledWith(
+        "bash",
+        ["-c", "cat /secret.txt"],
+        expect.objectContaining({ cwd: "/test/cwd" }),
+      );
+      retryProc._emit("close", 0, null);
+      const result = await executePromise;
+      expect(result.exitCode).toBe(0);
+    });
     test("does not flag failures whose trace has no denied syscalls", async () => {
       setupStoreWithSyntheticSupport();
 
@@ -1026,6 +1074,7 @@ describe("SandboxShell", () => {
       handler: ReturnType<typeof createMockViolationHandler>,
       host: string,
       onAskResult: (approved: boolean) => void,
+      context: ReturnType<typeof createContext> = createContext(),
     ): Promise<ShellResult> {
       const proc = createMockChildProcess();
       mockSpawn.mockReturnValueOnce(proc);
@@ -1035,7 +1084,7 @@ describe("SandboxShell", () => {
           proc._emit("close", 0, null);
         });
       }, 0);
-      const shell = new SandboxShell(createContext(), sandbox, handler);
+      const shell = new SandboxShell(context, sandbox, handler);
       return shell.execute(`curl https://${host}`, createOpts());
     }
 
@@ -1083,6 +1132,48 @@ describe("SandboxShell", () => {
         port: 443,
       });
       expect(approved).toBe(false);
+    });
+    function contextWithOnUnknownHost(
+      onUnknownHost: "prompt" | "allow" | "deny",
+    ) {
+      return {
+        ...createContext(),
+        getOptions: () =>
+          ({
+            sandbox: {
+              ...defaultSandboxConfig,
+              network: { ...defaultSandboxConfig.network, onUnknownHost },
+            },
+          }) as MagentaOptions,
+      };
+    }
+    test('onUnknownHost "allow" auto-approves without prompting', async () => {
+      const sandbox = new MockSandboxManager();
+      const handler = createMockViolationHandler();
+      const results: boolean[] = [];
+      await runCommandThatAsks(
+        sandbox,
+        handler,
+        "auto.com",
+        (r) => results.push(r),
+        contextWithOnUnknownHost("allow"),
+      );
+      expect(results).toEqual([true]);
+      expect(handler.promptForNetworkAccess).not.toHaveBeenCalled();
+    });
+    test('onUnknownHost "deny" rejects without prompting', async () => {
+      const sandbox = new MockSandboxManager();
+      const handler = createMockViolationHandler();
+      const results: boolean[] = [];
+      await runCommandThatAsks(
+        sandbox,
+        handler,
+        "blocked.com",
+        (r) => results.push(r),
+        contextWithOnUnknownHost("deny"),
+      );
+      expect(results).toEqual([false]);
+      expect(handler.promptForNetworkAccess).not.toHaveBeenCalled();
     });
   });
 });

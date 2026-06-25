@@ -524,6 +524,37 @@ strace to record there.
 
 ## Stage 5 — configurable auto-allow options (Part 3)
 
+**Status: DONE.** Added `OnUnknownHostBehavior = "prompt" | "allow" | "deny"`
+and extended `SandboxConfig` (`node/options.ts`) with
+`network.onUnknownHost` and a `strace: { autoAllowViolations: boolean }` block;
+`DEFAULT_SANDBOX_CONFIG` defaults them to `"prompt"` / `false` (current
+behavior). `parseSandboxConfig` parses both (enum-validates `onUnknownHost`,
+warning + defaulting to `"prompt"` on bad values; warns on non-boolean
+`autoAllowViolations` and on non-object `strace`). `mergeSandboxConfigs` takes
+the overlay's scalar value for both fields (last-writer-wins, project overrides
+user). Wiring: `SandboxShell.networkAskTarget` consults
+`sandbox.network.onUnknownHost` — `"deny"` resolves `false` with no UI,
+`"allow"` resolves `true` (recording the session host) with no UI, `"prompt"`
+surfaces the prompt; the empty-stack deny in `routeNetworkAsk` is unaffected.
+`runWrappedAndHandleViolations` consults `sandbox.strace.autoAllowViolations` —
+when `true`, a captured violation re-runs the command unsandboxed directly
+without an approval prompt.
+
+Decision (merge semantics): because `parseSandboxConfig` always fills these
+scalars with defaults, `mergeSandboxConfigs` is literal last-writer-wins
+(overlay value taken), mirroring the existing scalar-merge style. When neither
+layer sets a value both are the default, so defaults reproduce current behavior
+exactly.
+
+Tests: `options.test.ts` covers parse of valid values, invalid-enum
+warn+default, omitted-field defaults, and project-over-user scalar override via
+`mergeOptions`. `sandbox-shell.test.ts` covers `onUnknownHost: "allow"`
+auto-approve-no-prompt, `"deny"` reject-no-prompt, and
+`strace.autoAllowViolations: true` re-run-unsandboxed-without-prompt. Updated
+existing `SandboxConfig` literals (sandbox-shell/options/sandbox-manager tests)
+for the new required fields. `npx tsgo -b`, `npx biome check .`, and all
+options/sandbox/core test suites pass.
+
 - Goal: add `network.onUnknownHost` and `strace.autoAllowViolations` to
   `SandboxConfig`/`DEFAULT_SANDBOX_CONFIG`, parse them in `parseSandboxConfig`,
   merge them in `mergeSandboxConfigs`, and consult them in the Part 1

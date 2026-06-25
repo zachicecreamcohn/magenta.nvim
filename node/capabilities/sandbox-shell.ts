@@ -55,6 +55,19 @@ export class SandboxShell implements Shell {
   // sandbox's target stack, i.e. here, so we can surface a UI prompt. Approval
   // is remembered for the session so the same host is not re-prompted.
   private networkAskTarget: NetworkAskTarget = async ({ host, port }) => {
+    const onUnknownHost =
+      this.context.getOptions().sandbox.network.onUnknownHost;
+
+    // "deny" fails closed without any UI; "allow" auto-approves (still recording
+    // the host for session symmetry); "prompt" surfaces the approval prompt.
+    if (onUnknownHost === "deny") {
+      return false;
+    }
+    if (onUnknownHost === "allow") {
+      this.sandbox.recordSessionApprovedHost(host);
+      return true;
+    }
+
     const approved = await this.violationHandler.promptForNetworkAccess({
       host,
       port,
@@ -351,6 +364,12 @@ export class SandboxShell implements Shell {
         command,
         stderr,
       );
+
+      // When strace.autoAllowViolations is enabled, skip the approval prompt
+      // and re-run the command unsandboxed automatically.
+      if (this.context.getOptions().sandbox.strace.autoAllowViolations) {
+        return this.spawnCommand(command, opts);
+      }
 
       return this.violationHandler.addViolation(
         { command, violations: newViolations, stderr: annotated, result },

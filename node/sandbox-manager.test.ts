@@ -210,6 +210,7 @@ describe("sandbox-manager", () => {
           deniedDomains: ["evil.com"],
           allowUnixSockets: [],
           allowAllUnixSockets: false,
+          onUnknownHost: "prompt",
         },
       });
       const resolved = resolveConfigPaths(config, cwd, homeDir);

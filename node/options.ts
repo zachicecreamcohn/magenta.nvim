@@ -145,6 +145,8 @@ export type SidebarPositionOpts = {
   tab: TabWindowDimensions;
 };
 
+export type OnUnknownHostBehavior = "prompt" | "allow" | "deny";
+
 export type SandboxConfig = {
   filesystem: {
     allowWrite: string[];
@@ -157,8 +159,12 @@ export type SandboxConfig = {
     deniedDomains: string[];
     allowUnixSockets: string[];
     allowAllUnixSockets: boolean;
+    onUnknownHost: OnUnknownHostBehavior;
   };
   requireApprovalPatterns: string[];
+  strace: {
+    autoAllowViolations: boolean;
+  };
 };
 
 export const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
@@ -208,8 +214,12 @@ export const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
     deniedDomains: [],
     allowUnixSockets: [],
     allowAllUnixSockets: false,
+    onUnknownHost: "prompt",
   },
   requireApprovalPatterns: ["git\\s+push"],
+  strace: {
+    autoAllowViolations: false,
+  },
 };
 
 export type MagentaOptions = {
@@ -882,11 +892,15 @@ function mergeSandboxConfigs(
       ],
       allowAllUnixSockets:
         overlay.network.allowAllUnixSockets || base.network.allowAllUnixSockets,
+      onUnknownHost: overlay.network.onUnknownHost,
     },
     requireApprovalPatterns: [
       ...base.requireApprovalPatterns,
       ...overlay.requireApprovalPatterns,
     ],
+    strace: {
+      autoAllowViolations: overlay.strace.autoAllowViolations,
+    },
   };
 }
 
@@ -901,8 +915,12 @@ function parseSandboxConfig(
       deniedDomains: [],
       allowUnixSockets: [],
       allowAllUnixSockets: false,
+      onUnknownHost: "prompt",
     },
     requireApprovalPatterns: [],
+    strace: {
+      autoAllowViolations: false,
+    },
   };
 
   if (typeof input !== "object" || input === null) {
@@ -974,6 +992,19 @@ function parseSandboxConfig(
     if (typeof net.allowAllUnixSockets === "boolean") {
       config.network.allowAllUnixSockets = net.allowAllUnixSockets;
     }
+    if ("onUnknownHost" in net) {
+      if (
+        net.onUnknownHost === "prompt" ||
+        net.onUnknownHost === "allow" ||
+        net.onUnknownHost === "deny"
+      ) {
+        config.network.onUnknownHost = net.onUnknownHost;
+      } else {
+        logger.warn(
+          `Invalid sandbox.network.onUnknownHost: ${JSON.stringify(net.onUnknownHost)}, must be "prompt", "allow", or "deny"`,
+        );
+      }
+    }
   } else if ("network" in obj) {
     logger.warn("sandbox.network must be an object");
   }
@@ -986,6 +1017,17 @@ function parseSandboxConfig(
     );
   } else if ("requireApprovalPatterns" in obj) {
     logger.warn("sandbox.requireApprovalPatterns must be an array of strings");
+  }
+
+  if (typeof obj.strace === "object" && obj.strace !== null) {
+    const strace = obj.strace as Record<string, unknown>;
+    if (typeof strace.autoAllowViolations === "boolean") {
+      config.strace.autoAllowViolations = strace.autoAllowViolations;
+    } else if ("autoAllowViolations" in strace) {
+      logger.warn("sandbox.strace.autoAllowViolations must be a boolean");
+    }
+  } else if ("strace" in obj) {
+    logger.warn("sandbox.strace must be an object");
   }
 
   return config;
