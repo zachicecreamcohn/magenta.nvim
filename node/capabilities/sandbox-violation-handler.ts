@@ -33,19 +33,24 @@ type PendingNetworkAccessPrompt = {
   port: number | undefined;
 };
 
-type PendingShellPrompt =
-  | PendingApprovalPrompt
-  | PendingViolationPrompt
-  | PendingWriteApprovalPrompt;
+type PendingShellPrompt = PendingApprovalPrompt | PendingViolationPrompt;
 
-// The network-access prompt resolves to a boolean (allow/deny the connection)
-// rather than a ShellResult, so it carries its own resolve type instead of
-// widening the shared shell-result resolve.
+// Different prompt kinds resolve to different result types, so the pending
+// union encodes each kind's resolve signature directly rather than widening to
+// a single shared resolve. Shell prompts resolve to a ShellResult, write
+// approvals resolve to void, and network-access resolves to a boolean
+// (allow/deny the connection).
 export type PendingViolation =
   | {
       id: string;
       prompt: PendingShellPrompt;
       resolve: (result: ShellResult) => void;
+      reject: (err: Error) => void;
+    }
+  | {
+      id: string;
+      prompt: PendingWriteApprovalPrompt;
+      resolve: () => void;
       reject: (err: Error) => void;
     }
   | {
@@ -62,6 +67,15 @@ type NetworkPending = Extract<
 
 function isNetworkPending(entry: PendingViolation): entry is NetworkPending {
   return entry.prompt.kind === "network-access";
+}
+
+type WritePending = Extract<
+  PendingViolation,
+  { prompt: PendingWriteApprovalPrompt }
+>;
+
+function isWritePending(entry: PendingViolation): entry is WritePending {
+  return entry.prompt.kind === "write-approval";
 }
 
 function normalizeViolationLine(line: string): string {
@@ -125,7 +139,7 @@ export class SandboxViolationHandler {
       this.pending.set(id, {
         id,
         prompt: { kind: "write-approval", absPath },
-        resolve: resolve as unknown as (result: ShellResult) => void,
+        resolve,
         reject,
       });
       this.onPendingChange();
@@ -164,8 +178,8 @@ export class SandboxViolationHandler {
       return;
     }
 
-    if (entry.prompt.kind === "write-approval") {
-      entry.resolve(undefined as unknown as ShellResult);
+    if (isWritePending(entry)) {
+      entry.resolve();
     } else {
       const executeFn =
         entry.prompt.kind === "violation"

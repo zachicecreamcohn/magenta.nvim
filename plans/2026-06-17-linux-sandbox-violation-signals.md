@@ -281,6 +281,16 @@ Invariants (Part 3):
 
 ## Stage 1 — Network ask plumbing in the Sandbox + handler (no UI yet)
 
+**Code-review follow-up (write-approval resolve type):** Split the
+`PendingViolation` union so each prompt kind encodes its own resolve signature:
+shell prompts (`approval-prompt`/`violation`) resolve to `ShellResult`,
+`write-approval` resolves to `() => void`, and `network-access` resolves to
+`boolean`. This removes the `resolve as unknown as ShellResult` cast in
+`promptForWriteApproval` and the `entry.resolve(undefined as unknown as
+ShellResult)` cast in `approve`. Added an `isWritePending` type guard (mirroring
+`isNetworkPending`) so `approve` narrows to the void-resolving variant cleanly.
+No remaining double casts.
+
 **Status: DONE.** Implemented `NetworkAskStack` (shared LIFO router) in
 `node/sandbox-manager.ts`, exported `NetworkAskParams`/`NetworkAskTarget`, and
 added `pushNetworkAskTarget`/`popNetworkAskTarget`/`routeNetworkAsk` to the
