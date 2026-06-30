@@ -1,5 +1,40 @@
 local M = {}
 
+local function scroll_up_visual()
+  local count = math.floor(vim.fn.winheight(0) / 2)
+  for _ = 1, count do
+    vim.cmd("normal! gk")
+  end
+  vim.cmd("normal! zz")
+end
+
+local function scroll_down_visual()
+  local count = math.floor(vim.fn.winheight(0) / 2)
+  for _ = 1, count do
+    vim.cmd("normal! gj")
+  end
+  vim.cmd("normal! zz")
+end
+
+-- Apply soft-wrap + visual-line movement (mirrors the markdown setup in the
+-- user's dotfiles) so the display buffer wraps and j/k/$/0 respect wraps.
+local function set_wrapped_line_mode(bufnr)
+  vim.bo[bufnr].textwidth = 0
+  vim.api.nvim_buf_call(bufnr, function()
+    vim.opt_local.wrap = true
+    vim.opt_local.linebreak = true
+    vim.opt_local.breakindent = true
+    vim.opt_local.formatoptions:remove({ "t", "c" })
+  end)
+  local opts = { buffer = bufnr, noremap = true, silent = true }
+  vim.keymap.set({ "n", "v" }, "j", "gj", opts)
+  vim.keymap.set({ "n", "v" }, "k", "gk", opts)
+  vim.keymap.set({ "n", "v" }, "$", "g$", opts)
+  vim.keymap.set({ "n", "v" }, "0", "g0", opts)
+  vim.keymap.set("n", "<C-u>", scroll_up_visual, opts)
+  vim.keymap.set("n", "<C-d>", scroll_down_visual, opts)
+end
+
 local Actions = require("magenta.actions")
 local Options = require("magenta.options")
 
@@ -244,6 +279,7 @@ end
 
 M.set_display_buffer_keymaps = function(bufnr)
   display_bufnrs[bufnr] = true
+  set_wrapped_line_mode(bufnr)
 
   vim.api.nvim_create_autocmd("TextYankPost", {
     buffer = bufnr,
