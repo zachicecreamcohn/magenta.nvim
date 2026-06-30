@@ -125,6 +125,53 @@ export async function quickfixListToString(
   return lines.join("\n");
 }
 
+/** Capture the scroll/cursor view (winsaveview) of every window currently
+ * displaying `bufId`. Returns an opaque value to pass back to restoreWinViews.
+ * No-op (empty result) when the buffer is not visible in any window. */
+export async function saveWinViews(nvim: Nvim, bufId: BufNr): Promise<unknown> {
+  return nvim.call("nvim_exec_lua", [
+    `
+local bufid = ...
+local res = {}
+local lastline = vim.api.nvim_buf_line_count(bufid)
+for _, win in ipairs(vim.fn.win_findbuf(bufid)) do
+  local v = vim.api.nvim_win_call(win, function() return vim.fn.winsaveview() end)
+  table.insert(res, { win = win, view = v, atBottom = (v.lnum >= lastline) })
+end
+return res
+`,
+    [bufId],
+  ]);
+}
+
+/** Restore views captured by saveWinViews, but only for windows that are still
+ * valid and still display `bufId` (so we don't clobber a window the user moved
+ * to a different buffer). */
+export async function restoreWinViews(
+  nvim: Nvim,
+  bufId: BufNr,
+  saved: unknown,
+): Promise<void> {
+  await nvim.call("nvim_exec_lua", [
+    `
+local bufid, saved = ...
+for _, item in ipairs(saved) do
+  if vim.api.nvim_win_is_valid(item.win) and vim.api.nvim_win_get_buf(item.win) == bufid then
+    vim.api.nvim_win_call(item.win, function()
+      if item.atBottom then
+        -- cursor was pinned to the last line: follow the new bottom as content streams in
+        vim.cmd("normal! G")
+      else
+        vim.fn.winrestview(item.view)
+      end
+    end)
+  end
+end
+`,
+    [bufId, saved],
+  ]);
+}
+
 export async function notify(nvim: Nvim, message: string) {
   const luaScript = `
       vim.notify(

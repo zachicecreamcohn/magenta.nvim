@@ -1,5 +1,9 @@
 import type { NvimBuffer } from "../nvim/buffer.ts";
-import { getCurrentWindow } from "../nvim/nvim.ts";
+import {
+  getCurrentWindow,
+  restoreWinViews,
+  saveWinViews,
+} from "../nvim/nvim.ts";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
 import type { Row0Indexed } from "../nvim/window.ts";
 import { Defer } from "../utils/async.ts";
@@ -90,8 +94,24 @@ export function createApp<Model>({
       if (root) {
         renderPromise = (async () => {
           try {
+            const bufId = mountPoint?.buffer.id;
+            let savedViews: unknown;
+            if (bufId != null) {
+              try {
+                savedViews = await saveWinViews(nvim, bufId);
+              } catch {
+                savedViews = undefined;
+              }
+            }
             await root.render({ currentState });
             renderVersion++;
+            if (bufId != null && savedViews) {
+              try {
+                await restoreWinViews(nvim, bufId, savedViews);
+              } catch {
+                // best-effort: scroll preservation should never break rendering
+              }
+            }
           } catch (err) {
             nvim.logger.error(
               err instanceof Error
