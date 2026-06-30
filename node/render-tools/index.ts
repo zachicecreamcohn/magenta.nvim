@@ -3,7 +3,6 @@ import {
   type CompletedToolInfo,
   type DisplayContext,
   isMCPTool,
-  type NvimLua,
   type RunScript,
   type SpawnSubagents,
   type StaticToolName,
@@ -17,7 +16,7 @@ import type { MagentaOptions } from "../options.ts";
 import type { ProviderToolResult } from "../providers/provider-types.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { Dispatch } from "../tea/tea.ts";
-import { d, type VDOMNode, withInlineCode } from "../tea/view.ts";
+import { d, type VDOMNode } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { HomeDir, NvimCwd } from "../utils/files.ts";
 import { formatTokens } from "../utils/tokens.ts";
@@ -28,6 +27,7 @@ import * as FindReferencesRender from "./findReferences.ts";
 import * as GetFileRender from "./getFile.ts";
 import * as HoverRender from "./hover.ts";
 import * as MCPToolRender from "./mcp-tool.ts";
+import * as NvimLuaRender from "./nvimLua.ts";
 import * as RunScriptRender from "./run-script.ts";
 import * as SpawnSubagentsRender from "./spawn-subagents.ts";
 import * as ThreadTitleRender from "./thread-title.ts";
@@ -90,11 +90,8 @@ export function renderToolSummary(
       const input = request.input as RunScript.Input;
       return d`🚀 run_script: ${input.scriptName}`;
     }
-    case "nvim_lua": {
-      const input = request.input as NvimLua.Input;
-      const firstLine = input.code.split("\n")[0];
-      return d`🌙 ${withInlineCode(d`\`${firstLine}\``)}`;
-    }
+    case "nvim_lua":
+      return NvimLuaRender.renderSummary(request, displayContext);
     default:
       assertUnreachable(toolName);
   }
@@ -117,6 +114,8 @@ export function renderToolInput(
       return BashCommandRender.renderInput(request, displayContext, expanded);
     case "edl":
       return EdlRender.renderInput(request, displayContext, expanded, inFlight);
+    case "nvim_lua":
+      return NvimLuaRender.renderInput(request, displayContext, expanded);
     case "spawn_subagents":
       return SpawnSubagentsRender.renderInput(
         request,
