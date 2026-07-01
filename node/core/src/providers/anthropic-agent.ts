@@ -1691,13 +1691,16 @@ export function effortToBudgetTokens(
   }
 }
 
-// Opus 4.7+ and Sonnet 4.6+ require adaptive thinking instead of budget_tokens.
+// Opus 4.7+ and Sonnet 4.6+ (and any later major version, e.g. opus-5,
+// sonnet-6, ...) require adaptive thinking instead of budget_tokens.
 // The isBedrock parameter is retained for older Bedrock-hosted models that
 // still need the legacy path, but Opus 4.7+ on Bedrock now requires adaptive.
 function supportsAdaptiveThinking(model: string, _isBedrock = false): boolean {
   const normalized = normalizeModelName(model);
   if (normalized.match(/^claude-opus-4-([7-9]|\d{2,})/)) return true;
+  if (normalized.match(/^claude-opus-([5-9]|\d{2,})(-|$)/)) return true;
   if (normalized.match(/^claude-sonnet-4-([6-9]|\d{2,})/)) return true;
+  if (normalized.match(/^claude-sonnet-([5-9]|\d{2,})(-|$)/)) return true;
   return false;
 }
 
