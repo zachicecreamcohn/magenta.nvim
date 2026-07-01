@@ -121,6 +121,13 @@ describe("isRetryableError", () => {
     expect(isRetryableError(make529Error())).toBe(true);
   });
 
+  it("retries Bedrock stream ending without any chunks", () => {
+    const error = new AnthropicError(
+      "request ended without sending any chunks",
+    );
+    expect(isRetryableError(error)).toBe(true);
+  });
+
   it("does not retry non-retryable errors", () => {
     const error = new APIError(
       400,

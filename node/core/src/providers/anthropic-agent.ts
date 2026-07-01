@@ -106,6 +106,15 @@ export function isRetryableError(error: Error): boolean {
   ) {
     return true;
   }
+  // AWS Bedrock occasionally closes the SSE stream cleanly without emitting
+  // any events at all, which the Anthropic SDK surfaces as this AnthropicError.
+  // This is a transient connection glitch, so retry.
+  if (
+    error instanceof AnthropicError &&
+    error.message === "request ended without sending any chunks"
+  ) {
+    return true;
+  }
   // Transient SSE-decode failures: the Anthropic SDK strictly JSON.parses each
   // raw SSE event, and upstream transports (proxies, Bedrock, Azure Foundry)
   // occasionally deliver truncated or merged frames. These surface as a
