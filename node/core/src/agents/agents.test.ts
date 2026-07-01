@@ -537,6 +537,7 @@ describe("formatAgentsIntroduction", () => {
         systemPrompt: "prompt",
         systemReminder: undefined,
         fastModel: undefined,
+        thinkingModel: undefined,
         effort: undefined,
         tier: "leaf" as const,
       },

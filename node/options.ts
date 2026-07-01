@@ -26,11 +26,12 @@ export const BUILTIN_SDK_PATH = path.join(__dirname, "..", "sdk");
 // Default models by provider
 const DEFAULT_MODELS: Record<
   ProviderName,
-  { model: string; fastModel?: string }
+  { model: string; fastModel?: string; thinkingModel?: string }
 > = {
   anthropic: {
-    model: "claude-opus-4-8",
+    model: "claude-sonnet-5",
     fastModel: "claude-haiku-4-5",
+    thinkingModel: "claude-opus-4-8",
   },
   openai: {
     model: "gpt-4.1",
@@ -44,8 +45,9 @@ const DEFAULT_MODELS: Record<
     model: "llama3.1:8b",
   },
   copilot: {
-    model: "claude-opus-4-8",
+    model: "claude-sonnet-5",
     fastModel: "claude-haiku-4-5",
+    thinkingModel: "claude-opus-4-8",
   },
   mock: {
     model: "mock",
@@ -58,6 +60,7 @@ export type Profile = {
   provider: ProviderName;
   model: string;
   fastModel: string;
+  thinkingModel: string;
   baseUrl?: string;
   apiKeyEnvVar?: string;
   authType?: "key" | "max" | "keychain"; // New field for authentication type
@@ -290,6 +293,10 @@ function parseProfiles(
           typeof p.fastModel === "string"
             ? p.fastModel
             : (defaults.fastModel ?? model),
+        thinkingModel:
+          typeof p.thinkingModel === "string"
+            ? p.thinkingModel
+            : (defaults.thinkingModel ?? model),
       };
 
       if ("baseUrl" in p) {

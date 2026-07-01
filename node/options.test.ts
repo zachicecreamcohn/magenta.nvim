@@ -16,7 +16,13 @@ import type { NvimCwd } from "./utils/files.ts";
 function makeBaseOptions(overrides?: Partial<MagentaOptions>): MagentaOptions {
   return {
     profiles: [
-      { name: "test", provider: "mock", model: "mock", fastModel: "mock-fast" },
+      {
+        name: "test",
+        provider: "mock",
+        model: "mock",
+        fastModel: "mock-fast",
+        thinkingModel: "mock",
+      },
     ],
     activeProfile: "test",
     sidebarPosition: "left",

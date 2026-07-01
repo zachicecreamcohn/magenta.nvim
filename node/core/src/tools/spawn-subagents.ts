@@ -363,6 +363,7 @@ export function resolveSubagentConfig(
     return {
       agentName: agentDef.name,
       fastModel: agentDef.fastModel,
+      thinkingModel: agentDef.thinkingModel,
       systemPrompt: agentDef.systemPrompt,
       systemReminder: agentDef.systemReminder,
       tier: agentDef.tier,

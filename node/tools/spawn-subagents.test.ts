@@ -572,6 +572,7 @@ describe("foreach-style parallel agents", () => {
               provider: "mock",
               model: "mock",
               fastModel: "mock-fast",
+              thinkingModel: "mock",
               thinking: {
                 enabled: true,
                 budgetTokens: 1024,
@@ -633,6 +634,70 @@ describe("foreach-style parallel agents", () => {
 
         expect(subagentStream.params.model).toBe(parentProfile.fastModel);
         expect(subagentStream.params.thinking).toBeUndefined();
+      },
+    );
+  });
+
+  it("uses thinking model for subagents when agentType is 'think'", async () => {
+    await withDriver(
+      {
+        options: {
+          profiles: [
+            {
+              name: "mock",
+              provider: "mock",
+              model: "mock",
+              fastModel: "mock-fast",
+              thinkingModel: "mock-thinking",
+            },
+          ],
+          maxConcurrentSubagents: 1,
+        },
+      },
+      async (driver) => {
+        await driver.showSidebar();
+
+        const activeThread = driver.magenta.chat.getActiveThread();
+        const parentProfile = activeThread.context.profile;
+
+        await driver.inputMagentaText("Use spawn_subagents with think agent.");
+        await driver.send();
+
+        const stream1 = await driver.mockAnthropic.awaitPendingStreamWithText(
+          "Use spawn_subagents",
+        );
+
+        expect(stream1.params.model).toBe(parentProfile.model);
+
+        stream1.respond({
+          stopReason: "tool_use",
+          text: "Using spawn_subagents with think agent.",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "test-think" as ToolRequestId,
+                toolName: "spawn_subagents" as ToolName,
+                input: {
+                  agents: [
+                    {
+                      prompt: "Reason carefully about this",
+                      agentType: "think",
+                    },
+                  ],
+                },
+              },
+            },
+          ],
+        });
+
+        const subagentStream =
+          await driver.mockAnthropic.awaitPendingStreamWithText(
+            "Reason carefully about this",
+          );
+
+        expect(subagentStream.params.model).toBe(parentProfile.thinkingModel);
+        expect(subagentStream.params.thinking).toBeDefined();
       },
     );
   });
@@ -929,6 +994,7 @@ Always check for proper error handling and type safety.
               provider: "mock",
               model: "mock-full",
               fastModel: "mock-fast",
+              thinkingModel: "mock",
               thinking: {
                 enabled: true,
                 budgetTokens: 1024,

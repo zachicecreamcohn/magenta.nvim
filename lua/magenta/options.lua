@@ -3,27 +3,32 @@ local M = {}
 local defaults = {
   profiles = {
     {
-      name = "claude-opus-4-6",
+      name = "claude-sonnet-5",
       provider = "anthropic",
-      model = "claude-opus-4-6",
-      apiKeyEnvVar = "ANTHROPIC_API_KEY"
+      model = "claude-sonnet-5",
+      thinkingModel = "claude-opus-4-8",
+      apiKeyEnvVar = "ANTHROPIC_API_KEY",
+      thinking = {
+        enabled = true,
+        effort = "medium"
+      }
     },
     {
-      name = "claude-sonnet-4-5",
+      name = "claude-opus-4-8",
       provider = "anthropic",
-      model = "claude-sonnet-4-5",
+      model = "claude-opus-4-8",
       apiKeyEnvVar = "ANTHROPIC_API_KEY"
     },
     {
       name = "claude-max",
       provider = "anthropic",
-      model = "claude-opus-4-6",
+      model = "claude-opus-4-8",
       authType = "max"
     },
     {
       name = "claude-keychain",
       provider = "anthropic",
-      model = "claude-opus-4-6",
+      model = "claude-opus-4-8",
       authType = "keychain"
     },
     {
@@ -35,7 +40,7 @@ local defaults = {
     {
       name = "copilot-claude-opus",
       provider = "copilot",
-      model = "claude-opus-4-6"
+      model = "claude-opus-4-8"
     }
   },
   picker = "fzf-lua",

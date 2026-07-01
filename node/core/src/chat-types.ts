@@ -12,6 +12,7 @@ export type ThreadType = "subagent" | "compact" | "root" | "docker_root";
 export type SubagentConfig = {
   agentName?: string | undefined;
   fastModel?: boolean | undefined;
+  thinkingModel?: boolean | undefined;
   systemPrompt?: string | undefined;
   systemReminder?: string | undefined;
   tier?: AgentTier | undefined;

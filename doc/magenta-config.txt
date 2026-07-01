@@ -34,7 +34,12 @@ Each profile specifies:
   - `name`: identifier for the profile
   - `provider`: "anthropic"
   - `model`: the specific model to use
-  - `fastModel`: (optional) model for lightweight tasks
+  - `fastModel`: (optional) model for lightweight tasks (used by
+    subagents that declare `fastModel: true`, e.g. explore/fast-edit)
+  - `thinkingModel`: (optional) model for deep-reasoning subagents that
+    declare `thinkingModel: true` (e.g. the `think` agent). Lets you run
+    the main thread on a fast model while delegating hard reasoning to a
+    stronger model. Defaults to `model` when unset.
   - `authType`: (optional) "key" (default), "max" for Anthropic OAuth,
     or "keychain" to load a Claude Code Console API key from the macOS
     Keychain (see |magenta-claude-keychain|)
@@ -49,11 +54,16 @@ Example:~
 >lua
     profiles = {
       {
-        name = "claude-sonnet",
+        name = "claude-sonnet-5",
         provider = "anthropic",
-        model = "claude-sonnet-4-5",
+        model = "claude-sonnet-5",
         fastModel = "claude-haiku-4-5",
-        apiKeyEnvVar = "ANTHROPIC_API_KEY"
+        thinkingModel = "claude-opus-4-8",
+        apiKeyEnvVar = "ANTHROPIC_API_KEY",
+        thinking = {
+          enabled = true,
+          effort = "medium"        -- recommended default
+        }
       },
 
     }
@@ -61,12 +71,12 @@ Example:~
 
 With thinking/reasoning support:~
 
-Opus 4.7 uses adaptive thinking (automatic budget allocation):
+Sonnet 5 and Opus 4.7+ use adaptive thinking (automatic budget allocation):
 >lua
     {
       name = "claude-opus",
       provider = "anthropic",
-      model = "claude-opus-4-7",
+      model = "claude-opus-4-8",
       apiKeyEnvVar = "ANTHROPIC_API_KEY",
       thinking = {
         enabled = true,
@@ -228,7 +238,7 @@ Example `.magenta/options.json`:~
         {
           "name": "project-claude",
           "provider": "anthropic",
-          "model": "claude-opus-4-7",
+          "model": "claude-opus-4-8",
           "apiKeyEnvVar": "PROJECT_ANTHROPIC_KEY"
         }
       ],

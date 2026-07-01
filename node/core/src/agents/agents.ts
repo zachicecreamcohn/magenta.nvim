@@ -12,6 +12,7 @@ export type AgentInfo = {
   systemPrompt: string;
   systemReminder: string | undefined;
   fastModel: boolean | undefined;
+  thinkingModel: boolean | undefined;
   effort: ThinkingEffort | undefined;
   tier: AgentTier;
 };
@@ -25,6 +26,7 @@ type AgentFrontmatter = {
   name?: string;
   description?: string;
   fastModel?: boolean;
+  thinkingModel?: boolean;
   effort?: ThinkingEffort;
   tier?: AgentTier;
 };
@@ -161,6 +163,7 @@ export function parseAgentFile(
     systemPrompt,
     systemReminder,
     fastModel: frontmatter.fastModel,
+    thinkingModel: frontmatter.thinkingModel,
     effort: frontmatter.effort,
     tier: frontmatter.tier ?? "leaf",
   };
@@ -197,6 +200,8 @@ function extractAgentFrontmatter(
       result[key] = value;
     } else if (key === "fastModel") {
       result.fastModel = value === "true";
+    } else if (key === "thinkingModel") {
+      result.thinkingModel = value === "true";
     } else if (key === "effort") {
       if (
         value === "low" ||

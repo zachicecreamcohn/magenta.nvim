@@ -19,6 +19,7 @@ export type ProviderProfile = {
   provider: ProviderName;
   model: string;
   fastModel: string;
+  thinkingModel: string;
   baseUrl?: string;
   apiKeyEnvVar?: string;
   authType?: "key" | "max" | "keychain";

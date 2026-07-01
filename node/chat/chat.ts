@@ -1338,7 +1338,12 @@ ${threadViews.map((view) => d`${view}\n`)}`;
           thinking: undefined,
           reasoning: undefined,
         }
-      : parentThread.context.profile;
+      : opts.subagentConfig?.thinkingModel
+        ? {
+            ...parentThread.context.profile,
+            model: parentThread.context.profile.thinkingModel,
+          }
+        : parentThread.context.profile;
 
     let environmentConfig: EnvironmentConfig;
     if (opts.dockerSpawnConfig) {

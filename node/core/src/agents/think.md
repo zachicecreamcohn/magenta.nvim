@@ -2,6 +2,7 @@
 name: think
 description: Deep-reasoning subagent for architecture decisions, complex debugging, and tradeoff analysis. Invoke when the user explicitly asks for deep analysis, or when a problem requires weighing multiple approaches, considering edge cases, or reasoning carefully about subtle bugs.
 tier: thread
+thinkingModel: true
 effort: max
 ---
 
