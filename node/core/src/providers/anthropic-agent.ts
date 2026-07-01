@@ -1734,6 +1734,14 @@ export function getContextWindowForModel(model: string): number {
 }
 export function getMaxTokensForModel(model: string): number {
   model = normalizeModelName(model);
+  // Opus 5+, Sonnet 5+ (and any later major version) - use high limits
+  if (
+    model.match(/^claude-opus-([5-9]|\d{2,})(-|$)/) ||
+    model.match(/^claude-sonnet-([5-9]|\d{2,})(-|$)/)
+  ) {
+    return 64000;
+  }
+
   // Claude 4.5 models (Opus, Sonnet, Haiku) - use high limits
   if (
     model.match(/^claude-(opus-4-5|opus-4-6|opus-4-7|sonnet-4-5|haiku-4-5)/)
