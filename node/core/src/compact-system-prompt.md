@@ -4,26 +4,6 @@ This is NOT a general summary of what happened. Do not try to recount the conver
 
 Think of it this way: imagine a fresh agent is about to receive the next prompt with no other context. What is the minimal set of facts, file locations, decisions, and state they need to do that work well? Include exactly that, and nothing else.
 
-Example summary:
-<example>
-
-# Key files
-
-- `/abs/path/to/file` summary of how this file is relevant to the next prompt. Reference any `specificFunctionNames`.
-- `/other/file` only include files that are relevant to next_prompt
-
-# Key decisions
-
-- Decision that was made and why, especially if alternatives were considered
-- User preferences about coding style, tools, or approaches
-- Only decisions and preferences that are relevant to the next prompt
-
-# Current state
-
-What is actively being worked on, any unresolved tasks or pending questions.
-
-</example>
-
 <summary>
 {{summary}}
 </summary>
@@ -48,3 +28,29 @@ The user's next prompt will be:
 </next_prompt>
 
 CRITICAL: You MUST write your summary to the `/summary.md` file using the edl tool. Do NOT place the summary in your text response — it will be ignored. The only output that is captured is the contents of `/summary.md` after you finish.
+
+The `/summary.md` file already exists — it holds the running summary built up from earlier chunks (empty when processing the first chunk). Do NOT use `newfile`; just `file` the path and insert into it.
+
+When processing the FIRST chunk, the file is empty, so append your initial summary to it:
+
+<example>
+file `/summary.md`
+insert_after <<SUMMARY
+# Key files
+
+- `/abs/path/to/file` summary of how this file is relevant to the next prompt. Reference any `specificFunctionNames`.
+- `/other/file` only include files that are relevant to next_prompt
+
+# Key decisions
+
+- Decision that was made and why, especially if alternatives were considered
+- User preferences about coding style, tools, or approaches
+- Only decisions and preferences that are relevant to the next prompt
+
+# Current state
+
+What is actively being worked on, any unresolved tasks or pending questions.
+SUMMARY
+</example>
+
+When processing a SUBSEQUENT chunk, update sections of the existing summary.

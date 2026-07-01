@@ -82,6 +82,39 @@ END`);
     expect(cmds).toEqual([{ type: "file", path: "src/app.ts" }]);
   });
 
+  it("parses absolute paths starting with a slash", () => {
+    expect(parse(`newfile /summary.md`)).toEqual([
+      { type: "newfile", path: "/summary.md" },
+    ]);
+    expect(parse(`file /tmp/foo/bar.md`)).toEqual([
+      { type: "file", path: "/tmp/foo/bar.md" },
+    ]);
+  });
+
+  it("parses backtick-quoted paths", () => {
+    expect(parse(`file \`/abs/path.ts\``)).toEqual([
+      { type: "file", path: "/abs/path.ts" },
+    ]);
+  });
+
+  it("rejects positional args to insert/replace with a helpful message", () => {
+    expect(() => parse(`insert_after bof <<D\nx\nD`)).toThrow(
+      /does not take a positional argument/,
+    );
+    expect(() => parse(`insert_before eof my_reg`)).toThrow(
+      /operates on the current selection/,
+    );
+    expect(() => parse(`replace 3-5`)).toThrow(
+      /does not take a positional argument/,
+    );
+  });
+
+  it("still accepts register names for insert/replace", () => {
+    expect(parse(`insert_after my_register`)).toEqual([
+      { type: "insert_after", register: "my_register" },
+    ]);
+  });
+
   it("parses retain_nth", () => {
     const cmds = parse(`retain_nth 2`);
     expect(cmds).toEqual([{ type: "retain_nth", n: 2 }]);
