@@ -41,6 +41,7 @@ export type CreateToolContext = {
   cwd: NvimCwd;
   homeDir: HomeDir;
   maxConcurrentSubagents: number;
+  maxConcurrentFastSubagents: number;
   contextTracker: ContextTracker;
   onToolApplied: OnToolApplied;
   helpTagsProvider: HelpTagsProvider;
@@ -125,6 +126,7 @@ export function createTool(
         threadManager: context.threadManager,
         threadId: context.threadId,
         maxConcurrentSubagents: context.maxConcurrentSubagents,
+        maxConcurrentFastSubagents: context.maxConcurrentFastSubagents,
         requestRender: context.requestRender,
         cwd: context.cwd,
         agents: context.getAgents(),

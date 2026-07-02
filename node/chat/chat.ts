@@ -204,7 +204,7 @@ export class Chat implements ThreadManager {
           }
         }
 
-        if (thread.core.state.mode.type === "yielded") {
+        if (this.getThreadResult(thread.id).status === "done") {
           this.fireThreadYieldCallbacks(thread.id);
         }
       }

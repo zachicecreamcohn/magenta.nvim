@@ -106,6 +106,7 @@ export interface CompactionManagerContext {
   shell: Shell;
   threadManager: ThreadManager;
   maxConcurrentSubagents: number;
+  maxConcurrentFastSubagents: number;
   getProvider: (profile: ProviderProfile) => Provider;
   requestRender: () => void;
 }
@@ -372,6 +373,7 @@ export class CompactionManager extends Emitter<CompactionEvents> {
         cwd: this.context.cwd,
         homeDir: this.context.homeDir,
         maxConcurrentSubagents: this.context.maxConcurrentSubagents,
+        maxConcurrentFastSubagents: this.context.maxConcurrentFastSubagents,
         contextTracker: this.context.contextManager as ContextTracker,
         onToolApplied: (absFilePath, tool, fileTypeInfo) => {
           this.context.contextManager.toolApplied(

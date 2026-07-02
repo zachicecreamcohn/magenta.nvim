@@ -34,6 +34,7 @@ function makeBaseOptions(overrides?: Partial<MagentaOptions>): MagentaOptions {
       right: { widthPercentage: 0.4, displayHeightPercentage: 0.8 },
     },
     maxConcurrentSubagents: 3,
+    maxConcurrentFastSubagents: 8,
     sandbox: structuredClone(DEFAULT_SANDBOX_CONFIG),
     autoContext: [],
     hierarchyContextFileNames: ["context.md", "agent.md"],

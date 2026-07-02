@@ -307,6 +307,8 @@ export class Thread {
           availableCapabilities: env.availableCapabilities,
           environmentConfig: env.environmentConfig,
           maxConcurrentSubagents: context.options.maxConcurrentSubagents || 3,
+          maxConcurrentFastSubagents:
+            context.options.maxConcurrentFastSubagents || 8,
           ...(context.yieldSchema ? { yieldSchema: context.yieldSchema } : {}),
           getAgents: () =>
             loadAgents({
@@ -538,6 +540,8 @@ export class Thread {
         availableCapabilities: environment.availableCapabilities,
         environmentConfig: environment.environmentConfig,
         maxConcurrentSubagents: getOptions().maxConcurrentSubagents || 3,
+        maxConcurrentFastSubagents:
+          getOptions().maxConcurrentFastSubagents || 8,
         getAgents: () =>
           loadAgents({
             cwd: environment.cwd,

@@ -381,6 +381,7 @@ export function execute(
     threadManager: ThreadManager;
     threadId: ThreadId;
     maxConcurrentSubagents: number;
+    maxConcurrentFastSubagents: number;
     requestRender: () => void;
     cwd: NvimCwd;
     agents: AgentsMap;
@@ -537,90 +538,78 @@ export function execute(
     ctx.requestRender();
   };
 
-  const promise = (async (): Promise<ProviderToolResult> => {
-    try {
-      const maxConcurrent = context.maxConcurrentSubagents;
+  const isFastElement = (
+    element: SpawnSubagentsProgress["elements"][0],
+  ): boolean =>
+    resolveSubagentConfig(element.entry, context.agents).fastModel === true;
 
-      // Phase 1: Spawn all threads with concurrency control
-      let nextIdx = 0;
-      const inFlight = new Set<Promise<void>>();
-
-      const startNext = (): void => {
-        if (nextIdx >= progress.elements.length || abortController.aborted)
+  // Runs an element end-to-end: spawns it, then waits until its thread
+  // actually yields. This is what makes an element "live" for concurrency
+  // purposes, so the next queued element isn't launched until a slot frees up.
+  const runElement = async (
+    element: SpawnSubagentsProgress["elements"][0],
+  ): Promise<void> => {
+    await spawnEntry(element);
+    if (abortController.aborted || element.state.status !== "spawned") {
+      return;
+    }
+    const threadId = element.state.threadId;
+    await new Promise<void>((resolve) => {
+      const check = () => {
+        if (abortController.aborted) {
+          resolve();
           return;
-        const element = progress.elements[nextIdx++];
-        const p = spawnEntry(element).then(() => {
-          inFlight.delete(p);
-        });
-        inFlight.add(p);
+        }
+        const result = context.threadManager.getThreadResult(threadId);
+        if (result.status === "done") {
+          resolve();
+        }
       };
+      context.threadManager.onThreadYielded(threadId, check);
+      // Check immediately in case the thread already yielded
+      check();
+    });
+  };
 
-      while (
-        nextIdx < progress.elements.length &&
-        inFlight.size < maxConcurrent
-      ) {
+  const runQueue = async (
+    elements: SpawnSubagentsProgress["elements"],
+    limit: number,
+  ): Promise<void> => {
+    let nextIdx = 0;
+    const inFlight = new Set<Promise<void>>();
+
+    const startNext = (): void => {
+      if (nextIdx >= elements.length || abortController.aborted) return;
+      const element = elements[nextIdx++];
+      const p = runElement(element).then(() => {
+        inFlight.delete(p);
+      });
+      inFlight.add(p);
+    };
+
+    while (nextIdx < elements.length && inFlight.size < limit) {
+      startNext();
+    }
+
+    while (inFlight.size > 0) {
+      await Promise.race(inFlight);
+      if (!abortController.aborted) {
         startNext();
       }
+    }
+  };
 
-      while (inFlight.size > 0) {
-        await Promise.race(inFlight);
-        if (!abortController.aborted) {
-          startNext();
-        }
-      }
-
-      if (abortController.aborted) {
-        return {
-          type: "tool_result",
-          id: request.id,
-          result: {
-            status: "error",
-            error: "Sub-agent execution was aborted",
-          },
-          nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
-        };
-      }
-
-      // Phase 2: Wait for all spawned threads to yield
-      const spawnedElements = progress.elements.filter(
-        (
-          el,
-        ): el is typeof el & {
-          state: { status: "spawned"; threadId: ThreadId };
-        } => el.state.status === "spawned",
+  const promise = (async (): Promise<ProviderToolResult> => {
+    try {
+      const fastElements = progress.elements.filter(isFastElement);
+      const otherElements = progress.elements.filter(
+        (el) => !isFastElement(el),
       );
 
-      if (spawnedElements.length === 0) {
-        return buildResult(request.id, progress, context.threadManager);
-      }
-
-      await new Promise<void>((resolve) => {
-        const checkAllYielded = () => {
-          if (abortController.aborted) {
-            resolve();
-            return;
-          }
-          const allDone = spawnedElements.every((el) => {
-            const result = context.threadManager.getThreadResult(
-              el.state.threadId,
-            );
-            return result.status === "done";
-          });
-          if (allDone) {
-            resolve();
-          }
-        };
-
-        for (const el of spawnedElements) {
-          context.threadManager.onThreadYielded(
-            el.state.threadId,
-            checkAllYielded,
-          );
-        }
-
-        // Check immediately in case all threads already yielded
-        checkAllYielded();
-      });
+      await Promise.all([
+        runQueue(fastElements, context.maxConcurrentFastSubagents),
+        runQueue(otherElements, context.maxConcurrentSubagents),
+      ]);
 
       if (abortController.aborted) {
         return {

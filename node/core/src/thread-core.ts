@@ -140,6 +140,7 @@ export interface ThreadCoreContext {
   availableCapabilities: Set<ToolCapability>;
   environmentConfig: EnvironmentConfig;
   maxConcurrentSubagents: number;
+  maxConcurrentFastSubagents: number;
   getAgents: () => AgentsMap;
   getProvider: (profile: ProviderProfile) => Provider;
   initialFiles?: Files;
@@ -683,6 +684,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         cwd: this.context.cwd,
         homeDir: this.context.homeDir,
         maxConcurrentSubagents: this.context.maxConcurrentSubagents,
+        maxConcurrentFastSubagents: this.context.maxConcurrentFastSubagents,
         contextTracker: this.contextManager as ContextTracker,
         onToolApplied: (absFilePath, tool, fileTypeInfo) => {
           this.contextManager.toolApplied(absFilePath, tool, fileTypeInfo);
@@ -1358,6 +1360,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       shell: this.context.shell,
       threadManager: this.context.threadManager,
       maxConcurrentSubagents: this.context.maxConcurrentSubagents,
+      maxConcurrentFastSubagents: this.context.maxConcurrentFastSubagents,
       getProvider: this.context.getProvider,
       requestRender: () => this.emit("update"),
     });

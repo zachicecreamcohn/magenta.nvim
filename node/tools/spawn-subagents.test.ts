@@ -464,10 +464,15 @@ describe("foreach-style parallel agents", () => {
           await driver.mockAnthropic.awaitPendingStreamWithText("element2");
         const subagent3Stream =
           await driver.mockAnthropic.awaitPendingStreamWithText("element3");
-        const subagent4Stream =
-          await driver.mockAnthropic.awaitPendingStreamWithText("element4");
 
         await driver.assertDisplayBufferContains("🤖 spawn_subagents");
+
+        // With a concurrency limit of 3, the 4th agent should not spawn yet.
+        const unresolvedStreams =
+          driver.mockAnthropic.mockClient.streams.filter(
+            (s) => !s.aborted && !s.resolved,
+          );
+        expect(unresolvedStreams.length).toBe(3);
 
         subagent1Stream.respond({
           stopReason: "tool_use",
@@ -487,6 +492,10 @@ describe("foreach-style parallel agents", () => {
         await driver.assertDisplayBufferContains(
           "Process element1 and yield the result",
         );
+
+        // Yielding element1 frees a slot, allowing element4 to spawn.
+        const subagent4Stream =
+          await driver.mockAnthropic.awaitPendingStreamWithText("element4");
 
         subagent2Stream.respond({
           stopReason: "tool_use",

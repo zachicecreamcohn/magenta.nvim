@@ -238,6 +238,7 @@ export type MagentaOptions = {
   suppressProjectSkills: string[];
   agentsPaths: string[];
   maxConcurrentSubagents: number;
+  maxConcurrentFastSubagents: number;
   mcpServers: { [serverName: ServerName]: MCPServerConfig };
   customCommands: CustomCommand[];
   lspDebounceMs?: number;
@@ -1069,6 +1070,7 @@ export function parseOptions(
       },
     },
     maxConcurrentSubagents: 3,
+    maxConcurrentFastSubagents: 8,
     sandbox: { ...DEFAULT_SANDBOX_CONFIG },
     autoContext: [],
     hierarchyContextFileNames: ["context.md", "agent.md"],
@@ -1184,6 +1186,16 @@ export function parseOptions(
       inputOptionsObj.maxConcurrentSubagents > 0
     ) {
       options.maxConcurrentSubagents = inputOptionsObj.maxConcurrentSubagents;
+    }
+
+    // Parse max concurrent fast subagents
+    if (
+      "maxConcurrentFastSubagents" in inputOptionsObj &&
+      typeof inputOptionsObj.maxConcurrentFastSubagents === "number" &&
+      inputOptionsObj.maxConcurrentFastSubagents > 0
+    ) {
+      options.maxConcurrentFastSubagents =
+        inputOptionsObj.maxConcurrentFastSubagents;
     }
 
     // Parse LSP debounce ms
@@ -1338,6 +1350,16 @@ export function parseProjectOptions(
     inputOptionsObj.maxConcurrentSubagents > 0
   ) {
     options.maxConcurrentSubagents = inputOptionsObj.maxConcurrentSubagents;
+  }
+
+  // Parse max concurrent fast subagents
+  if (
+    "maxConcurrentFastSubagents" in inputOptionsObj &&
+    typeof inputOptionsObj.maxConcurrentFastSubagents === "number" &&
+    inputOptionsObj.maxConcurrentFastSubagents > 0
+  ) {
+    options.maxConcurrentFastSubagents =
+      inputOptionsObj.maxConcurrentFastSubagents;
   }
 
   // Parse LSP debounce ms
@@ -1504,6 +1526,11 @@ export function mergeOptions(
 
   if (projectSettings.maxConcurrentSubagents !== undefined) {
     merged.maxConcurrentSubagents = projectSettings.maxConcurrentSubagents;
+  }
+
+  if (projectSettings.maxConcurrentFastSubagents !== undefined) {
+    merged.maxConcurrentFastSubagents =
+      projectSettings.maxConcurrentFastSubagents;
   }
 
   if (projectSettings.lspDebounceMs !== undefined) {

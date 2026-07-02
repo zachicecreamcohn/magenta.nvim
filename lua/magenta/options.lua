@@ -106,6 +106,7 @@ local defaults = {
   },
   suppressProjectSkills = {},
   maxConcurrentSubagents = 3,
+  maxConcurrentFastSubagents = 8,
   chimeVolume = 0.3,
   bellOnNotify = true,
   getFileAutoAllowGlobs = {

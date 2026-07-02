@@ -102,6 +102,7 @@ function createThreadCoreWithMock(overrides?: Partial<ThreadCoreContext>): {
     availableCapabilities: new Set(),
     environmentConfig: { type: "local" },
     maxConcurrentSubagents: 1,
+    maxConcurrentFastSubagents: 8,
     getAgents: () => ({}),
     getProvider: () => provider,
     ...overrides,

@@ -89,6 +89,7 @@ describe("spawn-subagents unit tests", () => {
         threadManager,
         threadId: "parent-1" as ThreadId,
         maxConcurrentSubagents: 10,
+        maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
@@ -117,6 +118,7 @@ describe("spawn-subagents unit tests", () => {
         threadManager,
         threadId: "parent-1" as ThreadId,
         maxConcurrentSubagents: 10,
+        maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
@@ -144,6 +146,7 @@ describe("spawn-subagents unit tests", () => {
         threadManager,
         threadId: "parent-1" as ThreadId,
         maxConcurrentSubagents: 10,
+        maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
@@ -178,6 +181,7 @@ describe("spawn-subagents unit tests", () => {
         threadManager,
         threadId: "parent-1" as ThreadId,
         maxConcurrentSubagents: 10,
+        maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
@@ -208,6 +212,7 @@ describe("spawn-subagents unit tests", () => {
         threadManager,
         threadId: "parent-1" as ThreadId,
         maxConcurrentSubagents: 10,
+        maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
@@ -240,6 +245,7 @@ describe("spawn-subagents unit tests", () => {
         threadManager,
         threadId: "parent_thread" as ThreadId,
         maxConcurrentSubagents: 10,
+        maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
@@ -281,6 +287,7 @@ describe("spawn-subagents unit tests", () => {
         threadManager,
         threadId: "parent_thread" as ThreadId,
         maxConcurrentSubagents: 10,
+        maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
@@ -304,28 +311,19 @@ describe("spawn-subagents unit tests", () => {
     expect(text).toContain("Failed: 1");
   });
 
-  it("respects maxConcurrentSubagents", async () => {
-    let concurrent = 0;
-    let maxConcurrent = 0;
-    const spawnDeferreds: Array<{ resolve: (value: ThreadId) => void }> = [];
+  it("respects maxConcurrentSubagents, only launching more once earlier ones yield", async () => {
+    let live = 0;
+    let maxLive = 0;
     let spawnCount = 0;
 
     const threadManager = createMockThreadManager({
       spawnThread: vi.fn(() => {
-        concurrent++;
         spawnCount++;
-        if (concurrent > maxConcurrent) {
-          maxConcurrent = concurrent;
+        live++;
+        if (live > maxLive) {
+          maxLive = live;
         }
-        const id = `thread_${spawnCount}` as ThreadId;
-        return new Promise<ThreadId>((resolve) => {
-          spawnDeferreds.push({
-            resolve: () => {
-              concurrent--;
-              resolve(id);
-            },
-          });
-        });
+        return Promise.resolve(`thread_${spawnCount}` as ThreadId);
       }),
     });
 
@@ -341,32 +339,31 @@ describe("spawn-subagents unit tests", () => {
         threadManager,
         threadId: "parent_thread" as ThreadId,
         maxConcurrentSubagents: 2,
+        maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
       },
     );
 
-    // Only 2 should be in flight at once
-    await vi.waitFor(() => expect(spawnDeferreds.length).toBe(2));
-    expect(maxConcurrent).toBe(2);
+    // Only 2 should be spawned (live) at once, since the 3rd should not
+    // launch until one of the first two yields.
+    await vi.waitFor(() =>
+      expect(threadManager.spawnThread).toHaveBeenCalledTimes(2),
+    );
+    expect(maxLive).toBe(2);
 
-    // Resolve first spawn, which should allow 3rd to start
-    spawnDeferreds[0].resolve("thread_1" as ThreadId);
-    await vi.waitFor(() => expect(spawnDeferreds.length).toBe(3));
-
-    // Resolve remaining spawns
-    spawnDeferreds[1].resolve("thread_2" as ThreadId);
-    spawnDeferreds[2].resolve("thread_3" as ThreadId);
-
-    // Now all 3 are spawned, simulate yields
-    await vi.waitFor(() => {
-      expect(threadManager.spawnThread).toHaveBeenCalledTimes(3);
-    });
+    // Yielding the first frees a slot, allowing the 3rd to spawn
+    live--;
     threadManager.simulateYield("thread_1" as ThreadId, {
       status: "ok",
       value: "done1",
     });
+    await vi.waitFor(() =>
+      expect(threadManager.spawnThread).toHaveBeenCalledTimes(3),
+    );
+    expect(maxLive).toBe(2);
+
     threadManager.simulateYield("thread_2" as ThreadId, {
       status: "ok",
       value: "done2",
@@ -378,7 +375,151 @@ describe("spawn-subagents unit tests", () => {
 
     const { result } = await invocation.promise;
     expect(result.status).toBe("ok");
-    expect(maxConcurrent).toBe(2);
+    expect(maxLive).toBe(2);
+  });
+
+  it("fast and non-fast agents queue independently with separate limits", async () => {
+    let live = 0;
+    let maxLive = 0;
+    let spawnCount = 0;
+
+    const threadManager = createMockThreadManager({
+      spawnThread: vi.fn(() => {
+        spawnCount++;
+        live++;
+        if (live > maxLive) {
+          maxLive = live;
+        }
+        return Promise.resolve(`thread_${spawnCount}` as ThreadId);
+      }),
+    });
+
+    const invocation = SpawnSubagents.execute(
+      makeRequest({
+        agents: [
+          { prompt: "fast 1", agentType: "fast" },
+          { prompt: "fast 2", agentType: "fast" },
+          { prompt: "other 1" },
+          { prompt: "other 2" },
+        ],
+      }),
+      {
+        threadManager,
+        threadId: "parent_thread" as ThreadId,
+        maxConcurrentSubagents: 1,
+        maxConcurrentFastSubagents: 1,
+        requestRender: vi.fn(),
+        cwd: "/test" as NvimCwd,
+        agents: {
+          fast: {
+            name: "fast",
+            description: "fast agent",
+            systemPrompt: "",
+            systemReminder: undefined,
+            fastModel: true,
+            thinkingModel: undefined,
+            effort: undefined,
+            tier: "leaf",
+          },
+        },
+      },
+    );
+
+    // Each queue has a limit of 1, but since fast and non-fast run in
+    // separate queues, up to 2 (1 fast + 1 other) should be live at once.
+    await vi.waitFor(() =>
+      expect(threadManager.spawnThread).toHaveBeenCalledTimes(2),
+    );
+    expect(maxLive).toBe(2);
+
+    live -= 2;
+    for (let i = 1; i <= 2; i++) {
+      threadManager.simulateYield(`thread_${i}` as ThreadId, {
+        status: "ok",
+        value: `done${i}`,
+      });
+    }
+
+    await vi.waitFor(() =>
+      expect(threadManager.spawnThread).toHaveBeenCalledTimes(4),
+    );
+
+    threadManager.simulateYield("thread_3" as ThreadId, {
+      status: "ok",
+      value: "done3",
+    });
+    threadManager.simulateYield("thread_4" as ThreadId, {
+      status: "ok",
+      value: "done4",
+    });
+
+    const { result } = await invocation.promise;
+    expect(result.status).toBe("ok");
+    expect(maxLive).toBe(2);
+  });
+
+  it("queue advances to the next element when one errors, not just on success", async () => {
+    let live = 0;
+    let maxLive = 0;
+    let spawnCount = 0;
+
+    const threadManager = createMockThreadManager({
+      spawnThread: vi.fn(() => {
+        spawnCount++;
+        live++;
+        if (live > maxLive) {
+          maxLive = live;
+        }
+        return Promise.resolve(`thread_${spawnCount}` as ThreadId);
+      }),
+    });
+
+    const invocation = SpawnSubagents.execute(
+      makeRequest({
+        agents: [
+          { prompt: "task 1" },
+          { prompt: "task 2" },
+          { prompt: "task 3" },
+        ],
+      }),
+      {
+        threadManager,
+        threadId: "parent_thread" as ThreadId,
+        maxConcurrentSubagents: 2,
+        maxConcurrentFastSubagents: 10,
+        requestRender: vi.fn(),
+        cwd: "/test" as NvimCwd,
+        agents: {},
+      },
+    );
+
+    await vi.waitFor(() =>
+      expect(threadManager.spawnThread).toHaveBeenCalledTimes(2),
+    );
+
+    // Erroring out the first element should free its slot just like a
+    // successful yield would, allowing the 3rd element to spawn.
+    live--;
+    threadManager.simulateYield("thread_1" as ThreadId, {
+      status: "error",
+      error: "crashed",
+    });
+    await vi.waitFor(() =>
+      expect(threadManager.spawnThread).toHaveBeenCalledTimes(3),
+    );
+    expect(maxLive).toBe(2);
+
+    threadManager.simulateYield("thread_2" as ThreadId, {
+      status: "ok",
+      value: "done2",
+    });
+    threadManager.simulateYield("thread_3" as ThreadId, {
+      status: "ok",
+      value: "done3",
+    });
+
+    const { result } = await invocation.promise;
+    expect(result.status).toBe("ok");
   });
 
   it("abort stops processing", async () => {
@@ -401,6 +542,7 @@ describe("spawn-subagents unit tests", () => {
         threadManager,
         threadId: "parent_thread" as ThreadId,
         maxConcurrentSubagents: 10,
+        maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
@@ -439,6 +581,7 @@ describe("spawn-subagents unit tests", () => {
         threadManager,
         threadId: "parent_thread" as ThreadId,
         maxConcurrentSubagents: 10,
+        maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
@@ -480,6 +623,7 @@ describe("spawn-subagents unit tests", () => {
         threadManager,
         threadId: "parent_thread" as ThreadId,
         maxConcurrentSubagents: 10,
+        maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/project/root" as NvimCwd,
         agents: {},
@@ -520,6 +664,7 @@ describe("spawn-subagents unit tests", () => {
         threadManager,
         threadId: "parent_thread" as ThreadId,
         maxConcurrentSubagents: 10,
+        maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/project/root" as NvimCwd,
         agents: {},
@@ -614,6 +759,7 @@ describe("spawn-subagents unit tests", () => {
         threadManager,
         threadId: "parent-1" as ThreadId,
         maxConcurrentSubagents: 10,
+        maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
@@ -680,6 +826,7 @@ describe("spawn-subagents docker provisioning", () => {
         threadManager,
         threadId: "parent-1" as ThreadId,
         maxConcurrentSubagents: 10,
+        maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
@@ -723,6 +870,7 @@ describe("spawn-subagents docker provisioning", () => {
         threadManager,
         threadId: "parent-1" as ThreadId,
         maxConcurrentSubagents: 10,
+        maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
@@ -754,6 +902,7 @@ describe("spawn-subagents docker provisioning", () => {
         threadManager,
         threadId: "parent-1" as ThreadId,
         maxConcurrentSubagents: 10,
+        maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
@@ -801,6 +950,7 @@ describe("spawn-subagents docker provisioning", () => {
         threadManager,
         threadId: "parent-1" as ThreadId,
         maxConcurrentSubagents: 10,
+        maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
@@ -840,6 +990,7 @@ describe("spawn-subagents docker provisioning", () => {
         threadManager,
         threadId: "parent-1" as ThreadId,
         maxConcurrentSubagents: 10,
+        maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
@@ -873,6 +1024,7 @@ describe("spawn-subagents docker provisioning", () => {
         threadManager,
         threadId: "parent-1" as ThreadId,
         maxConcurrentSubagents: 10,
+        maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
@@ -932,6 +1084,7 @@ describe("spawn-subagents docker provisioning", () => {
         threadManager,
         threadId: "parent-1" as ThreadId,
         maxConcurrentSubagents: 10,
+        maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
         cwd: tempDir as NvimCwd,
         agents: {},
@@ -973,6 +1126,7 @@ describe("spawn-subagents docker provisioning", () => {
         threadManager,
         threadId: "parent-1" as ThreadId,
         maxConcurrentSubagents: 10,
+        maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
@@ -1011,6 +1165,7 @@ describe("sharedPrompt and sharedContextFiles", () => {
         threadManager,
         threadId: "parent-1" as ThreadId,
         maxConcurrentSubagents: 10,
+        maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
@@ -1052,6 +1207,7 @@ describe("sharedPrompt and sharedContextFiles", () => {
         threadManager,
         threadId: "parent-1" as ThreadId,
         maxConcurrentSubagents: 10,
+        maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
@@ -1094,6 +1250,7 @@ describe("sharedPrompt and sharedContextFiles", () => {
         threadManager,
         threadId: "parent-1" as ThreadId,
         maxConcurrentSubagents: 10,
+        maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
@@ -1130,6 +1287,7 @@ describe("sharedPrompt and sharedContextFiles", () => {
         threadManager,
         threadId: "parent-1" as ThreadId,
         maxConcurrentSubagents: 10,
+        maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
@@ -1166,6 +1324,7 @@ describe("environment routing", () => {
         threadManager,
         threadId: "parent-1" as ThreadId,
         maxConcurrentSubagents: 10,
+        maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
@@ -1201,6 +1360,7 @@ describe("environment routing", () => {
         threadManager,
         threadId: "parent-1" as ThreadId,
         maxConcurrentSubagents: 10,
+        maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
         cwd: "/test" as NvimCwd,
         agents: {},
