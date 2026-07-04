@@ -59,9 +59,15 @@ Invariants:
 
 # Stages
 
-## Stage 1: `getThreadResult` treats error as pending
+## Stage 1: `getThreadResult` treats error as pending [DONE]
 
 - Goal: an agent-level `"error"` status is reported as `{ status: "pending" }` from `getThreadResult`, for every thread type. Concurrency queues and script awaits no longer resolve/fail early on a subagent error; they keep waiting.
+- Implementation notes:
+  - Removed the `agentStatus.type === "error"` branch in `Chat.getThreadResult` (`node/chat/chat.ts`); errored threads now fall through to the same "pending" return as aborted threads. Also removed the now-unused `agentStatus` local in that branch.
+  - `node/tools/spawn-subagents.test.ts`: the old "handles subagent errors gracefully and continues" test asserted the old "error == done" semantics (with `maxConcurrentSubagents: 1`, the second task started immediately after the first errored). Replaced it with "keeps a subagent's slot occupied on error instead of freeing it", which asserts the second task does *not* spawn while the first is errored, then manually recovers the errored thread via `core.discardFailedSubmit()` + `core.sendMessage(...)` (standing in for the Stage 2 auto-resubmit mechanism) and confirms the queue then advances and completes normally.
+  - `node/scripts/script-manager.test.ts`: added a new test "does not resolve a script's createThread() await on a subagent error" following the same pattern (force a subagent error, assert the invocation stays `"running"`, manually recover via `discardFailedSubmit`/`sendMessage`, confirm `thread-result` eventually arrives).
+  - Root-thread manual-resubmit behavior is untouched by this stage (no changes to `thread-core.ts` or its tests); `node/core/src/thread-core.test.ts` passes unchanged, confirming regression-free.
+- Verification:
 - Verification:
   - Behavior: a subagent thread that errors keeps its queue slot occupied (not freed) and is not reported in `buildResult` until it actually yields.
     - Setup: spawn a subagent via `spawn-subagents.ts` test harness with a mock agent that errors then is manually driven to yield.

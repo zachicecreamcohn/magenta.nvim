@@ -1151,8 +1151,6 @@ ${threadViews.map((view) => d`${view}\n`)}`;
       case "initialized": {
         const thread = threadWrapper.thread;
 
-        const agentStatus = thread.agent.getState().status;
-
         // Check for yielded state first
         if (thread.core.state.mode.type === "yielded") {
           return {
@@ -1164,19 +1162,9 @@ ${threadViews.map((view) => d`${view}\n`)}`;
           };
         }
 
-        // Check for error state
-        if (agentStatus.type === "error") {
-          return {
-            status: "done",
-            result: {
-              status: "error",
-              error: agentStatus.error.message,
-            },
-          };
-        }
-
-        // All other states (including aborted) are considered pending.
-        // An aborted thread can still be resumed and eventually yield.
+        // All other states (including aborted and error) are considered
+        // pending. An aborted or errored thread can still be resumed and
+        // eventually yield.
         return { status: "pending" };
       }
 

@@ -711,7 +711,7 @@ describe("foreach-style parallel agents", () => {
     );
   });
 
-  it("handles subagent errors gracefully and continues", async () => {
+  it("keeps a subagent's slot occupied on error instead of freeing it", async () => {
     await withDriver(
       {
         options: { maxConcurrentSubagents: 1 },
@@ -754,6 +754,65 @@ describe("foreach-style parallel agents", () => {
 
         await driver.assertDisplayBufferContains("prompt: (~3 tok) error_task");
 
+        const childWrapper = findChildThread(driver.magenta.chat);
+        await pollUntil(() => {
+          if (childWrapper.thread.agent.getState().status.type === "error") {
+            return true;
+          }
+          throw new Error("waiting for child thread to reach error state");
+        });
+
+        // An errored subagent no longer frees its concurrency slot (unlike
+        // the old "error == done" behavior), so the second task must not
+        // have been spawned yet, and spawn_subagents must not have resolved.
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        expect(
+          driver.mockAnthropic.mockClient.streams.some((s) =>
+            s.messages.some((msg) => {
+              if (msg.role !== "user") return false;
+              const contentField = msg.content;
+              if (typeof contentField === "string") {
+                return contentField.includes("success_task");
+              }
+              if (Array.isArray(contentField)) {
+                return contentField.some(
+                  (block) =>
+                    block.type === "text" &&
+                    block.text.includes("success_task"),
+                );
+              }
+              return false;
+            }),
+          ),
+        ).toBe(false);
+
+        // Manually recover the errored subagent (this simulates the
+        // auto-resubmit mechanism that a later stage will add).
+        childWrapper.thread.core.discardFailedSubmit();
+        await childWrapper.thread.core.sendMessage([
+          { type: "user", text: "error_task" },
+        ]);
+
+        const retryStream = await driver.mockAnthropic.awaitPendingStream({
+          predicate: (s) => s !== subagent1Stream && !s.resolved,
+          message: "waiting for the retried subagent stream",
+        });
+        retryStream.respond({
+          stopReason: "tool_use",
+          text: "Yielding after retry.",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "yield-retry" as ToolRequestId,
+                toolName: "yield_to_parent" as ToolName,
+                input: { result: "Recovered successfully" },
+              },
+            },
+          ],
+        });
+
+        // Now that the first slot is freed, the second task can spawn.
         const subagent2Stream =
           await driver.mockAnthropic.awaitPendingStreamWithText("success_task");
 
@@ -786,8 +845,9 @@ describe("foreach-style parallel agents", () => {
           typeof response!.content === "string"
             ? response!.content
             : JSON.stringify(response!.content);
-        expect(content).toContain("Successful: 1");
-        expect(content).toContain("Failed: 1");
+        expect(content).toContain("Successful: 2");
+        expect(content).toContain("Failed: 0");
+        expect(content).toContain("Recovered successfully");
 
         parentStream.streamText("Mixed results.");
         parentStream.finishResponse("end_turn");

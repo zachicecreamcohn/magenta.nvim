@@ -155,6 +155,81 @@ it("invokes a script that spawns a thread and resolves with the structured yield
   );
 });
 
+it("does not resolve a script's createThread() await on a subagent error", async () => {
+  await withDriver(
+    {
+      setupFiles: async (tmpDir) => {
+        await setupScript(tmpDir, FOO_SCRIPT);
+      },
+    },
+    async (driver) => {
+      const scriptManager = driver.magenta.scriptManager;
+
+      await pollUntil(() =>
+        scriptManager.getCatalog().some((s) => s.name === "foo"),
+      );
+
+      const id = scriptManager.runScript(
+        "foo",
+        { x: "thing" },
+        { sandboxBypassed: false },
+      ) as ScriptInvocationId;
+
+      const stream =
+        await driver.mockAnthropic.awaitPendingStreamWithText("work on thing");
+      stream.respondWithError(new Error("Simulated subagent error"));
+
+      const inv = scriptManager.invocations.get(id);
+      if (!inv) throw new Error("invocation missing");
+      await pollUntil(() => inv.threadIds.length > 0);
+      const threadId = inv.threadIds[0];
+      const threadWrapper = driver.magenta.chat.threadWrappers[threadId];
+      if (threadWrapper.state !== "initialized") {
+        throw new Error("expected thread to be initialized");
+      }
+
+      await pollUntil(
+        () => threadWrapper.thread.agent.getState().status.type === "error",
+      );
+
+      // The script's createThread() await must not resolve while the
+      // subagent thread is merely in an error state -- it should keep
+      // waiting until the thread actually yields.
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(inv.status).toBe("running");
+
+      // Manually recover the errored subagent (this simulates the
+      // auto-resubmit mechanism that a later stage will add).
+      threadWrapper.thread.core.discardFailedSubmit();
+      await threadWrapper.thread.core.sendMessage([
+        { type: "user", text: "work on thing" },
+      ]);
+
+      const retryStream = await driver.mockAnthropic.awaitPendingStream({
+        predicate: (s) => s !== stream && !s.resolved,
+        message: "waiting for the retried subagent stream",
+      });
+      retryStream.respond({
+        stopReason: "tool_use",
+        text: "done",
+        toolRequests: [
+          {
+            status: "ok",
+            value: {
+              id: "yield-retry" as ToolRequestId,
+              toolName: "yield_to_parent" as ToolName,
+              input: { ok: true },
+            },
+          },
+        ],
+      });
+
+      await pollUntil(() => inv.status === "done");
+      expect(inv.logs.some((l) => l.includes('"ok":true'))).toBe(true);
+    },
+  );
+});
+
 const CONTEXT_SCRIPT = `
 import { registerScript } from "./magenta-sdk/index.ts";
 
