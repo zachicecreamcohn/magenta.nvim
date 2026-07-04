@@ -131,6 +131,14 @@ export function isRetryableError(error: Error): boolean {
   if (isStreamOrderError(error)) {
     return true;
   }
+  // Generic connection-drop errors: Node/undici's fetch implementation
+  // surfaces an abrupt socket/connection close (e.g. network cable pulled,
+  // VPN drop, load balancer idle-timeout) as a bare Error/TypeError whose
+  // message is exactly "terminated". This carries no information about the
+  // request content, so it's safe (and desirable) to retry.
+  if (error.message === "terminated") {
+    return true;
+  }
   return false;
 }
 

@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OutputLine, Shell, ShellResult } from "./capabilities/shell.ts";
 import type { ThreadId, ThreadType } from "./chat-types.ts";
 import { InMemoryFileIO } from "./edl/in-memory-file-io.ts";
@@ -1113,5 +1113,124 @@ describe("ThreadCore non-retryable error resubmit flow", () => {
       toolRequests: [],
       stopReason: "end_turn",
     });
+  });
+});
+describe("ThreadCore auto-resubmit for non-user-facing threads (Stage 2)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("subagent automatically resubmits a recoverable error and eventually yields", async () => {
+    const { core, mockClient } = createThreadCoreWithMock({
+      threadType: "subagent" as ThreadType,
+    });
+    const setupResubmitEvents: Array<{ threadId: ThreadId; text: string }> = [];
+    core.on("setupResubmit", (threadId, text) => {
+      setupResubmitEvents.push({ threadId, text });
+    });
+
+    await core.sendMessage([{ type: "user", text: "flaky task" }]);
+    const firstStream = await mockClient.awaitStream();
+
+    // Bypass the agent's own mid-stream retry budget so this error is
+    // surfaced to ThreadCore immediately, as if the connection-level
+    // retries had already been exhausted.
+    vi.setSystemTime(new Date(Date.now() + 300_001));
+    firstStream.respondWithError(new Error("terminated"));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(core.agent.getState().status.type).toBe("error");
+    expect(setupResubmitEvents).toHaveLength(0);
+    expect(core.state.failedSubmit).toBeUndefined();
+
+    // Advance past the first thread-level retry delay (1000ms).
+    await vi.advanceTimersByTimeAsync(1000);
+
+    const secondStream = await pollUntil(() => {
+      const s = mockClient.streams[mockClient.streams.length - 1];
+      if (s && s !== firstStream) return s;
+      throw new Error("waiting for auto-resubmit stream");
+    });
+
+    secondStream.respond({
+      text: "done",
+      toolRequests: [],
+      stopReason: "end_turn",
+    });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(core.agent.getState().status.type).toBe("stopped");
+    const userMessages = core
+      .getProviderMessages()
+      .filter((m) => m.role === "user");
+    expect(userMessages.length).toBe(1);
+    expect(setupResubmitEvents).toHaveLength(0);
+  });
+
+  it("subagent with a non-recoverable error stays parked and never auto-succeeds", async () => {
+    const { core, mockClient } = createThreadCoreWithMock({
+      threadType: "subagent" as ThreadType,
+    });
+
+    await core.sendMessage([{ type: "user", text: "doomed task" }]);
+    const stream = await mockClient.awaitStream();
+    stream.respondWithError(new Error("subagent provider failure"));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(core.agent.getState().status.type).toBe("error");
+
+    // Advance well past every retry delay; no retry should ever be scheduled.
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(mockClient.streams).toHaveLength(1);
+    expect(core.agent.getState().status.type).toBe("error");
+    expect(core.state.failedSubmit).toBeUndefined();
+  });
+
+  it("subagent stops auto-resubmitting once the retry budget is exhausted", async () => {
+    const { core, mockClient } = createThreadCoreWithMock({
+      threadType: "subagent" as ThreadType,
+    });
+
+    await core.sendMessage([{ type: "user", text: "flaky task" }]);
+    let stream = await mockClient.awaitStream();
+
+    // Bypass the agent's own mid-stream retry budget so each error is
+    // surfaced to ThreadCore immediately.
+    const bypassAgentRetryAndFail = () => {
+      vi.setSystemTime(new Date(Date.now() + 300_001));
+      stream.respondWithError(new Error("terminated"));
+    };
+
+    bypassAgentRetryAndFail();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(core.agent.getState().status.type).toBe("error");
+
+    let streamCountBefore = mockClient.streams.length;
+    for (let i = 0; i < 20; i++) {
+      // Advance past the largest possible thread-level retry delay so any
+      // scheduled retry timer fires.
+      await vi.advanceTimersByTimeAsync(40_000);
+      if (mockClient.streams.length === streamCountBefore) {
+        // No new stream was created: the retry budget has been exhausted.
+        break;
+      }
+      stream = mockClient.streams[mockClient.streams.length - 1];
+      streamCountBefore = mockClient.streams.length;
+      bypassAgentRetryAndFail();
+      await vi.advanceTimersByTimeAsync(0);
+    }
+
+    expect(core.agent.getState().status.type).toBe("error");
+    const finalStreamCount = mockClient.streams.length;
+
+    // No further retry should ever be scheduled.
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(mockClient.streams).toHaveLength(finalStreamCount);
+    expect(core.agent.getState().status.type).toBe("error");
   });
 });

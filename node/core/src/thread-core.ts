@@ -30,7 +30,12 @@ import type { EdlRegisters } from "./edl/index.ts";
 import { Emitter } from "./emitter.ts";
 import type { Logger } from "./logger.ts";
 import type { ProviderProfile } from "./provider-options.ts";
-import { getContextWindowForModel } from "./providers/anthropic-agent.ts";
+import {
+  getContextWindowForModel,
+  getRetryDelay,
+  isRetryableError,
+  MAX_RETRY_DURATION,
+} from "./providers/anthropic-agent.ts";
 import type {
   Agent,
   AgentInput,
@@ -337,6 +342,26 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
   private updateThrottleTimer: ReturnType<typeof setTimeout> | undefined;
   private updatePending = false;
 
+  /** Bounded auto-resubmit bookkeeping for non-user-facing threads (subagent/
+   * compact) recovering from a recoverable agent error. Reset whenever the
+   * agent successfully stops (see handleProviderStopped). */
+  private errorRetryTimer: ReturnType<typeof setTimeout> | undefined;
+  private errorRetryAttempt = 0;
+  private errorRetryFirstErrorAt: number | undefined;
+
+  private clearErrorRetryTimer(): void {
+    if (this.errorRetryTimer) {
+      clearTimeout(this.errorRetryTimer);
+      this.errorRetryTimer = undefined;
+    }
+  }
+
+  private resetErrorRetryState(): void {
+    this.clearErrorRetryTimer();
+    this.errorRetryAttempt = 0;
+    this.errorRetryFirstErrorAt = undefined;
+  }
+
   private flushUpdate(): void {
     if (this.updatePending) {
       this.updatePending = false;
@@ -587,6 +612,12 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     usage: Usage | undefined,
   ): void {
     if (usage) {
+      // Only clear auto-resubmit bookkeeping on a genuine completed turn
+      // (usage is populated for real API responses). discardFailedSubmit's
+      // rollback emits a synthetic "stopped"/"end_turn" with no usage, which
+      // must not be mistaken for recovery — otherwise the retry episode's
+      // elapsed-time budget would reset on every single retry attempt.
+      this.resetErrorRetryState();
       this.update(
         { type: "increment-output-tokens", tokens: usage.outputTokens },
         { silent: true },
@@ -755,30 +786,35 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     const isUserFacing =
       this.state.threadType === "root" ||
       this.state.threadType === "docker_root";
-    if (isUserFacing) {
-      const pendingText = this.state.pendingMessages
-        .filter((m) => m.type === "user")
-        .map((m) => m.text)
-        .join("\n");
-      this.update({ type: "drain-pending-messages" });
 
-      const messages = this.getProviderMessages();
-      const lastMessage = messages[messages.length - 1];
-      const baseText =
-        lastMessage?.role === "user"
-          ? lastMessage.content
-              .filter(
-                (c): c is Extract<typeof c, { type: "text" }> =>
-                  c.type === "text",
-              )
-              .map((c) => c.text)
-              .join("")
-          : "";
-      const userMessage = pendingText
-        ? baseText
-          ? `${baseText}\n${pendingText}`
-          : pendingText
-        : baseText;
+    // Roll back to the pre-submit snapshot's user text for every thread
+    // type, not just user-facing ones: subagent/compact threads need the
+    // same text to auto-resubmit with (see maybeAutoResubmitAfterError).
+    const pendingText = this.state.pendingMessages
+      .filter((m) => m.type === "user")
+      .map((m) => m.text)
+      .join("\n");
+    this.update({ type: "drain-pending-messages" });
+
+    const messages = this.getProviderMessages();
+    const lastMessage = messages[messages.length - 1];
+    const baseText =
+      lastMessage?.role === "user"
+        ? lastMessage.content
+            .filter(
+              (c): c is Extract<typeof c, { type: "text" }> =>
+                c.type === "text",
+            )
+            .map((c) => c.text)
+            .join("")
+        : "";
+    const userMessage = pendingText
+      ? baseText
+        ? `${baseText}\n${pendingText}`
+        : pendingText
+      : baseText;
+
+    if (isUserFacing) {
       if (userMessage) {
         this.update(
           {
@@ -789,9 +825,47 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         );
         setTimeout(() => this.emit("setupResubmit", this.id, userMessage), 1);
       }
+    } else {
+      this.maybeAutoResubmitAfterError(error, userMessage);
     }
     this.context.logger.error(error);
     this.emit("turnEnded", { reason: "error" });
+  }
+
+  /** For subagent/compact threads (no human to manually resubmit), retry a
+   * recoverable error automatically by rolling back the failed submit and
+   * resending the same user message, following the same bounded-backoff
+   * shape as the agent's own mid-stream retries (RETRY_DELAYS, capped by
+   * MAX_RETRY_DURATION). Non-recoverable errors, or errors that persist past
+   * the retry budget, leave the thread parked in its error/pending state —
+   * the same as an aborted thread that is never resumed. */
+  private maybeAutoResubmitAfterError(error: Error, userMessage: string): void {
+    if (!userMessage) {
+      this.resetErrorRetryState();
+      return;
+    }
+
+    const now = Date.now();
+    if (this.errorRetryFirstErrorAt === undefined) {
+      this.errorRetryFirstErrorAt = now;
+    }
+    const elapsed = now - this.errorRetryFirstErrorAt;
+
+    if (!isRetryableError(error) || elapsed >= MAX_RETRY_DURATION) {
+      this.resetErrorRetryState();
+      return;
+    }
+
+    const delay = getRetryDelay(this.errorRetryAttempt);
+    this.errorRetryAttempt += 1;
+    this.clearErrorRetryTimer();
+    this.errorRetryTimer = setTimeout(() => {
+      this.errorRetryTimer = undefined;
+      this.discardFailedSubmit();
+      this.sendMessage([{ type: "user", text: userMessage }]).catch(
+        this.handleSendMessageError.bind(this),
+      );
+    }, delay);
   }
 
   async abort(): Promise<void> {
@@ -809,6 +883,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
   }
 
   private async abortAndWait(): Promise<void> {
+    this.resetErrorRetryState();
     this.emit("aborting");
     await this.agent.abort();
 
@@ -1502,9 +1577,10 @@ Come up with a succinct thread title for this prompt. It must be a single line (
     if (this.destroyed) return;
     this.destroyed = true;
 
+    this.clearErrorRetryTimer();
+
     if (this.updateThrottleTimer) {
       clearTimeout(this.updateThrottleTimer);
-      this.updateThrottleTimer = undefined;
     }
 
     try {
