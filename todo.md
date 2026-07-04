@@ -1,9 +1,14 @@
 # top of mind
 
 - set up an auto-compact supervisor on a thread, especially one inside a script
+- way to abort a script
+- UX on a script (expanding script state, marking threads vs logs more clearly)
 - think about enriching the script API. Iterate on a thread? Query a thread? Human-in-the-loop?
 - edit a previous user message. E on a user message pops it into the input buffer, and resets the thread to that point, so you can change the message and resubmit
 - openai agent
+- 8j in display buffer (relative column numbers should still work, even with wrapped override)
+- expand diff on "files edited this turn"
+  - <CR> to bring up diff in vim splits
 
 # Sandboxes
 
