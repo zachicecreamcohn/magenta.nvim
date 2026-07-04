@@ -1026,6 +1026,33 @@ describe("ThreadCore non-retryable error resubmit flow", () => {
     expect(core.state.preSubmitNativeIdx).toBe(1);
   });
 
+  it("rolls back queued pending-message text alongside the in-flight user message on error", async () => {
+    const { core, mockClient } = createThreadCoreWithMock();
+
+    await core.sendMessage([{ type: "user", text: "find the bug" }]);
+    const stream = await mockClient.awaitStream();
+
+    // While the agent is busy streaming, queue an additional async message —
+    // this lands in pendingMessages rather than being sent immediately.
+    await core.handleSendMessageRequest(
+      [{ type: "user", text: "also check the logs" }],
+      true,
+    );
+    expect(core.state.pendingMessages).toHaveLength(1);
+
+    stream.respondWithError(new Error("provider failure"));
+
+    await pollUntil(() => {
+      if (core.agent.getState().status.type === "error") return true;
+      throw new Error("waiting for error state");
+    });
+
+    expect(core.state.failedSubmit?.userMessage).toBe(
+      "find the bug\nalso check the logs",
+    );
+    expect(core.state.pendingMessages).toEqual([]);
+  });
+
   it("after non-retryable error, preSubmitNativeIdx remains set and orphan user message remains in history", async () => {
     const { core, mockClient } = createThreadCoreWithMock();
 
@@ -1232,5 +1259,57 @@ describe("ThreadCore auto-resubmit for non-user-facing threads (Stage 2)", () =>
     await vi.advanceTimersByTimeAsync(60_000);
     expect(mockClient.streams).toHaveLength(finalStreamCount);
     expect(core.agent.getState().status.type).toBe("error");
+  });
+
+  it("aborting a subagent cancels a pending auto-resubmit timer", async () => {
+    const { core, mockClient } = createThreadCoreWithMock({
+      threadType: "subagent" as ThreadType,
+    });
+
+    await core.sendMessage([{ type: "user", text: "flaky task" }]);
+    const stream = await mockClient.awaitStream();
+
+    // Bypass the agent's own mid-stream retry budget so this error is
+    // surfaced to ThreadCore immediately, scheduling an auto-resubmit timer.
+    vi.setSystemTime(new Date(Date.now() + 300_001));
+    stream.respondWithError(new Error("terminated"));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(core.agent.getState().status.type).toBe("error");
+    expect(mockClient.streams).toHaveLength(1);
+
+    // Abort before the scheduled retry (1000ms) fires.
+    await core.abort();
+
+    // Advance well past every retry delay; the cancelled retry must never fire.
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(mockClient.streams).toHaveLength(1);
+  });
+
+  it("does not schedule an auto-resubmit when there is no user message to roll back to", async () => {
+    const { core, mockClient } = createThreadCoreWithMock({
+      threadType: "subagent" as ThreadType,
+    });
+
+    // Directly exercise the private auto-resubmit path with an empty
+    // userMessage — the case where an error occurs with no user-authored
+    // text available to roll back to and resubmit (e.g. before any content
+    // was ever produced). This is not reachable through the public
+    // sendMessage API, since every InputMessage (user or system) produces a
+    // plain "text" content block that would populate baseText.
+    (
+      core as unknown as {
+        maybeAutoResubmitAfterError: (
+          error: Error,
+          userMessage: string,
+        ) => void;
+      }
+    ).maybeAutoResubmitAfterError(new Error("terminated"), "");
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(mockClient.streams).toHaveLength(0);
+    expect(core.state.failedSubmit).toBeUndefined();
   });
 });

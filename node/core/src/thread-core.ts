@@ -343,23 +343,29 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
   private updatePending = false;
 
   /** Bounded auto-resubmit bookkeeping for non-user-facing threads (subagent/
-   * compact) recovering from a recoverable agent error. Reset whenever the
-   * agent successfully stops (see handleProviderStopped). */
-  private errorRetryTimer: ReturnType<typeof setTimeout> | undefined;
-  private errorRetryAttempt = 0;
-  private errorRetryFirstErrorAt: number | undefined;
+   * compact) recovering from a recoverable agent error. undefined means no
+   * retry episode is in progress. Reset whenever the agent successfully
+   * stops (see handleProviderStopped). Kept as a single struct so that
+   * `attempt`/`firstErrorAt`/`timer` can never drift out of sync with each
+   * other. */
+  private errorRetry:
+    | {
+        timer: ReturnType<typeof setTimeout> | undefined;
+        attempt: number;
+        firstErrorAt: number;
+      }
+    | undefined;
 
   private clearErrorRetryTimer(): void {
-    if (this.errorRetryTimer) {
-      clearTimeout(this.errorRetryTimer);
-      this.errorRetryTimer = undefined;
+    if (this.errorRetry?.timer) {
+      clearTimeout(this.errorRetry.timer);
+      this.errorRetry.timer = undefined;
     }
   }
 
   private resetErrorRetryState(): void {
     this.clearErrorRetryTimer();
-    this.errorRetryAttempt = 0;
-    this.errorRetryFirstErrorAt = undefined;
+    this.errorRetry = undefined;
   }
 
   private flushUpdate(): void {
@@ -846,26 +852,30 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     }
 
     const now = Date.now();
-    if (this.errorRetryFirstErrorAt === undefined) {
-      this.errorRetryFirstErrorAt = now;
-    }
-    const elapsed = now - this.errorRetryFirstErrorAt;
+    const firstErrorAt = this.errorRetry?.firstErrorAt ?? now;
+    const elapsed = now - firstErrorAt;
 
     if (!isRetryableError(error) || elapsed >= MAX_RETRY_DURATION) {
       this.resetErrorRetryState();
       return;
     }
 
-    const delay = getRetryDelay(this.errorRetryAttempt);
-    this.errorRetryAttempt += 1;
+    const attempt = this.errorRetry?.attempt ?? 0;
+    const delay = getRetryDelay(attempt);
     this.clearErrorRetryTimer();
-    this.errorRetryTimer = setTimeout(() => {
-      this.errorRetryTimer = undefined;
-      this.discardFailedSubmit();
-      this.sendMessage([{ type: "user", text: userMessage }]).catch(
-        this.handleSendMessageError.bind(this),
-      );
-    }, delay);
+    this.errorRetry = {
+      firstErrorAt,
+      attempt: attempt + 1,
+      timer: setTimeout(() => {
+        if (this.errorRetry) {
+          this.errorRetry.timer = undefined;
+        }
+        this.discardFailedSubmit();
+        this.sendMessage([{ type: "user", text: userMessage }]).catch(
+          this.handleSendMessageError.bind(this),
+        );
+      }, delay),
+    };
   }
 
   async abort(): Promise<void> {

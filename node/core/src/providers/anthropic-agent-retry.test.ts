@@ -128,6 +128,16 @@ describe("isRetryableError", () => {
     expect(isRetryableError(error)).toBe(true);
   });
 
+  it("retries a generic connection-drop error with message 'terminated'", () => {
+    expect(isRetryableError(new Error("terminated"))).toBe(true);
+    expect(isRetryableError(new TypeError("terminated"))).toBe(true);
+  });
+
+  it("does not retry an unrelated bare Error message", () => {
+    expect(isRetryableError(new Error("terminated unexpectedly"))).toBe(false);
+    expect(isRetryableError(new Error("some other failure"))).toBe(false);
+  });
+
   it("does not retry non-retryable errors", () => {
     const error = new APIError(
       400,
