@@ -1,5 +1,7 @@
 # top of mind
 
+- set up an auto-compact supervisor on a thread, especially one inside a script
+- think about enriching the script API. Iterate on a thread? Query a thread? Human-in-the-loop?
 - edit a previous user message. E on a user message pops it into the input buffer, and resets the thread to that point, so you can change the message and resubmit
 - openai agent
 
