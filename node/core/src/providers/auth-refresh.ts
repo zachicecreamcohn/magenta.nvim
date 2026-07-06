@@ -38,6 +38,7 @@ export function isAuthError(error: unknown): boolean {
     "invalidsignatureexception",
     "unrecognizedclientexception",
     "could not load credentials",
+    "failed to resolve aws credentials",
     "sso session token",
     "was not found or is invalid",
   ];
