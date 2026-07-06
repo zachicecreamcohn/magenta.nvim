@@ -451,6 +451,23 @@ describe("nvim/buffer.test.ts", () => {
     });
   });
 
+  describe("setName", () => {
+    it("does not throw E95 when another buffer already holds the name", async () => {
+      await withNvimClient(async (nvim) => {
+        const name = `magenta-test-${Date.now()}`;
+
+        const buffer1 = await NvimBuffer.create(false, true, nvim);
+        await buffer1.setName(name);
+
+        // A second buffer taking the same name would normally fail with E95.
+        const buffer2 = await NvimBuffer.create(false, true, nvim);
+        await buffer2.setName(name);
+
+        expect(await buffer2.getName()).toMatch(new RegExp(`${name}$`));
+      });
+    });
+  });
+
   describe("extmarkOptionsEqual", () => {
     it("should return true for undefined options", () => {
       expect(extmarkOptionsEqual(undefined, undefined)).toBe(true);

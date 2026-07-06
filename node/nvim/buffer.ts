@@ -166,11 +166,23 @@ export class NvimBuffer {
     // nvim_buf_set_name uses `:file` semantics: renaming a buffer that already
     // has a name leaves behind a new empty buffer holding the OLD name. These
     // orphans accumulate and cause E95 ("Buffer with this name already exists")
-    // when a later setName targets a name an orphan still holds. Wipe the
-    // orphan after renaming to keep names unique.
+    // when a later setName targets a name that another buffer still holds. Wipe
+    // any buffer already holding the target name *before* renaming (so the
+    // rename can't fail with E95), then wipe orphans left holding the old name.
     return this.nvim.call("nvim_exec_lua", [
       `\
 local bufId, name = ...
+-- nvim_buf_set_name stores the name resolved to an absolute path, so match
+-- against the resolved form rather than the raw argument.
+local resolved = vim.fn.fnamemodify(name, ":p")
+for _, other in ipairs(vim.api.nvim_list_bufs()) do
+  if other ~= bufId then
+    local otherName = vim.api.nvim_buf_get_name(other)
+    if otherName == name or otherName == resolved then
+      pcall(vim.api.nvim_buf_delete, other, { force = true })
+    end
+  end
+end
 local oldName = vim.api.nvim_buf_get_name(bufId)
 vim.api.nvim_buf_set_name(bufId, name)
 if oldName ~= "" then
