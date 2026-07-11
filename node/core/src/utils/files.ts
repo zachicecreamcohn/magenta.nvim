@@ -2,6 +2,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { fileTypeFromFile } from "file-type";
 import { lookup } from "mime-types";
+import type { ThreadId } from "../chat-types.ts";
 
 export type AbsFilePath = string & { __abs_file_path: true };
 export type RelFilePath = string & { __rel_file_path: true };
@@ -11,7 +12,7 @@ export type DisplayPath = string & { __display_path: true };
 
 export const MAGENTA_TEMP_DIR = "/tmp/magenta" as AbsFilePath;
 
-export function threadConversationLogPath(threadId: string): AbsFilePath {
+export function threadConversationLogPath(threadId: ThreadId): AbsFilePath {
   return path.join(
     MAGENTA_TEMP_DIR,
     "threads",

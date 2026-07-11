@@ -129,6 +129,10 @@ Implemented `node/core/src/thread-logger.ts` (`ThreadLogger`) plus `threadConver
 - Test `msg()` stamps a dummy `nativeMessageIdx` to satisfy `ProviderTextContent`.
 - Full core suite (597 tests), `tsgo -b`, and biome all green.
 
+### Review follow-ups
+- `threadConversationLogPath` now takes a branded `ThreadId` (not loose `string`) for domain precision.
+- The `compaction` log entry is now a discriminated union (one variant with required `summary`, one without), and `recordCompaction` selects the variant instead of the conditional-spread workaround.
+
 - Goal: a standalone `ThreadLogger` that, given a `ThreadId` and a base dir, writes `thread_start`, appends messages by cursor, records compaction/restart markers, resets its cursor, and records fork provenance — all through a serialized best-effort queue, using node `fs` directly.
 - Verification (unit, against a real temp dir under `MAGENTA_TEMP_DIR`, cleaned up per test):
   - Behavior: flushing a growing message array only appends the new tail.
