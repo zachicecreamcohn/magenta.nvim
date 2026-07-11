@@ -158,6 +158,16 @@ Implemented `node/core/src/thread-logger.ts` (`ThreadLogger`) plus `threadConver
 
 ## Stage 2: Wire `ThreadLogger` into `ThreadCore`
 
+**✅ COMPLETE.** ThreadCore now owns a `ThreadLogger`, constructed in its constructor from `id`, `context.threadType`, `context.logger`, and an optional `forkProvenance`. Central flushing is wired by subscribing to ThreadCore's own emitter: `on("update")` flushes with `stableCount = max(0, length-1)` (withholds the streaming last message), and `on("turnEnded")` flushes all. On compaction (`handleCompactComplete`, right after `createFreshAgent()`), it calls `recordCompaction({ summary, chunkCount: steps.length })` then `resetCursor()` (marker before reset). Fork provenance is passed through `ThreadCore.clone` via a new 4th constructor param `forkProvenance` (`{ fromThreadId: sourceCore.id, nativeMessageIdx }`); no separate `restart` path exists in ThreadCore, so `recordRestart` is left available but unused.
+
+Decisions/deviations:
+- No separate "restart" agent-replacement path exists beyond compaction, so only compaction records a marker. `recordRestart` remains for future use.
+- Added `ThreadCore.awaitArchiveFlush()` (delegates to `logger.flushed()`) so integration tests can deterministically await best-effort writes.
+- The internal `update`/`turnEnded` subscriptions are registered via `this.on(...)` and are cleared by the existing `destroy()` → `removeAllListeners()`.
+- `createThreadCoreWithMock` test helper gained an optional `threadId` param and now also returns `context` (needed to drive `ThreadCore.clone`).
+- Integration tests live in `node/core/src/thread-core.test.ts` under `describe("ThreadCore conversation archive")`: normal-turn (tool_use + tool_result fidelity), compaction marker ordering + chunkCount, and self-contained fork-marked child file with untouched parent. They write to real temp dirs under unique threadIds and clean up.
+- Verified: full core suite (600 tests), `tsgo -b`, `biome check`, and root `node/chat/fork-thread.test.ts` + `thread-compact.test.ts` (18 tests) all green.
+
 - Goal: ThreadCore constructs a logger, flushes on `update` (stable-minus-one) and `turnEnded` (all), records+resets on agent replacement (compaction and restart), and passes fork provenance through `clone`.
 - Verification (integration, using the ThreadCore test harness; archive written under a temp dir):
   - Behavior: a normal turn writes its full messages to the archive.

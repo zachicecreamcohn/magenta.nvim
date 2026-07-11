@@ -59,6 +59,7 @@ import {
   buildSystemReminder,
   type ReminderKind,
 } from "./providers/system-reminders.ts";
+import { type ForkProvenance, ThreadLogger } from "./thread-logger.ts";
 import type { ThreadSupervisor } from "./thread-supervisor.ts";
 import type {
   ToolInvocation,
@@ -213,13 +214,31 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
   public gitTracker: GitTracker;
   public compactionController: CompactionManager | undefined;
   public supervisor: ThreadSupervisor | undefined;
+  private threadLogger: ThreadLogger;
 
   constructor(
     public id: ThreadId,
     private context: ThreadCoreContext,
     clonedAgent?: Agent,
+    forkProvenance?: ForkProvenance,
   ) {
     super();
+    this.threadLogger = new ThreadLogger(
+      id,
+      context.threadType,
+      context.logger,
+      forkProvenance,
+    );
+    this.on("update", () => {
+      const messages = this.getProviderMessages();
+      this.threadLogger.flushMessages(
+        messages,
+        Math.max(0, messages.length - 1),
+      );
+    });
+    this.on("turnEnded", () => {
+      this.threadLogger.flushMessages(this.getProviderMessages());
+    });
     this.contextManager = new ContextManager(
       context.logger,
       context.fileIO,
@@ -286,7 +305,10 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       initialFiles,
       initialGitState: sourceCore.gitTracker.getAgentView(),
     };
-    return new ThreadCore(newId, contextWithFiles, agent);
+    return new ThreadCore(newId, contextWithFiles, agent, {
+      fromThreadId: sourceCore.id,
+      nativeMessageIdx,
+    });
   }
 
   private contextManagerListeners:
@@ -564,6 +586,11 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
 
   getProviderStatus(): AgentStatus {
     return this.agent.getState().status;
+  }
+
+  /** For tests: await pending best-effort archive writes. */
+  async awaitArchiveFlush(): Promise<void> {
+    await this.threadLogger.flushed();
   }
 
   getProviderMessages(): ReadonlyArray<ProviderMessage> {
@@ -1518,6 +1545,8 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     this.listenToContextManager();
 
     this.agent = this.createFreshAgent();
+    this.threadLogger.recordCompaction({ summary, chunkCount: steps.length });
+    this.threadLogger.resetCursor();
 
     this.update({ type: "reset-after-compaction" });
 

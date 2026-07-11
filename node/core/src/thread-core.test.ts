@@ -1,3 +1,5 @@
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OutputLine, Shell, ShellResult } from "./capabilities/shell.ts";
@@ -22,6 +24,7 @@ import type { ToolName, ToolRequestId } from "./tool-types.ts";
 import { validateInput } from "./tools/helpers.ts";
 import type { MCPToolManager } from "./tools/mcp/manager.ts";
 import { pollUntil } from "./utils/async.ts";
+import { threadConversationLogPath } from "./utils/files.ts";
 
 const noopLogger: Logger = {
   debug: () => {},
@@ -54,9 +57,13 @@ function createMockProvider(mockClient: MockAnthropicClient): Provider {
   };
 }
 
-function createThreadCoreWithMock(overrides?: Partial<ThreadCoreContext>): {
+function createThreadCoreWithMock(
+  overrides?: Partial<ThreadCoreContext>,
+  threadId: ThreadId = "test-thread" as ThreadId,
+): {
   core: ThreadCore;
   mockClient: MockAnthropicClient;
+  context: ThreadCoreContext;
 } {
   const mockClient = new MockAnthropicClient();
   const provider = createMockProvider(mockClient);
@@ -109,8 +116,9 @@ function createThreadCoreWithMock(overrides?: Partial<ThreadCoreContext>): {
   };
 
   return {
-    core: new ThreadCore("test-thread" as ThreadId, context),
+    core: new ThreadCore(threadId, context),
     mockClient,
+    context,
   };
 }
 
@@ -1311,5 +1319,188 @@ describe("ThreadCore auto-resubmit for non-user-facing threads (Stage 2)", () =>
 
     expect(mockClient.streams).toHaveLength(0);
     expect(core.state.failedSubmit).toBeUndefined();
+  });
+});
+
+type ParsedEntry = { type: string; [k: string]: unknown };
+
+async function readArchive(threadId: ThreadId): Promise<ParsedEntry[]> {
+  const filePath = threadConversationLogPath(threadId);
+  const contents = await fs.readFile(filePath, "utf8");
+  return contents
+    .split("\n")
+    .filter((l) => l.length > 0)
+    .map((l) => JSON.parse(l) as ParsedEntry);
+}
+
+async function cleanupArchive(threadId: ThreadId): Promise<void> {
+  const dir = path.dirname(threadConversationLogPath(threadId));
+  await fs.rm(dir, { recursive: true, force: true });
+}
+
+function uniqueThreadId(prefix: string): ThreadId {
+  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}` as ThreadId;
+}
+
+describe("ThreadCore conversation archive", () => {
+  it("writes a normal turn's full messages (tool_use + tool_result) to the archive", async () => {
+    const threadId = uniqueThreadId("archive-normal");
+    const fileIO = new InMemoryFileIO({ "/tmp/a.txt": "hello" });
+    const { core, mockClient } = createThreadCoreWithMock({ fileIO }, threadId);
+
+    try {
+      await core.sendMessage([{ type: "user", text: "edit a" }]);
+      const stream = await mockClient.awaitStream();
+      stream.streamToolUse("edl-1" as ToolRequestId, "edl" as ToolName, {
+        script: `file \`/tmp/a.txt\`\nnarrow /hello/\nreplace "bye"`,
+      });
+      stream.finishResponse("tool_use");
+
+      const nextStream = await pollUntil(() => {
+        if (mockClient.streams.length < 2) throw new Error("waiting");
+        return mockClient.streams[1];
+      });
+      nextStream.streamText("done");
+      nextStream.finishResponse("end_turn");
+
+      await pollUntil(() => {
+        if (core.agent.getState().status.type !== "stopped")
+          throw new Error("waiting");
+        return true;
+      });
+      await core.awaitArchiveFlush();
+
+      const entries = await readArchive(threadId);
+      expect(entries[0].type).toBe("thread_start");
+
+      const messages = entries.filter((e) => e.type === "message");
+      const serialized = JSON.stringify(messages);
+      expect(serialized).toContain('"type":"tool_use"');
+      expect(serialized).toContain('"type":"tool_result"');
+      expect(serialized).toContain("/tmp/a.txt");
+    } finally {
+      await core.destroy();
+      await cleanupArchive(threadId);
+    }
+  });
+
+  it("inserts a compaction marker between agent generations and keeps appending", async () => {
+    const threadId = uniqueThreadId("archive-compact");
+    const { core, mockClient } = createThreadCoreWithMock(undefined, threadId);
+
+    try {
+      await core.sendMessage([{ type: "user", text: "first turn" }]);
+      const stream = await mockClient.awaitStream();
+      stream.streamText("done");
+      stream.finishResponse("end_turn");
+
+      await pollUntil(() => {
+        if (core.agent.getState().status.type !== "stopped")
+          throw new Error("waiting");
+        return true;
+      });
+      await core.awaitArchiveFlush();
+
+      const compactPromise = (
+        core as unknown as {
+          handleCompactComplete: (
+            summary: string,
+            nextPrompt: string | undefined,
+            steps: unknown[],
+          ) => Promise<void>;
+        }
+      ).handleCompactComplete("SUMMARY TEXT", undefined, [{}, {}]);
+
+      const contStream = await pollUntil(() => {
+        if (mockClient.streams.length < 2) throw new Error("waiting");
+        return mockClient.streams[1];
+      });
+      contStream.streamText("resumed");
+      contStream.finishResponse("end_turn");
+      await compactPromise;
+      await core.awaitArchiveFlush();
+
+      const entries = await readArchive(threadId);
+      const types = entries.map((e) => e.type);
+      const compactionIdx = types.indexOf("compaction");
+      expect(compactionIdx).toBeGreaterThan(0);
+      expect(types.indexOf("message")).toBeLessThan(compactionIdx);
+      expect(types.lastIndexOf("message")).toBeGreaterThan(compactionIdx);
+
+      const compaction = entries[compactionIdx];
+      expect(compaction.summary).toBe("SUMMARY TEXT");
+      expect(compaction.chunkCount).toBe(2);
+    } finally {
+      await core.destroy();
+      await cleanupArchive(threadId);
+    }
+  });
+
+  it("writes a self-contained, fork-marked archive for a cloned thread", async () => {
+    const parentId = uniqueThreadId("archive-parent");
+    const childId = uniqueThreadId("archive-child");
+    const {
+      core: parent,
+      mockClient,
+      context,
+    } = createThreadCoreWithMock(undefined, parentId);
+
+    let child: ThreadCore | undefined;
+    try {
+      await parent.sendMessage([{ type: "user", text: "parent turn" }]);
+      const stream = await mockClient.awaitStream();
+      stream.streamText("parent response");
+      stream.finishResponse("end_turn");
+
+      await pollUntil(() => {
+        if (parent.agent.getState().status.type !== "stopped")
+          throw new Error("waiting");
+        return true;
+      });
+
+      const nativeMessageIdx = parent.agent.getNativeMessageIdx();
+      child = await ThreadCore.clone({
+        sourceCore: parent,
+        newId: childId,
+        nativeMessageIdx,
+        context,
+      });
+
+      await child.sendMessage([{ type: "user", text: "child turn" }]);
+      const childStream = await pollUntil(() => {
+        const s = mockClient.streams[mockClient.streams.length - 1];
+        if (!s || s === stream) throw new Error("waiting");
+        return s;
+      });
+      childStream.streamText("child response");
+      childStream.finishResponse("end_turn");
+
+      await pollUntil(() => {
+        if (child!.agent.getState().status.type !== "stopped")
+          throw new Error("waiting");
+        return true;
+      });
+      await child.awaitArchiveFlush();
+      await parent.awaitArchiveFlush();
+
+      const childEntries = await readArchive(childId);
+      expect(childEntries[0].type).toBe("thread_start");
+      expect(childEntries[1].type).toBe("fork");
+      expect(childEntries[1].fromThreadId).toBe(parentId);
+      expect(childEntries[1].nativeMessageIdx).toBe(nativeMessageIdx);
+
+      const childMessages = childEntries.filter((e) => e.type === "message");
+      const childSerialized = JSON.stringify(childMessages);
+      expect(childSerialized).toContain("parent turn");
+      expect(childSerialized).toContain("child turn");
+
+      const parentEntries = await readArchive(parentId);
+      expect(parentEntries.some((e) => e.type === "fork")).toBe(false);
+    } finally {
+      await parent.destroy();
+      if (child) await child.destroy();
+      await cleanupArchive(parentId);
+      await cleanupArchive(childId);
+    }
   });
 });
