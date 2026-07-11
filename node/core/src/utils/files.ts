@@ -11,6 +11,15 @@ export type DisplayPath = string & { __display_path: true };
 
 export const MAGENTA_TEMP_DIR = "/tmp/magenta" as AbsFilePath;
 
+export function threadConversationLogPath(threadId: string): AbsFilePath {
+  return path.join(
+    MAGENTA_TEMP_DIR,
+    "threads",
+    threadId,
+    "conversation.jsonl",
+  ) as AbsFilePath;
+}
+
 /**
  * Regex for matching `@file:` references. Supports three forms:
  *   - Bare: `@file:path/without/whitespace`
