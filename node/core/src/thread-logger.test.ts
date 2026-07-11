@@ -135,6 +135,28 @@ describe("ThreadLogger", () => {
     expect(entries[2].type).toBe("message");
   });
 
+  it("produces the /tmp/magenta/threads/{threadId}/conversation.jsonl path", () => {
+    const threadId = "abc123" as ThreadId;
+    expect(threadConversationLogPath(threadId)).toBe(
+      "/tmp/magenta/threads/abc123/conversation.jsonl",
+    );
+  });
+
+  it("creates the thread directory on first write", async () => {
+    const threadId = freshThreadId();
+    const dir = path.dirname(threadConversationLogPath(threadId));
+    await fs.rm(dir, { recursive: true, force: true });
+
+    const { logger } = makeLogger();
+    const tl = new ThreadLogger(threadId, "root", logger);
+    tl.flushMessages([msg("a")]);
+    await tl.flushed();
+
+    const entries = await readEntries(threadId);
+    expect(entries[0].type).toBe("thread_start");
+    expect(entries.filter((e) => e.type === "message")).toHaveLength(1);
+  });
+
   it("does not throw when the fs write fails", async () => {
     const threadId = freshThreadId();
     const { logger, errors } = makeLogger();

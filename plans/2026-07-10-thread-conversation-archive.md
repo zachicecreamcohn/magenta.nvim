@@ -184,6 +184,8 @@ Decisions/deviations:
 
 ## Stage 3: Path + directory-creation sanity
 
+**✅ COMPLETE.** The `threadConversationLogPath` helper (already in `node/core/src/utils/files.ts`) produces `/tmp/magenta/threads/{threadId}/conversation.jsonl`, and `ThreadLogger` creates the directory once via `fs.mkdir(dir, { recursive: true })` on its `ready` promise before the first append. Added two explicit tests in `node/core/src/thread-logger.test.ts`: one asserting the exact path string, one that removes the thread dir then confirms a first write recreates it and produces valid JSONL (`thread_start` + one `message`). Full core suite (602 tests), `tsgo -b`, and `biome check` all green.
+
 - Goal: confirm the path helper produces `/tmp/magenta/threads/{threadId}/conversation.jsonl` and that the directory is created once (mkdir -p) on first write.
 - Verification:
   - Behavior: end-to-end write to a real temp path.
