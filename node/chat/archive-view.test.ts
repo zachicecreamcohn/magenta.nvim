@@ -179,6 +179,36 @@ describe("node/chat/archive-view.test.ts", () => {
     });
   }, 30000);
 
+  it("archive link in the overview opens the archive view and back returns", async () => {
+    await withDriver({}, async (driver) => {
+      const id = uuidv7() as ThreadId;
+      await seedArchivedThread(id, "Archived one");
+
+      await driver.showSidebar();
+      await driver.magenta.command("threads-overview");
+      await driver.awaitChatState({ state: "thread-overview" });
+      await driver.assertDisplayBufferContains("[archive]");
+
+      await driver.triggerDisplayBufferKeyOnContent("[archive]", "<CR>");
+      await pollUntil(
+        () => {
+          if (driver.magenta.chat.state.state !== "archive") {
+            throw new Error("not archive yet");
+          }
+        },
+        { timeout: 3000 },
+      );
+      await driver.assertDisplayBufferContains("# Archived threads");
+
+      await driver.triggerDisplayBufferKeyOnContent(
+        "< back to threads",
+        "<CR>",
+      );
+      await driver.awaitChatState({ state: "thread-overview" });
+      await driver.assertDisplayBufferContains("# Threads");
+    });
+  });
+
   it("navigate-back returns to the thread overview", async () => {
     await withDriver({}, async (driver) => {
       const chat = driver.magenta.chat;

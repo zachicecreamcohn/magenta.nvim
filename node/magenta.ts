@@ -244,7 +244,9 @@ export class Magenta {
           nvim: this.nvim,
           initialModel: this.chat,
           View: () =>
-            d`${this.chat.renderThreadOverview()}${this.scriptManager.view()}`,
+            this.chat.state.state === "archive"
+              ? this.chat.renderArchive()
+              : d`${this.chat.renderThreadOverview()}${this.scriptManager.view()}`,
           onUnhandledKey,
         }),
     );

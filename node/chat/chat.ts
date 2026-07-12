@@ -1124,8 +1124,12 @@ export class Chat implements ThreadManager {
   }
 
   renderThreadOverview() {
+    const archiveLink = withBindings(d`[archive]`, {
+      "<CR>": () => this.myDispatch({ type: "archive-open" }),
+    });
+
     if (Object.keys(this.threadWrappers).length === 0) {
-      return d`# Threads
+      return d`# Threads ${archiveLink}
 
 No threads yet`;
     }
@@ -1185,7 +1189,7 @@ No threads yet`;
       }
     }
 
-    return d`# Threads
+    return d`# Threads ${archiveLink}
 
 ${threadViews.map((view) => d`${view}\n`)}`;
   }

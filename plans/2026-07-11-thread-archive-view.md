@@ -141,6 +141,8 @@ Invariants:
 
 ## Stage 4 — Overview link + back navigation
 
+**Status: DONE.** Added an `[archive]` link (bound to `archive-open`) to the `# Threads` header in `renderThreadOverview` (both the empty and populated variants). The archive view already had a `< back to threads` affordance (bound to `archive-navigate-back`) from Stage 3. Wired the overview TEA app in `node/magenta.ts` so it renders `renderArchive()` when `chat.state.state === "archive"`, otherwise the overview + scripts view — so the archive renders through the existing overview buffer with no new buffer. Added a display-buffer integration test in `archive-view.test.ts` (`archive link in the overview opens the archive view and back returns`) that shows the sidebar, opens the overview, triggers the `[archive]` link via `<CR>`, asserts the archive view renders, then triggers `< back to threads` and asserts the overview renders again. Full suite (minus the pre-existing unrelated `thread.test.ts` "expands context update diff" failure that also fails on clean HEAD), typecheck, and lint pass.
+
 - Goal: `renderThreadOverview` gains an "Archive" link (bound to `archive-open`); the archive view has a back affordance (bound to `archive-navigate-back`) returning to `thread-overview`. Wire the overview app so the archive state renders through the existing overview buffer.
 - Verification:
   - Behavior: from the overview, activating the archive link switches to the archive view; back returns to the overview.
