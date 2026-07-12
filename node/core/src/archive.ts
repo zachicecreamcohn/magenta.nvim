@@ -3,6 +3,17 @@ import * as path from "node:path";
 import type { ThreadId, ThreadType } from "./chat-types.ts";
 import { MAGENTA_TEMP_DIR, threadMetaPath } from "./utils/files.ts";
 
+const THREAD_TYPES: ReadonlySet<ThreadType> = new Set([
+  "subagent",
+  "compact",
+  "root",
+  "docker_root",
+]);
+
+function isThreadType(value: unknown): value is ThreadType {
+  return typeof value === "string" && THREAD_TYPES.has(value as ThreadType);
+}
+
 const UUIDV7_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -54,13 +65,12 @@ export async function readThreadMeta(
       threadMetaPath(threadId, baseDir),
       "utf8",
     );
-    const parsed = JSON.parse(contents) as {
-      title?: string;
-      threadType?: ThreadType;
-    };
+    const parsed = JSON.parse(contents) as unknown;
+    if (typeof parsed !== "object" || parsed === null) return {};
+    const record = parsed as Record<string, unknown>;
     const result: { title?: string; threadType?: ThreadType } = {};
-    if (parsed.title !== undefined) result.title = parsed.title;
-    if (parsed.threadType !== undefined) result.threadType = parsed.threadType;
+    if (typeof record.title === "string") result.title = record.title;
+    if (isThreadType(record.threadType)) result.threadType = record.threadType;
     return result;
   } catch {
     return {};

@@ -95,6 +95,8 @@ Invariants:
 
 **Status: DONE.** Added `node/core/src/archive.ts` with `listArchivedThreadIds` (readdir + uuidv7 regex filter + descending sort, no content reads; missing dir → `[]`), `readThreadMeta` (best-effort sidecar read, missing/malformed → `{}`), `deleteArchivedThread` (`rm -rf` the thread dir), and `threadCreatedAt` (decodes first 48 bits of the uuidv7 as ms epoch). Tests in `archive.test.ts` cover ordering/junk-filtering, missing threads dir, date decode, meta read/missing/malformed, and deletion. Full core suite, typecheck, and lint pass.
 
+**Code-review follow-up (DONE).** Hardened `readThreadMeta`'s trust boundary: it no longer `as`-casts parsed JSON. It now checks the parsed value is a non-null object, only accepts `title` when it's a string, and validates `threadType` against the allowed literal union via an `isThreadType` guard (backed by a `THREAD_TYPES` set), dropping the field when it doesn't match. Added a test asserting an invalid `threadType` is dropped while a valid `title` is kept. Full core suite, typecheck, and lint pass.
+
 - Goal: `node/core/src/archive.ts` can list archived thread ids newest-first, read a thread's meta, decode its creation date, and delete a thread dir.
 - Verification:
   - Behavior: `listArchivedThreadIds` returns valid uuidv7 dirs sorted descending and ignores non-uuid entries.

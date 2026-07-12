@@ -77,6 +77,16 @@ describe("archive", () => {
     expect(await readThreadMeta(id, TEST_BASE_DIR)).toEqual({});
   });
 
+  it("drops an invalid threadType but keeps a valid title", async () => {
+    const id = uuidv7() as ThreadId;
+    await makeThreadDir(id);
+    await fs.writeFile(
+      threadMetaPath(id, TEST_BASE_DIR),
+      JSON.stringify({ title: "Hi", threadType: "bogus" }),
+    );
+    expect(await readThreadMeta(id, TEST_BASE_DIR)).toEqual({ title: "Hi" });
+  });
+
   it("deletes a thread directory", async () => {
     const id = uuidv7() as ThreadId;
     await makeThreadDir(id, { title: "x" });
