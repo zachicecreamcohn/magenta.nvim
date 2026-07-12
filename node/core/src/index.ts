@@ -1,6 +1,12 @@
 export type { AgentInfo, AgentsMap } from "./agents/agents.ts";
 export { loadAgents } from "./agents/agents.ts";
 export type { AnthropicAuth, OAuthTokens } from "./anthropic-auth.ts";
+export {
+  deleteArchivedThread,
+  listArchivedThreadIds,
+  readThreadMeta,
+  threadCreatedAt,
+} from "./archive.ts";
 export type { AuthUI } from "./auth-ui.ts";
 export type {
   ContextTracker,
@@ -280,7 +286,6 @@ export {
   type StaticToolMap,
   type StaticToolRequest,
 } from "./tools/toolManager.ts";
-
 export * as YieldToParent from "./tools/yield-to-parent.ts";
 export { assertUnreachable } from "./utils/assertUnreachable.ts";
 export { Defer, delay, pollUntil, withTimeout } from "./utils/async.ts";
@@ -321,6 +326,8 @@ export {
   type RelFilePath,
   relativePath,
   resolveFilePath,
+  threadConversationLogPath,
+  threadMetaPath,
   type UnresolvedFilePath,
   unescapeFenceBody,
   validateFileSize,

@@ -8,10 +8,15 @@ import type {
   ThreadType,
 } from "@magenta/core";
 import {
+  deleteArchivedThread,
+  listArchivedThreadIds,
   loadAgents,
   MCPToolManagerImpl,
   PLACEHOLDER_NATIVE_MESSAGE_IDX,
+  readThreadMeta,
   SubagentSupervisor,
+  threadConversationLogPath,
+  threadCreatedAt,
 } from "@magenta/core";
 import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
 import { v7 as uuidv7 } from "uuid";
@@ -31,6 +36,7 @@ import {
   type EnvironmentConfig,
 } from "../environment.ts";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
+import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.ts";
 import type { MagentaOptions, Profile } from "../options.ts";
 import {
   buildSystemInfo,
@@ -54,6 +60,17 @@ import type { SandboxRoot } from "./thread.ts";
 import { Thread } from "./thread.ts";
 import { DockerSupervisor } from "./thread-supervisor.ts";
 import { view as threadView } from "./thread-view.ts";
+
+const ARCHIVE_PAGE_SIZE = 50;
+
+const ARCHIVE_DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
 
 type ThreadWrapper = (
   | {
@@ -83,6 +100,16 @@ type ChatState =
   | {
       state: "thread-selected";
       activeThreadId: ThreadId;
+    }
+  | {
+      state: "archive";
+      activeThreadId: ThreadId | undefined;
+      threadIds: ThreadId[];
+      loadedCount: number;
+      // A key present in `titles` means the sidecar has been read: a string is
+      // the title, `null` means loaded-but-untitled. An absent key means the
+      // title has not been hydrated yet.
+      titles: { [id: ThreadId]: string | null };
     };
 
 export type Msg =
@@ -116,6 +143,28 @@ export type Msg =
   | {
       type: "delete-thread-subtree";
       id: ThreadId;
+    }
+  | {
+      type: "archive-open";
+    }
+  | {
+      type: "archive-listed";
+      threadIds: ThreadId[];
+    }
+  | {
+      type: "archive-navigate-back";
+    }
+  | {
+      type: "archive-load-more";
+    }
+  | {
+      type: "archive-delete-thread";
+      id: ThreadId;
+    }
+  | {
+      type: "archive-meta-loaded";
+      id: ThreadId;
+      title: string | null;
     };
 
 export type ChatMsg = {
@@ -346,9 +395,105 @@ export class Chat implements ThreadManager {
         }
         return;
 
+      case "archive-open": {
+        this.markActiveThreadViewed();
+        this.state = {
+          state: "archive",
+          activeThreadId: this.state.activeThreadId,
+          threadIds: [],
+          loadedCount: ARCHIVE_PAGE_SIZE,
+          titles: {},
+        };
+        void this.loadArchiveList();
+        return;
+      }
+
+      case "archive-listed": {
+        if (this.state.state !== "archive") return;
+        this.state.threadIds = msg.threadIds;
+        this.hydrateArchiveTitles();
+        return;
+      }
+
+      case "archive-navigate-back": {
+        this.state = {
+          state: "thread-overview",
+          activeThreadId: this.state.activeThreadId,
+        };
+        return;
+      }
+
+      case "archive-load-more": {
+        if (this.state.state !== "archive") return;
+        this.state.loadedCount += ARCHIVE_PAGE_SIZE;
+        this.hydrateArchiveTitles();
+        return;
+      }
+
+      case "archive-delete-thread": {
+        if (this.state.state !== "archive") return;
+        this.state.threadIds = this.state.threadIds.filter(
+          (id) => id !== msg.id,
+        );
+        delete this.state.titles[msg.id];
+        void deleteArchivedThread(msg.id).catch((err: Error) => {
+          this.context.nvim.logger.error(
+            `Failed to delete archived thread ${msg.id}: ${err.message}`,
+          );
+        });
+        return;
+      }
+
+      case "archive-meta-loaded": {
+        if (this.state.state !== "archive") return;
+        this.state.titles[msg.id] = msg.title;
+        return;
+      }
+
       default:
         assertUnreachable(msg);
     }
+  }
+
+  /** Read the archived thread id list off disk and dispatch it back into the
+   * archive state. Cheap: readdir + name parsing, no file contents. */
+  private async loadArchiveList(): Promise<void> {
+    try {
+      const threadIds = await listArchivedThreadIds();
+      this.myDispatch({ type: "archive-listed", threadIds });
+    } catch (err) {
+      this.context.nvim.logger.error(
+        `Failed to list archived threads: ${(err as Error).message}`,
+      );
+    }
+  }
+
+  /** Lazily read `meta.json` sidecars for the currently-visible window of
+   * archived threads, dispatching a message per row as its title arrives. Ids
+   * whose title is already hydrated are skipped. */
+  private hydrateArchiveTitles(): void {
+    if (this.state.state !== "archive") return;
+    const window = this.state.threadIds.slice(0, this.state.loadedCount);
+    for (const id of window) {
+      if (id in this.state.titles) continue;
+      void readThreadMeta(id)
+        .then((meta) => {
+          this.myDispatch({
+            type: "archive-meta-loaded",
+            id,
+            title: meta.title ?? null,
+          });
+        })
+        .catch((err: Error) => {
+          this.context.nvim.logger.error(
+            `Failed to read archived thread meta ${id}: ${err.message}`,
+          );
+        });
+    }
+  }
+
+  private myDispatch(msg: Msg): void {
+    this.context.dispatch({ type: "chat-msg", msg });
   }
 
   getMessages() {
@@ -1037,6 +1182,71 @@ No threads yet`;
     return d`# Threads
 
 ${threadViews.map((view) => d`${view}\n`)}`;
+  }
+
+  renderArchive(): VDOMNode {
+    if (this.state.state !== "archive") {
+      return d``;
+    }
+
+    const backLink = withBindings(d`< back to threads`, {
+      "<CR>": () => this.myDispatch({ type: "archive-navigate-back" }),
+    });
+
+    if (this.state.threadIds.length === 0) {
+      return d`# Archived threads
+
+${backLink}
+
+No archived threads`;
+    }
+
+    const rows: VDOMNode[] = [];
+    for (const id of this.state.threadIds) {
+      rows.push(d`${this.renderArchiveRow(id)}\n`);
+    }
+
+    const remaining = this.state.threadIds.length - this.state.loadedCount;
+    const loadMore =
+      remaining > 0
+        ? withBindings(d`\n[load more] (${remaining.toString()} older)`, {
+            "<CR>": () => this.myDispatch({ type: "archive-load-more" }),
+          })
+        : d``;
+
+    return d`# Archived threads
+
+${backLink}
+
+${rows}${loadMore}`;
+  }
+
+  private renderArchiveRow(threadId: ThreadId): VDOMNode {
+    if (this.state.state !== "archive") return d``;
+
+    const date = ARCHIVE_DATE_FORMAT.format(threadCreatedAt(threadId));
+    const titleEntry = this.state.titles[threadId];
+    const title =
+      titleEntry === undefined
+        ? "…"
+        : titleEntry === null
+          ? "(untitled)"
+          : titleEntry;
+
+    const line = d`- ${date}  ${title}`;
+
+    return withBindings(line, {
+      "<CR>": () => {
+        void openFileInNonMagentaWindow(threadConversationLogPath(threadId), {
+          nvim: this.context.nvim,
+          cwd: this.context.cwd,
+          homeDir: this.context.homeDir,
+          options: this.context.getOptions(),
+        });
+      },
+      dd: () =>
+        this.myDispatch({ type: "archive-delete-thread", id: threadId }),
+    });
   }
 
   getActiveThread(): Thread {
