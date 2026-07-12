@@ -3,7 +3,7 @@ import * as path from "node:path";
 import type { ThreadId, ThreadType } from "./chat-types.ts";
 import type { Logger } from "./logger.ts";
 import type { ProviderMessage } from "./providers/provider-types.ts";
-import { threadConversationLogPath } from "./utils/files.ts";
+import { threadConversationLogPath, threadMetaPath } from "./utils/files.ts";
 
 export type ForkProvenance = {
   fromThreadId: ThreadId;
@@ -39,7 +39,8 @@ export type ThreadLogEntry =
       timestamp: string;
       chunkCount: number;
     }
-  | { type: "restart"; timestamp: string };
+  | { type: "restart"; timestamp: string }
+  | { type: "title"; timestamp: string; title: string };
 
 /**
  * Best-effort, append-only archive of a thread's full conversation.
@@ -57,6 +58,9 @@ export type ThreadLoggerOptions = {
 
 export class ThreadLogger {
   private filePath: string;
+  private metaPath: string;
+  private threadType: ThreadType;
+  private metaChain: Promise<void> = Promise.resolve();
   private persistedCount = 0;
   private ready: Promise<void>;
 
@@ -68,10 +72,14 @@ export class ThreadLogger {
   constructor(
     threadId: ThreadId,
     threadType: ThreadType,
+    private getMessages: () => ReadonlyArray<ProviderMessage>,
+    private getMessageCount: () => number,
     private logger: Logger,
     opts: ThreadLoggerOptions = {},
   ) {
     this.filePath = threadConversationLogPath(threadId, opts.baseDir);
+    this.metaPath = threadMetaPath(threadId, opts.baseDir);
+    this.threadType = threadType;
     const dir = path.dirname(this.filePath);
     this.ready = fs.mkdir(dir, { recursive: true }).then(
       () => undefined,
@@ -104,13 +112,21 @@ export class ThreadLogger {
    * Flush completed messages during a turn. The final message may still be
    * streaming, so it is withheld until `onTurnEnded`.
    */
-  onUpdate(messages: ReadonlyArray<ProviderMessage>): void {
-    this.flush(messages, Math.max(0, messages.length - 1));
+  onUpdate(): void {
+    const stableCount = Math.max(0, this.getMessageCount() - 1);
+    if (stableCount > this.persistedCount) {
+      const messages = this.getMessages();
+      this.flush(messages, stableCount);
+    }
   }
 
   /** Flush all messages once the turn has fully settled. */
-  onTurnEnded(messages: ReadonlyArray<ProviderMessage>): void {
-    this.flush(messages, messages.length);
+  onTurnEnded(): void {
+    const totalCount = this.getMessageCount();
+    if (totalCount > this.persistedCount) {
+      const messages = this.getMessages();
+      this.flush(messages, totalCount);
+    }
   }
 
   /**
@@ -150,6 +166,32 @@ export class ThreadLogger {
     );
   }
 
+  /**
+   * Persist a thread title: append a `title` entry to the JSONL and overwrite
+   * the `meta.json` sidecar. Both are best-effort and fire-and-forget.
+   */
+  recordTitle(title: string): void {
+    this.append({
+      type: "title",
+      timestamp: new Date().toISOString(),
+      title,
+    });
+    this.writeMeta(title);
+  }
+
+  private writeMeta(title: string): void {
+    const contents = JSON.stringify({ title, threadType: this.threadType });
+    this.metaChain = this.metaChain
+      .then(() => this.ready)
+      .then(() => fs.writeFile(this.metaPath, contents))
+      .catch((err) => {
+        this.logger.error(
+          `ThreadLogger: failed to write meta ${this.metaPath}`,
+          err,
+        );
+      });
+  }
+
   recordRestart(): void {
     this.append({
       type: "restart",
@@ -166,6 +208,7 @@ export class ThreadLogger {
     while (this.draining) {
       await this.drainPromise;
     }
+    await this.metaChain;
   }
 
   private append(entry: ThreadLogEntry): void {

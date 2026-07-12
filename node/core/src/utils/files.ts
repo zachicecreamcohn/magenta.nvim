@@ -24,6 +24,13 @@ export function threadConversationLogPath(
   ) as AbsFilePath;
 }
 
+export function threadMetaPath(
+  threadId: ThreadId,
+  baseDir: string = MAGENTA_TEMP_DIR,
+): AbsFilePath {
+  return path.join(baseDir, "threads", threadId, "meta.json") as AbsFilePath;
+}
+
 /**
  * Regex for matching `@file:` references. Supports three forms:
  *   - Bare: `@file:path/without/whitespace`

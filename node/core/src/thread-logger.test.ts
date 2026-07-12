@@ -6,7 +6,7 @@ import type { ThreadId } from "./chat-types.ts";
 import type { Logger } from "./logger.ts";
 import type { ProviderMessage } from "./providers/provider-types.ts";
 import { ThreadLogger } from "./thread-logger.ts";
-import { threadConversationLogPath } from "./utils/files.ts";
+import { threadConversationLogPath, threadMetaPath } from "./utils/files.ts";
 
 const TEST_BASE_DIR = path.join(os.tmpdir(), "magenta-test-thread-logger");
 
@@ -57,12 +57,53 @@ describe("ThreadLogger", () => {
     );
   });
 
+  it("persists the title to the sidecar and appends title entries to the JSONL", async () => {
+    const threadId = freshThreadId();
+    const { logger } = makeLogger();
+    const messages: ProviderMessage[] = [];
+    const tl = new ThreadLogger(
+      threadId,
+      "root",
+      () => messages,
+      () => messages.length,
+      logger,
+      { baseDir: TEST_BASE_DIR },
+    );
+
+    tl.recordTitle("Hello");
+    tl.recordTitle("Hello 2");
+    await tl.flushed();
+
+    const meta = JSON.parse(
+      await fs.readFile(threadMetaPath(threadId, TEST_BASE_DIR), "utf8"),
+    ) as { title: string; threadType: string };
+    expect(meta).toEqual({ title: "Hello 2", threadType: "root" });
+
+    const lines = (
+      await fs.readFile(
+        threadConversationLogPath(threadId, TEST_BASE_DIR),
+        "utf8",
+      )
+    )
+      .split("\n")
+      .filter((l) => l.length > 0)
+      .map((l) => JSON.parse(l) as { type: string; title?: string });
+    const titles = lines.filter((l) => l.type === "title");
+    expect(titles.map((t) => t.title)).toEqual(["Hello", "Hello 2"]);
+  });
+
   it("does not throw and routes fs errors to the logger", async () => {
     const threadId = freshThreadId();
     const { logger, errors } = makeLogger();
-    const tl = new ThreadLogger(threadId, "root", logger, {
-      baseDir: TEST_BASE_DIR,
-    });
+    const messages: ProviderMessage[] = [];
+    const tl = new ThreadLogger(
+      threadId,
+      "root",
+      () => messages,
+      () => messages.length,
+      logger,
+      { baseDir: TEST_BASE_DIR },
+    );
     await tl.flushed();
 
     // Replace the thread dir with a file so subsequent appends fail.
@@ -73,7 +114,8 @@ describe("ThreadLogger", () => {
     await fs.mkdir(path.dirname(dir), { recursive: true });
     await fs.writeFile(dir, "not a dir");
 
-    expect(() => tl.onTurnEnded([msg("a")])).not.toThrow();
+    messages.push(msg("a"));
+    expect(() => tl.onTurnEnded()).not.toThrow();
     await tl.flushed();
     expect(errors.length).toBeGreaterThan(0);
 

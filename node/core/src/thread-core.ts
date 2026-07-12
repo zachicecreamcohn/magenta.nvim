@@ -228,6 +228,8 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     this.threadLogger = new ThreadLogger(
       id,
       context.threadType,
+      () => this.getProviderMessages(),
+      () => this.getProviderMessages().length,
       context.logger,
       {
         ...(context.conversationLogBaseDir !== undefined
@@ -236,12 +238,8 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
         ...(forkProvenance ? { forkedFrom: forkProvenance } : {}),
       },
     );
-    this.on("update", () =>
-      this.threadLogger.onUpdate(this.getProviderMessages()),
-    );
-    this.on("turnEnded", () =>
-      this.threadLogger.onTurnEnded(this.getProviderMessages()),
-    );
+    this.on("update", () => this.threadLogger.onUpdate());
+    this.on("turnEnded", () => this.threadLogger.onTurnEnded());
     this.contextManager = new ContextManager(
       context.logger,
       context.fileIO,
@@ -458,6 +456,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     switch (action.type) {
       case "set-title":
         this.state.title = action.title;
+        this.threadLogger.recordTitle(action.title);
         break;
       case "set-mode":
         this.state.mode = action.mode;

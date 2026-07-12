@@ -8,6 +8,7 @@
 - edit a previous user message. E on a user message pops it into the input buffer, and resets the thread to that point, so you can change the message and resubmit
 - openai agent
 - 8j in display buffer (relative column numbers should still work, even with wrapped override)
+- something about opening oil in the input buffer is making things really funky
 - expand diff on "files edited this turn"
   - <CR> to bring up diff in vim splits
 
@@ -50,11 +51,4 @@
   - this has broken a few times already, make sure we have a good test for it
 - when we terminate/error, the reset for the message places it in the wrong buffer (currently open one, not the one corresponding to the thread that the error happened in)
 
-- error:
-  2026-06-16T09:32:11  WARN Unexpected error:
-  stream ended without producing a Message with role=assistant
-  Error: stream ended without producing a Message with role=assistant
-  at \_MessageStream.\_MessageStream_getFinalMessage2 (file:///home/aurelia/.local/share/nvim/site/pack/core/opt/magenta/dist/magenta.mjs:46546:17)
-  at \_MessageStream.finalMessage (file:///home/aurelia/.local/share/nvim/site/pack/core/opt/magenta/dist/magenta.mjs:46469:109)
-  at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-  at async runWithRetry (file:///home/aurelia/.local/share/nvim/site/pack/core/opt/magenta/dist/magenta.mjs:144452:24)
+- error: 2026-06-16T09:32:11  WARN Unexpected error: stream ended without producing a Message with role=assistant Error: stream ended without producing a Message with role=assistant at \_MessageStream.\_MessageStream_getFinalMessage2 (file:///home/aurelia/.local/share/nvim/site/pack/core/opt/magenta/dist/magenta.mjs:46546:17) at \_MessageStream.finalMessage (file:///home/aurelia/.local/share/nvim/site/pack/core/opt/magenta/dist/magenta.mjs:46469:109) at process.processTicksAndRejections (node:internal/process/task_queues:105:5) at async runWithRetry (file:///home/aurelia/.local/share/nvim/site/pack/core/opt/magenta/dist/magenta.mjs:144452:24)
