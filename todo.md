@@ -15,6 +15,7 @@
 - think about enriching the script API. Iterate on a thread? Query a thread? Human-in-the-loop?
 - supervisor to auto-compact threads (configurable for scripts)
 - @next to send the message when the agent next stops
+- bashCommand should show timer when expanded
 
 # Sandboxes
 

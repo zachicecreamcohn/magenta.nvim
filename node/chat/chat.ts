@@ -72,6 +72,12 @@ const ARCHIVE_DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
   minute: "2-digit",
 });
 
+/** Hydration state of an archived thread's title. Absence of a key in the
+ * titles map means not-yet-hydrated; these variants describe a hydrated row. */
+type ArchiveTitle =
+  | { status: "untitled" }
+  | { status: "titled"; title: string };
+
 type ThreadWrapper = (
   | {
       state: "pending";
@@ -106,10 +112,7 @@ type ChatState =
       activeThreadId: ThreadId | undefined;
       threadIds: ThreadId[];
       loadedCount: number;
-      // A key present in `titles` means the sidecar has been read: a string is
-      // the title, `null` means loaded-but-untitled. An absent key means the
-      // title has not been hydrated yet.
-      titles: { [id: ThreadId]: string | null };
+      titles: { [id: ThreadId]: ArchiveTitle };
     };
 
 export type Msg =
@@ -164,7 +167,7 @@ export type Msg =
   | {
       type: "archive-meta-loaded";
       id: ThreadId;
-      title: string | null;
+      title: ArchiveTitle;
     };
 
 export type ChatMsg = {
@@ -481,7 +484,10 @@ export class Chat implements ThreadManager {
           this.myDispatch({
             type: "archive-meta-loaded",
             id,
-            title: meta.title ?? null,
+            title:
+              meta.title === undefined
+                ? { status: "untitled" }
+                : { status: "titled", title: meta.title },
           });
         })
         .catch((err: Error) => {
@@ -1229,9 +1235,9 @@ ${rows}${loadMore}`;
     const title =
       titleEntry === undefined
         ? "…"
-        : titleEntry === null
+        : titleEntry.status === "untitled"
           ? "(untitled)"
-          : titleEntry;
+          : titleEntry.title;
 
     const line = d`- ${date}  ${title}`;
 

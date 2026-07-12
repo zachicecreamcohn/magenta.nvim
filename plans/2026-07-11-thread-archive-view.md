@@ -135,6 +135,8 @@ Invariants:
   - Behavior: `<CR>` opens the thread's conversation.jsonl.
     - Actions: trigger `<CR>`; assert `openFileInNonMagentaWindow` called with the log path.
   - Behavior: `[load more]` hydrates and reveals the next window when ids exceed the page size.
+**Code-review follow-up (DONE).** Replaced the internal `null` title encoding with a discriminated union `ArchiveTitle = { status: "untitled" } | { status: "titled"; title: string }` (absent key still means not-yet-hydrated), removing the `string | null` map value, the `archive-meta-loaded` `title: string | null` field, the `meta.title ?? null` boundary conversion, and the prose comment / triple `=== null` branch. Added `archive-view.test.ts` coverage for pagination (seed >50 threads: first page hydrates lazily, ids beyond `loadedCount` stay unhydrated, `archive-load-more` hydrates the next page) and the untitled branch (meta.json with no title hydrates to `{ status: "untitled" }`). Full core + chat suites (minus the pre-existing unrelated `thread.test.ts` "expands context update diff" failure that also fails on clean HEAD), typecheck, and lint pass.
+
 - Before moving on: confirm tests, type checks, and linting all pass.
 
 ## Stage 4 — Overview link + back navigation
