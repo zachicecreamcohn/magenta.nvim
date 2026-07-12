@@ -12,9 +12,12 @@ export type DisplayPath = string & { __display_path: true };
 
 export const MAGENTA_TEMP_DIR = "/tmp/magenta" as AbsFilePath;
 
-export function threadConversationLogPath(threadId: ThreadId): AbsFilePath {
+export function threadConversationLogPath(
+  threadId: ThreadId,
+  baseDir: string = MAGENTA_TEMP_DIR,
+): AbsFilePath {
   return path.join(
-    MAGENTA_TEMP_DIR,
+    baseDir,
     "threads",
     threadId,
     "conversation.jsonl",

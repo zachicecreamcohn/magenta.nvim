@@ -1,4 +1,5 @@
 import * as fs from "node:fs/promises";
+import * as os from "node:os";
 import * as path from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -25,6 +26,8 @@ import { validateInput } from "./tools/helpers.ts";
 import type { MCPToolManager } from "./tools/mcp/manager.ts";
 import { pollUntil } from "./utils/async.ts";
 import { threadConversationLogPath } from "./utils/files.ts";
+
+const TEST_ARCHIVE_DIR = path.join(os.tmpdir(), "magenta-test-archive");
 
 const noopLogger: Logger = {
   debug: () => {},
@@ -112,6 +115,7 @@ function createThreadCoreWithMock(
     maxConcurrentFastSubagents: 8,
     getAgents: () => ({}),
     getProvider: () => provider,
+    conversationLogBaseDir: TEST_ARCHIVE_DIR,
     ...overrides,
   };
 
@@ -1325,7 +1329,7 @@ describe("ThreadCore auto-resubmit for non-user-facing threads (Stage 2)", () =>
 type ParsedEntry = { type: string; [k: string]: unknown };
 
 async function readArchive(threadId: ThreadId): Promise<ParsedEntry[]> {
-  const filePath = threadConversationLogPath(threadId);
+  const filePath = threadConversationLogPath(threadId, TEST_ARCHIVE_DIR);
   const contents = await fs.readFile(filePath, "utf8");
   return contents
     .split("\n")
@@ -1334,7 +1338,9 @@ async function readArchive(threadId: ThreadId): Promise<ParsedEntry[]> {
 }
 
 async function cleanupArchive(threadId: ThreadId): Promise<void> {
-  const dir = path.dirname(threadConversationLogPath(threadId));
+  const dir = path.dirname(
+    threadConversationLogPath(threadId, TEST_ARCHIVE_DIR),
+  );
   await fs.rm(dir, { recursive: true, force: true });
 }
 
@@ -1378,6 +1384,54 @@ describe("ThreadCore conversation archive", () => {
       expect(serialized).toContain('"type":"tool_use"');
       expect(serialized).toContain('"type":"tool_result"');
       expect(serialized).toContain("/tmp/a.txt");
+    } finally {
+      await core.destroy();
+      await cleanupArchive(threadId);
+    }
+  });
+
+  it("persists completed messages mid-turn but withholds the streaming one", async () => {
+    const threadId = uniqueThreadId("archive-withhold");
+    const fileIO = new InMemoryFileIO({ "/tmp/a.txt": "hello" });
+    const { core, mockClient } = createThreadCoreWithMock({ fileIO }, threadId);
+
+    try {
+      await core.sendMessage([{ type: "user", text: "edit a" }]);
+      const stream = await mockClient.awaitStream();
+      stream.streamToolUse("edl-1" as ToolRequestId, "edl" as ToolName, {
+        script: `file \`/tmp/a.txt\`\nnarrow /hello/\nreplace "bye"`,
+      });
+      stream.finishResponse("tool_use");
+
+      // Second stream begins once the earlier turn steps are finalized. The
+      // assistant's in-flight text is not yet a finalized message, so onUpdate
+      // persists the completed tool_use but withholds the streaming reply.
+      const nextStream = await pollUntil(() => {
+        if (mockClient.streams.length < 2) throw new Error("waiting");
+        return mockClient.streams[1];
+      });
+      nextStream.streamText("streaming-reply");
+      await core.awaitArchiveFlush();
+
+      const midSerialized = JSON.stringify(
+        (await readArchive(threadId)).filter((e) => e.type === "message"),
+      );
+      expect(midSerialized).toContain('"type":"tool_use"');
+      expect(midSerialized).not.toContain("streaming-reply");
+
+      nextStream.finishResponse("end_turn");
+      await pollUntil(() => {
+        if (core.agent.getState().status.type !== "stopped")
+          throw new Error("waiting");
+        return true;
+      });
+      await core.awaitArchiveFlush();
+
+      const finalSerialized = JSON.stringify(
+        (await readArchive(threadId)).filter((e) => e.type === "message"),
+      );
+      expect(finalSerialized).toContain('"type":"tool_result"');
+      expect(finalSerialized).toContain("streaming-reply");
     } finally {
       await core.destroy();
       await cleanupArchive(threadId);

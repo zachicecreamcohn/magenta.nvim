@@ -151,6 +151,8 @@ export interface ThreadCoreContext {
   getProvider: (profile: ProviderProfile) => Provider;
   initialFiles?: Files;
   yieldSchema?: JSONSchemaType;
+  /** Base dir for the conversation archive. Defaults to MAGENTA_TEMP_DIR. */
+  conversationLogBaseDir?: string;
 }
 
 /** Minimum output tokens between system reminders during auto-respond loops */
@@ -227,18 +229,19 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
       id,
       context.threadType,
       context.logger,
-      forkProvenance,
+      {
+        ...(context.conversationLogBaseDir !== undefined
+          ? { baseDir: context.conversationLogBaseDir }
+          : {}),
+        ...(forkProvenance ? { forkedFrom: forkProvenance } : {}),
+      },
     );
-    this.on("update", () => {
-      const messages = this.getProviderMessages();
-      this.threadLogger.flushMessages(
-        messages,
-        Math.max(0, messages.length - 1),
-      );
-    });
-    this.on("turnEnded", () => {
-      this.threadLogger.flushMessages(this.getProviderMessages());
-    });
+    this.on("update", () =>
+      this.threadLogger.onUpdate(this.getProviderMessages()),
+    );
+    this.on("turnEnded", () =>
+      this.threadLogger.onTurnEnded(this.getProviderMessages()),
+    );
     this.contextManager = new ContextManager(
       context.logger,
       context.fileIO,

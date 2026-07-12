@@ -50,24 +50,38 @@ export type ThreadLogEntry =
  * diagnostic logging), so it uses node `fs` directly rather than the `FileIO`
  * abstraction.
  */
+export type ThreadLoggerOptions = {
+  baseDir?: string;
+  forkedFrom?: ForkProvenance;
+};
+
 export class ThreadLogger {
   private filePath: string;
   private persistedCount = 0;
-  private queue: Promise<void>;
   private ready: Promise<void>;
+
+  /** Pending serialized lines awaiting a write. */
+  private buffer: string[] = [];
+  private draining = false;
+  private drainPromise: Promise<void> = Promise.resolve();
 
   constructor(
     threadId: ThreadId,
     threadType: ThreadType,
     private logger: Logger,
-    forkedFrom?: ForkProvenance,
+    opts: ThreadLoggerOptions = {},
   ) {
-    this.filePath = threadConversationLogPath(threadId);
+    this.filePath = threadConversationLogPath(threadId, opts.baseDir);
     const dir = path.dirname(this.filePath);
-    this.ready = fs.mkdir(dir, { recursive: true }).then(() => undefined);
-    this.queue = this.ready.catch((err) => {
-      this.logger.error(`ThreadLogger: failed to create directory ${dir}`, err);
-    });
+    this.ready = fs.mkdir(dir, { recursive: true }).then(
+      () => undefined,
+      (err) => {
+        this.logger.error(
+          `ThreadLogger: failed to create directory ${dir}`,
+          err,
+        );
+      },
+    );
 
     this.append({
       type: "thread_start",
@@ -76,14 +90,27 @@ export class ThreadLogger {
       threadType,
     });
 
-    if (forkedFrom) {
+    if (opts.forkedFrom) {
       this.append({
         type: "fork",
         timestamp: new Date().toISOString(),
-        fromThreadId: forkedFrom.fromThreadId,
-        nativeMessageIdx: forkedFrom.nativeMessageIdx,
+        fromThreadId: opts.forkedFrom.fromThreadId,
+        nativeMessageIdx: opts.forkedFrom.nativeMessageIdx,
       });
     }
+  }
+
+  /**
+   * Flush completed messages during a turn. The final message may still be
+   * streaming, so it is withheld until `onTurnEnded`.
+   */
+  onUpdate(messages: ReadonlyArray<ProviderMessage>): void {
+    this.flush(messages, Math.max(0, messages.length - 1));
+  }
+
+  /** Flush all messages once the turn has fully settled. */
+  onTurnEnded(messages: ReadonlyArray<ProviderMessage>): void {
+    this.flush(messages, messages.length);
   }
 
   /**
@@ -91,17 +118,18 @@ export class ThreadLogger {
    * Idempotent by cursor, so calling repeatedly with a growing array never
    * double-writes. Fire-and-forget: returns immediately.
    */
-  flushMessages(
+  private flush(
     messages: ReadonlyArray<ProviderMessage>,
-    stableCount: number = messages.length,
+    stableCount: number,
   ): void {
+    if (stableCount <= this.persistedCount) {
+      return;
+    }
     const timestamp = new Date().toISOString();
     for (let i = this.persistedCount; i < stableCount; i++) {
       this.append({ type: "message", timestamp, message: messages[i] });
     }
-    if (stableCount > this.persistedCount) {
-      this.persistedCount = stableCount;
-    }
+    this.persistedCount = stableCount;
   }
 
   recordCompaction(opts: { summary?: string; chunkCount: number }): void {
@@ -135,20 +163,42 @@ export class ThreadLogger {
 
   /** Resolves once all enqueued writes have flushed. For tests. */
   async flushed(): Promise<void> {
-    await this.queue;
+    while (this.draining) {
+      await this.drainPromise;
+    }
   }
 
   private append(entry: ThreadLogEntry): void {
-    const line = `${JSON.stringify(entry)}\n`;
-    this.queue = this.queue.then(async () => {
-      try {
-        await fs.appendFile(this.filePath, line);
-      } catch (err) {
-        this.logger.error(
-          `ThreadLogger: failed to append to ${this.filePath}`,
-          err,
-        );
+    this.buffer.push(`${JSON.stringify(entry)}\n`);
+    if (!this.draining) {
+      this.draining = true;
+      this.drainPromise = this.drain();
+    }
+  }
+
+  /**
+   * Best-effort write loop. Coalesces all buffered lines into a single append
+   * per iteration and keeps running until the buffer drains. Because pushes to
+   * the buffer are synchronous, once the loop observes an empty buffer no more
+   * work can be pending, so it is safe to stop.
+   */
+  private async drain(): Promise<void> {
+    try {
+      await this.ready;
+      while (this.buffer.length > 0) {
+        const chunk = this.buffer.join("");
+        this.buffer.length = 0;
+        try {
+          await fs.appendFile(this.filePath, chunk);
+        } catch (err) {
+          this.logger.error(
+            `ThreadLogger: failed to append to ${this.filePath}`,
+            err,
+          );
+        }
       }
-    });
+    } finally {
+      this.draining = false;
+    }
   }
 }
