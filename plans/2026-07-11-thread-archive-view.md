@@ -77,6 +77,8 @@ Invariants:
 
 **Status: DONE.** Added `threadMetaPath` to `utils/files.ts`; `ThreadLogger` gained a `title` log-entry type, `recordTitle(title)` (appends `title` JSONL entry + overwrites `meta.json` sidecar via a serialized `metaChain` so last-write-wins), and `flushed()` now awaits the meta chain. `ThreadCore`'s `set-title` action calls `recordTitle`. Meta writes are best-effort (errors routed to logger, never thrown). Tests added in `thread-logger.test.ts`; full core suite, typecheck, and lint pass.
 
+**Code-review follow-up (DONE).** Added two unit tests in `thread-logger.test.ts`: (1) the message-flush invariant — `onUpdate()` withholds the still-streaming final message (only N-1 land), `onTurnEnded()` appends the withheld one, and both are idempotent by cursor with no double-writes on repeated calls; (2) meta sidecar write errors route to the logger (distinct from the JSONL append error path). Full core suite, typecheck, and lint pass.
+
 - Goal: whenever a thread's title is set, `ThreadLogger` appends a `title` line to `conversation.jsonl` and writes a `meta.json` sidecar; `ThreadCore` invokes this on the `set-title` path. Add `threadMetaPath(threadId, baseDir?)` to `utils/files.ts`.
 - Verification:
   - Behavior: setting a title writes the sidecar with the latest title and appends a `title` entry to the JSONL.

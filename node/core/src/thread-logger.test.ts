@@ -92,6 +92,91 @@ describe("ThreadLogger", () => {
     expect(titles.map((t) => t.title)).toEqual(["Hello", "Hello 2"]);
   });
 
+  it("withholds the streaming message on update and persists all on turn end, idempotently", async () => {
+    const threadId = freshThreadId();
+    const { logger } = makeLogger();
+    const messages: ProviderMessage[] = [msg("a"), msg("b"), msg("c")];
+    const tl = new ThreadLogger(
+      threadId,
+      "root",
+      () => messages,
+      () => messages.length,
+      logger,
+      { baseDir: TEST_BASE_DIR },
+    );
+
+    tl.onUpdate();
+    await tl.flushed();
+
+    async function messageTexts(): Promise<string[]> {
+      const lines = (
+        await fs.readFile(
+          threadConversationLogPath(threadId, TEST_BASE_DIR),
+          "utf8",
+        )
+      )
+        .split("\n")
+        .filter((l) => l.length > 0)
+        .map(
+          (l) =>
+            JSON.parse(l) as {
+              type: string;
+              message?: { content: { text?: string }[] };
+            },
+        );
+      return lines
+        .filter((l) => l.type === "message")
+        .map((l) => l.message?.content?.[0]?.text ?? "");
+    }
+
+    // onUpdate withholds the final (still-streaming) message: only a, b land.
+    expect(await messageTexts()).toEqual(["a", "b"]);
+
+    // Repeated onUpdate is idempotent by cursor: no duplicates.
+    tl.onUpdate();
+    await tl.flushed();
+    expect(await messageTexts()).toEqual(["a", "b"]);
+
+    // onTurnEnded persists the withheld final message with no duplicates.
+    tl.onTurnEnded();
+    await tl.flushed();
+    expect(await messageTexts()).toEqual(["a", "b", "c"]);
+
+    // Repeated onTurnEnded stays idempotent.
+    tl.onTurnEnded();
+    await tl.flushed();
+    expect(await messageTexts()).toEqual(["a", "b", "c"]);
+  });
+
+  it("routes meta sidecar write errors to the logger", async () => {
+    const threadId = freshThreadId();
+    const { logger, errors } = makeLogger();
+    const messages: ProviderMessage[] = [];
+    const tl = new ThreadLogger(
+      threadId,
+      "root",
+      () => messages,
+      () => messages.length,
+      logger,
+      { baseDir: TEST_BASE_DIR },
+    );
+    await tl.flushed();
+
+    // Replace the thread dir with a file so the meta.json write fails.
+    const dir = path.dirname(
+      threadConversationLogPath(threadId, TEST_BASE_DIR),
+    );
+    await fs.rm(dir, { recursive: true, force: true });
+    await fs.mkdir(path.dirname(dir), { recursive: true });
+    await fs.writeFile(dir, "not a dir");
+
+    expect(() => tl.recordTitle("boom")).not.toThrow();
+    await tl.flushed();
+    expect(errors.length).toBeGreaterThan(0);
+
+    await fs.rm(dir, { force: true });
+  });
+
   it("does not throw and routes fs errors to the logger", async () => {
     const threadId = freshThreadId();
     const { logger, errors } = makeLogger();
