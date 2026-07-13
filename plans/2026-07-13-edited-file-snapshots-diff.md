@@ -107,3 +107,10 @@ Alternatives considered:
   - Actions: press `=` on the row; assert diff text appears; press `<CR>` and assert a diff helper is invoked / two diff windows exist.
   - Expected outcome: diff content matches `createPatch`; `<CR>` triggers `openDiffInNonMagentaWindow` (assert via spy or resulting window/buffer state).
 - Before moving on: type checks, tests, lint pass.
+### Stage 3 code-review follow-ups (DONE)
+
+Addressed review findings:
+- Typed `Thread.state.editedFilesExpanded` key as `AbsFilePath` (was loose `string`) in `thread.ts:204`.
+- Added a `withDriver()` test in `thread-edited-files.test.ts` asserting the `<CR>` diffsplit layout: a `*_snapshot` scratch window opens containing the snapshot lines with `diff` set, the live `a.txt` window also has `diff` set, and magenta windows are preserved.
+- Added a second test covering `readCurrentFileContent`'s open-buffer branch: opening `a.txt` in a non-magenta split with distinct unsaved content and confirming the inline `=` diff reflects the live buffer (`+buffered`) rather than the on-disk `bye`.
+- All typechecks (`tsgo -b`), the edited-files tests, and `biome check` pass.

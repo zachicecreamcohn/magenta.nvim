@@ -201,7 +201,7 @@ export class Thread {
     expandedToolDefinitions: { [toolName: string]: boolean };
     contextFilesExpanded: boolean;
     pendingMessagesExpanded: { [index: number]: boolean };
-    editedFilesExpanded: { [path: string]: { patch: string } };
+    editedFilesExpanded: { [path: AbsFilePath]: { patch: string } };
     messageViewState: { [messageIdx: number]: MessageViewState };
     toolViewState: { [toolRequestId: ToolRequestId]: ToolViewState };
     compactionViewState: {
