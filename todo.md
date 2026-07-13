@@ -1,5 +1,6 @@
 # top of mind
 
+- improve expanded edl tool call + result view
 - look into hooking up progressive tool discovery / tool search
 - script improvements
   - think about enriching the script API. Iterate on a thread? Query a thread? Human-in-the-loop?

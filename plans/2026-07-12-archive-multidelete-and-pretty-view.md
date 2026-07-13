@@ -126,6 +126,8 @@ Invariants:
 
 ## Stage 3: multi-delete via visual `d`
 
+**Status: DONE.** Added `d` to `BINDING_KEYS` with `BINDING_MODES["d"] = ["v"]` (visual-only, so it never collides with normal-only `dd`). Added chat message `archive-delete-threads { ids: ThreadId[] }` and a handler that filters the ids out of `state.threadIds`, drops their titles, and best-effort `deleteArchivedThread`s each (mirroring the single-delete path). `renderArchiveRow` gained a `d` binding that computes `idx = threadIds.indexOf(threadId)`, `count = ctx?.selection?.length ?? 1`, and dispatches deletion of `threadIds.slice(idx, idx + count)`. Single-row `dd` (normal mode) is unchanged. Integration test "visual d deletes all selected threads from archive and disk" added to `archive-view.test.ts` (seeds 5 threads, anchors on row 2, selects 3, asserts those 3 gone from state+disk and the other 2 remain). No driver changes needed — `pressOnDisplayMessageWithSelection` already resolves visual bindings. `npx tsgo -b` and `npx biome check .` pass.
+
 - Goal: a visual selection spanning N archive rows followed by `d` deletes all N threads from disk and the view.
 - Implementation notes:
   - Add `d` to `BINDING_KEYS` and set `BINDING_MODES["d"] = ["v"]` in `node/tea/bindings.ts` (this auto-registers the lua visual keymap in `tea.ts`).
@@ -139,6 +141,8 @@ Invariants:
     - Expected: `state.threadIds` no longer contains those 3 ids; `deleteArchivedThread` invoked for each; remaining 2 rows still shown; single-row `dd` still works.
   - Behavior: single-row `dd` unaffected (regression).
 - Before moving on: confirm full `npx vitest run`, `npx tsgo -b`, and `npx biome check .` pass.
+
+**Stage 3 verification:** `npx tsgo -b` and `npx biome check .` clean. Full `npx vitest run` shows 7 failures across `magenta.test`, `context-manager.test` (winfixbuf/socket flakiness), `spawn-subagents.test`, `thread.test`, and `archive-view.test`'s "archive link in the overview" — all verified pre-existing on clean HEAD via `git stash` (the archive-link one is disk-cruft flakiness: repeated seeding leaves thousands of archived threads on disk, slowing hydration). None are related to the Stage 3 change; the new "visual d" test and all other archive tests pass.
 
 **Stage 2 code-review follow-ups (addressed):** Replaced unsafe unchecked casts flagged in review: `openScratchInNonMagentaWindow` now maps `string[]` to `Line[]` element-wise (matching the branded-conversion convention in `buffer.ts`) instead of blanket-casting, and both error-log sites (`openFileInNonMagentaWindow.ts` and the `<CR>` handler in `chat.ts`) narrow the `unknown` catch variable via `error instanceof Error ? error.message : String(error)` instead of `(error as Error).message`. Typecheck, lint, and the archive/core tests all pass.
 

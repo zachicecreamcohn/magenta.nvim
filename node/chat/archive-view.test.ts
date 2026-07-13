@@ -103,6 +103,83 @@ describe("node/chat/archive-view.test.ts", () => {
     });
   });
 
+  it("visual d deletes all selected threads from archive and disk", async () => {
+    await withDriver({}, async (driver) => {
+      const chat = driver.magenta.chat;
+
+      const ids: ThreadId[] = [];
+      for (let i = 0; i < 5; i++) {
+        const id = uuidv7() as ThreadId;
+        ids.push(id);
+        await seedArchivedThread(id, `Thread ${i}`);
+        await new Promise((r) => setTimeout(r, 2));
+      }
+
+      await driver.showSidebar();
+      await driver.magenta.command("threads-overview");
+      await driver.awaitChatState({ state: "thread-overview" });
+      await driver.triggerDisplayBufferKeyOnContent("[archive]", "<CR>");
+      await pollUntil(
+        () => {
+          if (chat.state.state !== "archive") throw new Error("not archive");
+          for (const id of ids) {
+            if (!chat.state.threadIds.includes(id)) {
+              throw new Error("ids not listed yet");
+            }
+            if (chat.state.titles[id] === undefined) {
+              throw new Error("titles not hydrated yet");
+            }
+          }
+        },
+        { timeout: 3000 },
+      );
+
+      if (chat.state.state !== "archive") throw new Error("unreachable");
+      // Rows are newest-first; anchor on the 2nd row and select 3 rows.
+      const ordered = chat.state.threadIds;
+      const anchorTitle = chat.state.titles[ordered[1]];
+      if (anchorTitle?.status !== "titled") throw new Error("no title");
+      const expectedDeleted = ordered.slice(1, 4);
+
+      // Visual selection over 3 rows, anchored at the 2nd row.
+      await driver.pressOnDisplayMessageWithSelection(anchorTitle.title, "d", [
+        "line1",
+        "line2",
+        "line3",
+      ]);
+
+      await pollUntil(
+        () => {
+          if (chat.state.state !== "archive") throw new Error("not archive");
+          for (const id of expectedDeleted) {
+            if (chat.state.threadIds.includes(id)) {
+              throw new Error("still listed");
+            }
+          }
+        },
+        { timeout: 3000 },
+      );
+
+      if (chat.state.state !== "archive") throw new Error("unreachable");
+      // Remaining threads still present.
+      expect(chat.state.threadIds).toContain(ordered[0]);
+      expect(chat.state.threadIds).toContain(ordered[4]);
+
+      for (const id of expectedDeleted) {
+        await pollUntil(
+          async () => {
+            const exists = await fs
+              .stat(threadConversationLogPath(id))
+              .then(() => true)
+              .catch(() => false);
+            if (exists) throw new Error("still on disk");
+          },
+          { timeout: 3000 },
+        );
+      }
+    });
+  });
+
   it("<CR> renders the archived thread as markdown in a non-magenta window", async () => {
     await withDriver({}, async (driver) => {
       const id = uuidv7() as ThreadId;

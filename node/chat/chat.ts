@@ -166,6 +166,10 @@ export type Msg =
       id: ThreadId;
     }
   | {
+      type: "archive-delete-threads";
+      ids: ThreadId[];
+    }
+  | {
       type: "archive-meta-loaded";
       id: ThreadId;
       title: ArchiveTitle;
@@ -445,6 +449,23 @@ export class Chat implements ThreadManager {
             `Failed to delete archived thread ${msg.id}: ${err.message}`,
           );
         });
+        return;
+      }
+
+      case "archive-delete-threads": {
+        if (this.state.state !== "archive") return;
+        const idSet = new Set(msg.ids);
+        this.state.threadIds = this.state.threadIds.filter(
+          (id) => !idSet.has(id),
+        );
+        for (const id of msg.ids) {
+          delete this.state.titles[id];
+          void deleteArchivedThread(id).catch((err: Error) => {
+            this.context.nvim.logger.error(
+              `Failed to delete archived thread ${id}: ${err.message}`,
+            );
+          });
+        }
         return;
       }
 
@@ -1269,6 +1290,14 @@ ${rows}${loadMore}`;
       },
       dd: () =>
         this.myDispatch({ type: "archive-delete-thread", id: threadId }),
+      d: (ctx) => {
+        if (this.state.state !== "archive") return;
+        const idx = this.state.threadIds.indexOf(threadId);
+        if (idx === -1) return;
+        const count = ctx?.selection?.length ?? 1;
+        const ids = this.state.threadIds.slice(idx, idx + count);
+        this.myDispatch({ type: "archive-delete-threads", ids });
+      },
     });
   }
 
