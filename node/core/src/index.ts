@@ -4,9 +4,11 @@ export type { AnthropicAuth, OAuthTokens } from "./anthropic-auth.ts";
 export {
   deleteArchivedThread,
   listArchivedThreadIds,
+  readArchivedThreadLog,
   readThreadMeta,
   threadCreatedAt,
 } from "./archive.ts";
+export { renderThreadLogToMarkdown } from "./archive-renderer.ts";
 export type { AuthUI } from "./auth-ui.ts";
 export type {
   ContextTracker,
@@ -202,6 +204,7 @@ export {
   type ThreadCoreEvents,
   type ThreadMode,
 } from "./thread-core.ts";
+export type { ForkProvenance, ThreadLogEntry } from "./thread-logger.ts";
 export type {
   EndTurnContext,
   SupervisorAction,

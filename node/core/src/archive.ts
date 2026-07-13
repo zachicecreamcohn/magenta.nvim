@@ -1,7 +1,12 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { ThreadId, ThreadType } from "./chat-types.ts";
-import { MAGENTA_TEMP_DIR, threadMetaPath } from "./utils/files.ts";
+import type { ThreadLogEntry } from "./thread-logger.ts";
+import {
+  MAGENTA_TEMP_DIR,
+  threadConversationLogPath,
+  threadMetaPath,
+} from "./utils/files.ts";
 
 const THREAD_TYPES: ReadonlySet<ThreadType> = new Set([
   "subagent",
@@ -75,6 +80,37 @@ export async function readThreadMeta(
   } catch {
     return {};
   }
+}
+
+/**
+ * Read and parse a thread's `conversation.jsonl` log into an ordered array of
+ * `ThreadLogEntry`. Best-effort: a missing file resolves to `[]`, and any
+ * individual line that fails to parse is skipped rather than throwing.
+ */
+export async function readArchivedThreadLog(
+  threadId: ThreadId,
+  baseDir: string = MAGENTA_TEMP_DIR,
+): Promise<ThreadLogEntry[]> {
+  let contents: string;
+  try {
+    contents = await fs.readFile(
+      threadConversationLogPath(threadId, baseDir),
+      "utf8",
+    );
+  } catch {
+    return [];
+  }
+  const entries: ThreadLogEntry[] = [];
+  for (const line of contents.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) continue;
+    try {
+      entries.push(JSON.parse(trimmed) as ThreadLogEntry);
+    } catch {
+      // skip malformed lines
+    }
+  }
+  return entries;
 }
 
 /**

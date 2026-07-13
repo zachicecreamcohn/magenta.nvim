@@ -6,11 +6,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   deleteArchivedThread,
   listArchivedThreadIds,
+  readArchivedThreadLog,
   readThreadMeta,
   threadCreatedAt,
 } from "./archive.ts";
 import type { ThreadId } from "./chat-types.ts";
-import { threadMetaPath } from "./utils/files.ts";
+import { threadConversationLogPath, threadMetaPath } from "./utils/files.ts";
 
 const TEST_BASE_DIR = path.join(os.tmpdir(), "magenta-test-archive");
 
@@ -85,6 +86,41 @@ describe("archive", () => {
       JSON.stringify({ title: "Hi", threadType: "bogus" }),
     );
     expect(await readThreadMeta(id, TEST_BASE_DIR)).toEqual({ title: "Hi" });
+  });
+
+  it("reads a thread log in order, skipping garbage and missing files", async () => {
+    const id = uuidv7() as ThreadId;
+    await makeThreadDir(id);
+    const lines = [
+      JSON.stringify({
+        type: "thread_start",
+        threadId: id,
+        timestamp: "t0",
+        threadType: "root",
+      }),
+      JSON.stringify({ type: "message", timestamp: "t1", message: { a: 1 } }),
+      "this is not json",
+      JSON.stringify({ type: "message", timestamp: "t2", message: { a: 2 } }),
+      JSON.stringify({ type: "title", timestamp: "t3", title: "Hi" }),
+      JSON.stringify({ type: "compaction", timestamp: "t4", chunkCount: 3 }),
+      "",
+    ];
+    await fs.writeFile(
+      threadConversationLogPath(id, TEST_BASE_DIR),
+      lines.join("\n"),
+    );
+
+    const entries = await readArchivedThreadLog(id, TEST_BASE_DIR);
+    expect(entries.map((e) => e.type)).toEqual([
+      "thread_start",
+      "message",
+      "message",
+      "title",
+      "compaction",
+    ]);
+
+    const missing = uuidv7() as ThreadId;
+    expect(await readArchivedThreadLog(missing, TEST_BASE_DIR)).toEqual([]);
   });
 
   it("deletes a thread directory", async () => {

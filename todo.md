@@ -1,19 +1,18 @@
 # top of mind
 
 - look into hooking up progressive tool discovery / tool search
-- set up an auto-compact supervisor on a thread, especially one inside a script
-- way to abort a script
+- script improvements
+  - think about enriching the script API. Iterate on a thread? Query a thread? Human-in-the-loop?
+  - set up an auto-compact supervisor on a thread, especially one inside a script
+  - way to abort a script
   - magenta sets a script title based on script params
   - UX on a script (expanding script state, marking threads vs logs more clearly)
-- edit a previous user message. c on a user message pops it into the input buffer, and resets the thread to that point, so you can change the message and resubmit
+- edit a previous user message. e on a user message pops it into the input buffer, and resets the thread to that point, so you can change the message and resubmit
 - openai agent
 - 8j in display buffer (relative column numbers should still work, even with wrapped override)
-- something about opening oil in the input buffer is making things really funky
 - expand diff on "files edited this turn"
   - <CR> to bring up diff in vim splits
 
-- think about enriching the script API. Iterate on a thread? Query a thread? Human-in-the-loop?
-- supervisor to auto-compact threads (configurable for scripts)
 - @next to send the message when the agent next stops
 - bashCommand should show timer when expanded
 
