@@ -22,10 +22,7 @@ describe("node/buf-enter.test.ts", () => {
         // Switch to the display window, then open the poem buffer there.
         // This triggers BufEnter for a non-magenta buffer in a magenta window.
         await driver.nvim.call("nvim_set_current_win", [displayWindow.id]);
-        await driver.nvim.call("nvim_win_set_buf", [
-          displayWindow.id,
-          poemBufId,
-        ]);
+        await driver.forceWinSetBuf(displayWindow.id, poemBufId);
 
         // Wait for the handler to restore the magenta buffer in the display window
         await pollUntil(async () => {
@@ -73,7 +70,7 @@ describe("node/buf-enter.test.ts", () => {
 
         // Switch to the input window, then open poem there
         await driver.nvim.call("nvim_set_current_win", [inputWindow.id]);
-        await driver.nvim.call("nvim_win_set_buf", [inputWindow.id, poemBufId]);
+        await driver.forceWinSetBuf(inputWindow.id, poemBufId);
 
         // Wait for the handler to restore the magenta input buffer
         await pollUntil(async () => {
@@ -107,9 +104,17 @@ describe("node/buf-enter.test.ts", () => {
       }
       await driver.assertWindowCount(2);
 
-      // Open a file in the display window — the only place nvim can put it
-      await driver.nvim.call("nvim_set_current_win", [displayWindow.id]);
-      await driver.command("edit poem.txt");
+      // Force a file into the display window (bypassing 'winfixbuf'), simulating
+      // a `:edit!`-style forced open — the only place nvim can put it.
+      await driver.nvim.call("nvim_exec2", ["badd poem.txt", {}]);
+      const poemBufId = (await driver.nvim.call("nvim_exec2", [
+        `echo bufnr('poem.txt')`,
+        { output: true },
+      ])) as { output: string };
+      await driver.forceWinSetBuf(
+        displayWindow.id,
+        Number(poemBufId.output) as BufNr,
+      );
 
       // Wait for the handler to restore the magenta buffer in the display window
       await pollUntil(async () => {
@@ -175,10 +180,7 @@ describe("node/buf-enter.test.ts", () => {
 
         // Simulate ctrl-o navigating the display window to thread 1's display buffer
         await driver.nvim.call("nvim_set_current_win", [displayWindow.id]);
-        await driver.nvim.call("nvim_win_set_buf", [
-          displayWindow.id,
-          thread1DisplayBufId,
-        ]);
+        await driver.forceWinSetBuf(displayWindow.id, thread1DisplayBufId);
 
         // Wait for state to switch to thread 1
         await driver.awaitChatState({
@@ -231,10 +233,7 @@ describe("node/buf-enter.test.ts", () => {
 
         // Navigate the input window to thread 1's input buffer
         await driver.nvim.call("nvim_set_current_win", [inputWindow.id]);
-        await driver.nvim.call("nvim_win_set_buf", [
-          inputWindow.id,
-          thread1InputBufId,
-        ]);
+        await driver.forceWinSetBuf(inputWindow.id, thread1InputBufId);
 
         // Wait for state to switch to thread 1
         await driver.awaitChatState({
@@ -272,10 +271,7 @@ describe("node/buf-enter.test.ts", () => {
 
       // Open the input buffer in the display window (wrong role)
       await driver.nvim.call("nvim_set_current_win", [displayWindow.id]);
-      await driver.nvim.call("nvim_win_set_buf", [
-        displayWindow.id,
-        expectedInputBufId,
-      ]);
+      await driver.forceWinSetBuf(displayWindow.id, expectedInputBufId);
 
       // Display window should be restored to the display buffer
       await pollUntil(async () => {
@@ -322,10 +318,7 @@ describe("node/buf-enter.test.ts", () => {
 
       // Open thread 1's INPUT buffer in the DISPLAY window (wrong thread + wrong role)
       await driver.nvim.call("nvim_set_current_win", [displayWindow.id]);
-      await driver.nvim.call("nvim_win_set_buf", [
-        displayWindow.id,
-        thread1InputBufId,
-      ]);
+      await driver.forceWinSetBuf(displayWindow.id, thread1InputBufId);
 
       // Should switch to thread 1
       await driver.awaitChatState({
@@ -368,10 +361,7 @@ describe("node/buf-enter.test.ts", () => {
 
       // Open the display buffer in the input window (wrong role)
       await driver.nvim.call("nvim_set_current_win", [inputWindow.id]);
-      await driver.nvim.call("nvim_win_set_buf", [
-        inputWindow.id,
-        expectedDisplayBufId,
-      ]);
+      await driver.forceWinSetBuf(inputWindow.id, expectedDisplayBufId);
 
       // Input window should be restored to the input buffer
       await pollUntil(async () => {

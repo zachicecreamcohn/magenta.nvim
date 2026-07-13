@@ -282,10 +282,12 @@ export class Sidebar {
     // set vars so we can identify this as the magenta display window
     await displayWindow.setVar("magenta", true);
     await displayWindow.setVar("magenta_display_window", true);
+    await displayWindow.setOption("winfixbuf", true);
     await inputWindow.setOption("winbar", this.getInputWindowTitle());
     // set var so we can avoid closing this window when displaying a diff
     await inputWindow.setVar("magenta", true);
     await inputWindow.setOption("winfixheight", true);
+    await inputWindow.setOption("winfixbuf", true);
     // Track the desired input height so the lua side can restore it when the
     // window layout changes. equalalways doesn't fully honor 'winfixheight'
     // for our nested col-in-row layout, so we re-assert the height explicitly.

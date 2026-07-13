@@ -47,7 +47,12 @@ export async function findOrCreateNonMagentaWindow(context: {
     },
   ])) as WindowId;
 
-  return new NvimWindow(newWinId, context.nvim);
+  const newWindow = new NvimWindow(newWinId, context.nvim);
+  // A split inherits window-local options from the magenta window it was
+  // created from, including 'winfixbuf'. Clear it so this window can host
+  // arbitrary buffers.
+  await newWindow.setOption("winfixbuf", false);
+  return newWindow;
 }
 
 export async function openFileInNonMagentaWindow(

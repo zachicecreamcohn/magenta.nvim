@@ -850,11 +850,11 @@ ${lines.join("\n")}
     if (winId === displayWindow.id) {
       const { displayBuffer } =
         await this.bufferManager.ensureActiveIsMounted(activeKey);
-      await displayWindow.setBuffer(displayBuffer);
+      await displayWindow.setBufferForced(displayBuffer);
     } else {
       const { inputBuffer } =
         await this.bufferManager.ensureActiveIsMounted(activeKey);
-      await inputWindow.setBuffer(inputBuffer);
+      await inputWindow.setBufferForced(inputBuffer);
     }
 
     // Move the non-magenta buffer to a non-magenta window

@@ -309,8 +309,8 @@ export class BufferManager {
 
     const mountedApp = await this.ensureMounted(threadId);
     await Promise.all([
-      displayWindow.setBuffer(entry.buffer),
-      inputWindow.setBuffer(entry.inputBuffer),
+      displayWindow.setBufferForced(entry.buffer),
+      inputWindow.setBufferForced(entry.inputBuffer),
     ]);
     // Sync the view to current state, in case dispatches occurred while this app wasn't visible
     mountedApp.render();
@@ -323,8 +323,8 @@ export class BufferManager {
   ): Promise<{ displayBuffer: NvimBuffer; inputBuffer: NvimBuffer }> {
     const { buffer, mountedApp } = await this.ensureOverviewMounted();
     await Promise.all([
-      displayWindow.setBuffer(buffer),
-      inputWindow.setBuffer(this.overviewEntry.inputBuffer),
+      displayWindow.setBufferForced(buffer),
+      inputWindow.setBufferForced(this.overviewEntry.inputBuffer),
     ]);
 
     // Sync the view to current state, in case dispatches occurred while this app wasn't visible

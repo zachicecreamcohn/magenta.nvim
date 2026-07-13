@@ -1,7 +1,7 @@
 import type { ThreadId } from "@magenta/core";
 import { expect, vi } from "vitest";
 import type { Magenta } from "../magenta.ts";
-import type { Line, NvimBuffer } from "../nvim/buffer.ts";
+import type { BufNr, Line, NvimBuffer } from "../nvim/buffer.ts";
 import { getAllWindows, getCurrentWindow } from "../nvim/nvim.ts";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
 import {
@@ -10,6 +10,7 @@ import {
   type Position0Indexed,
   pos0to1,
   type Row0Indexed,
+  type WindowId,
 } from "../nvim/window.ts";
 import type { MockProvider } from "../providers/mock.ts";
 import { type BindingKey, getBinding } from "../tea/bindings.ts";
@@ -661,6 +662,18 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
       },
       { timeout: 200 },
     );
+  }
+
+  /** Set a window's buffer, bypassing 'winfixbuf'. Magenta windows keep
+   * 'winfixbuf' enabled to block accidental buffer swaps; this simulates the
+   * forced-open scenario (e.g. `:edit!`) that the BufEnter fallback must
+   * still handle. */
+  async forceWinSetBuf(winId: WindowId, bufId: BufNr): Promise<void> {
+    // `:buffer!` uses the "!" modifier to force past 'winfixbuf' without
+    // toggling the option, avoiding a race with the handler (a separate
+    // process) that also toggles 'winfixbuf' during its restore.
+    await this.nvim.call("nvim_set_current_win", [winId]);
+    await this.nvim.call("nvim_exec2", [`buffer! ${bufId}`, {}]);
   }
 
   async editFile(filePath: string): Promise<void> {
