@@ -109,6 +109,8 @@ Invariants:
 
 ## Stage 2: pretty-printed archive view on <CR>
 
+**Status: DONE.** Added `openScratchInNonMagentaWindow(lines, name, context)` to `node/nvim/openFileInNonMagentaWindow.ts` (creates a scratch buffer, sets markdown lines + `filetype=markdown` + `modifiable=false`, names it, and places it via `findOrCreateNonMagentaWindow`). `renderArchiveRow`'s `<CR>` handler now calls `readArchivedThreadLog(threadId)` → `renderThreadLogToMarkdown(entries)` and opens the result in a non-magenta scratch buffer instead of the raw jsonl; read/parse failures are logged and swallowed (best-effort reader never throws). Two integration tests added to `node/chat/archive-view.test.ts` (successful render into a non-magenta window; corrupt log keeps archive view usable). `npx tsgo -b` and `npx biome check .` pass. Note: 6 pre-existing full-suite failures (`magenta.test` "can switch profiles" thinkingModel, `thread.test` "expands context update diff", `context-manager` winfixbuf/socket flakiness, `spawn-subagents` hierarchy) reproduce on clean HEAD (verified via `git stash`) and are unrelated to this stage.
+
 - Goal: pressing `<CR>` on an archive row opens a new markdown scratch buffer rendered via `renderThreadToMarkdown`, in a non-magenta window, instead of the raw jsonl file.
 - Implementation notes: add `openScratchInNonMagentaWindow(lines, name, context)` (or export `findOrCreateNonMagentaWindow` usage) in `node/nvim/openFileInNonMagentaWindow.ts`; update `renderArchiveRow`'s `<CR>` handler.
 - Verification (integration, following `node/chat/archive-view.test.ts` patterns and the doc-testing skill):

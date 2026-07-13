@@ -3,6 +3,7 @@ import type { ThreadId } from "@magenta/core";
 import { threadConversationLogPath, threadMetaPath } from "@magenta/core";
 import { v7 as uuidv7 } from "uuid";
 import { describe, expect, it } from "vitest";
+import type { Row0Indexed } from "../nvim/window.ts";
 import { withDriver } from "../test/preamble.ts";
 import { pollUntil } from "../utils/async.ts";
 
@@ -99,6 +100,102 @@ describe("node/chat/archive-view.test.ts", () => {
         },
         { timeout: 3000 },
       );
+    });
+  });
+
+  it("<CR> renders the archived thread as markdown in a non-magenta window", async () => {
+    await withDriver({}, async (driver) => {
+      const id = uuidv7() as ThreadId;
+      const metaPath = threadMetaPath(id);
+      await fs.mkdir(metaPath.replace(/\/meta\.json$/, ""), {
+        recursive: true,
+      });
+      await fs.writeFile(
+        metaPath,
+        JSON.stringify({ title: "Rendered thread", threadType: "root" }),
+      );
+      const logLines = [
+        JSON.stringify({ type: "thread_start", timestamp: "t0" }),
+        JSON.stringify({
+          type: "message",
+          timestamp: "t1",
+          message: {
+            role: "user",
+            content: [{ type: "text", text: "HELLO_FROM_ARCHIVE" }],
+          },
+        }),
+        JSON.stringify({ type: "title", timestamp: "t2", title: "Rendered" }),
+      ];
+      await fs.writeFile(
+        threadConversationLogPath(id),
+        `${logLines.join("\n")}\n`,
+      );
+
+      const chat = driver.magenta.chat;
+      await driver.showSidebar();
+      await driver.magenta.command("threads-overview");
+      await driver.awaitChatState({ state: "thread-overview" });
+      await driver.triggerDisplayBufferKeyOnContent("[archive]", "<CR>");
+      await pollUntil(
+        () => {
+          if (chat.state.state !== "archive") throw new Error("not archive");
+          if (!chat.state.threadIds.includes(id)) throw new Error("not listed");
+        },
+        { timeout: 3000 },
+      );
+      await driver.assertDisplayBufferContains("Rendered thread");
+
+      await driver.triggerDisplayBufferKeyOnContent("Rendered thread", "<CR>");
+
+      const window = await driver.findWindow(async (w) => {
+        const isMagenta = await w.getVar("magenta");
+        if (isMagenta) return false;
+        const buffer = await w.buffer();
+        const lines = await buffer.getLines({
+          start: 0 as Row0Indexed,
+          end: -1 as Row0Indexed,
+        });
+        return lines.join("\n").includes("HELLO_FROM_ARCHIVE");
+      });
+      expect(window).toBeTruthy();
+    });
+  });
+
+  it("<CR> on a corrupt log does not crash the archive view", async () => {
+    await withDriver({}, async (driver) => {
+      const id = uuidv7() as ThreadId;
+      const metaPath = threadMetaPath(id);
+      await fs.mkdir(metaPath.replace(/\/meta\.json$/, ""), {
+        recursive: true,
+      });
+      await fs.writeFile(
+        metaPath,
+        JSON.stringify({ title: "Corrupt thread", threadType: "root" }),
+      );
+      await fs.writeFile(
+        threadConversationLogPath(id),
+        "this is not valid json\n{also bad",
+      );
+
+      const chat = driver.magenta.chat;
+      await driver.showSidebar();
+      await driver.magenta.command("threads-overview");
+      await driver.awaitChatState({ state: "thread-overview" });
+      await driver.triggerDisplayBufferKeyOnContent("[archive]", "<CR>");
+      await pollUntil(
+        () => {
+          if (chat.state.state !== "archive") throw new Error("not archive");
+          if (!chat.state.threadIds.includes(id)) throw new Error("not listed");
+        },
+        { timeout: 3000 },
+      );
+      await driver.assertDisplayBufferContains("Corrupt thread");
+
+      await driver.triggerDisplayBufferKeyOnContent("Corrupt thread", "<CR>");
+
+      // Archive view is still usable.
+      await new Promise((r) => setTimeout(r, 100));
+      expect(chat.state.state).toBe("archive");
     });
   });
 

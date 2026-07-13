@@ -13,9 +13,10 @@ import {
   loadAgents,
   MCPToolManagerImpl,
   PLACEHOLDER_NATIVE_MESSAGE_IDX,
+  readArchivedThreadLog,
   readThreadMeta,
+  renderThreadLogToMarkdown,
   SubagentSupervisor,
-  threadConversationLogPath,
   threadCreatedAt,
 } from "@magenta/core";
 import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
@@ -36,7 +37,7 @@ import {
   type EnvironmentConfig,
 } from "../environment.ts";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
-import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.ts";
+import { openScratchInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.ts";
 import type { MagentaOptions, Profile } from "../options.ts";
 import {
   buildSystemInfo,
@@ -1247,12 +1248,24 @@ ${rows}${loadMore}`;
 
     return withBindings(line, {
       "<CR>": () => {
-        void openFileInNonMagentaWindow(threadConversationLogPath(threadId), {
-          nvim: this.context.nvim,
-          cwd: this.context.cwd,
-          homeDir: this.context.homeDir,
-          options: this.context.getOptions(),
-        });
+        void (async () => {
+          try {
+            const entries = await readArchivedThreadLog(threadId);
+            const markdown = renderThreadLogToMarkdown(entries);
+            await openScratchInNonMagentaWindow(
+              markdown.split("\n"),
+              `archived-thread-${threadId}.md`,
+              {
+                nvim: this.context.nvim,
+                options: this.context.getOptions(),
+              },
+            );
+          } catch (error) {
+            this.context.nvim.logger.error(
+              `Error opening archived thread ${threadId}: ${(error as Error).message}`,
+            );
+          }
+        })();
       },
       dd: () =>
         this.myDispatch({ type: "archive-delete-thread", id: threadId }),

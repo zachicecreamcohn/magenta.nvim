@@ -1,6 +1,6 @@
-import { NvimBuffer } from "../nvim/buffer.ts";
+import { type Line, NvimBuffer } from "../nvim/buffer.ts";
 import { getAllWindows } from "../nvim/nvim.ts";
-import { NvimWindow, type WindowId } from "../nvim/window.ts";
+import { NvimWindow, type Row0Indexed, type WindowId } from "../nvim/window.ts";
 import type { MagentaOptions } from "../options.ts";
 import {
   type AbsFilePath,
@@ -53,6 +53,33 @@ export async function findOrCreateNonMagentaWindow(context: {
   // arbitrary buffers.
   await newWindow.setOption("winfixbuf", false);
   return newWindow;
+}
+
+export async function openScratchInNonMagentaWindow(
+  lines: string[],
+  name: string,
+  context: {
+    nvim: Nvim;
+    options: MagentaOptions;
+  },
+): Promise<void> {
+  try {
+    const buffer = await NvimBuffer.create(false, true, context.nvim);
+    await buffer.setLines({
+      start: 0 as Row0Indexed,
+      end: -1 as Row0Indexed,
+      lines: lines as Line[],
+    });
+    await buffer.setOption("filetype", "markdown");
+    await buffer.setOption("modifiable", false);
+    await buffer.setName(name);
+    const targetWindow = await findOrCreateNonMagentaWindow(context);
+    await targetWindow.setBuffer(buffer);
+  } catch (error) {
+    context.nvim.logger.error(
+      `Error opening scratch buffer ${name}: ${(error as Error).message}`,
+    );
+  }
 }
 
 export async function openFileInNonMagentaWindow(
