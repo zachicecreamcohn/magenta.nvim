@@ -872,8 +872,10 @@ export class Executor {
     }
 
     const mutations = new Map<string, FileMutationSummary>();
-    const fileContents = new Map<string, string>();
-    const originalContents = new Map<string, string>();
+    const fileContents = new Map<
+      string,
+      { content: string; previousContent: string }
+    >();
     const newFiles = new Set<string>();
     for (const [path, state] of this.fileDocs) {
       if (failedFiles.has(path)) continue;
@@ -881,13 +883,17 @@ export class Executor {
       const m = state.mutations;
       if (m.insertions > 0 || m.deletions > 0 || m.replacements > 0) {
         mutations.set(path, m);
-        fileContents.set(path, state.doc.content);
-        originalContents.set(path, state.originalContent);
+        fileContents.set(path, {
+          content: state.doc.content,
+          previousContent: state.originalContent,
+        });
       }
       if (state.isNew) {
         newFiles.add(path);
-        fileContents.set(path, state.doc.content);
-        originalContents.set(path, state.originalContent);
+        fileContents.set(path, {
+          content: state.doc.content,
+          previousContent: state.originalContent,
+        });
       }
     }
 
@@ -919,7 +925,6 @@ export class Executor {
       finalSelection,
       mutations,
       fileContents,
-      originalContents,
       fileErrors,
     };
   }

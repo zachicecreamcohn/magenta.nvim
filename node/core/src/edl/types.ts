@@ -43,7 +43,6 @@ export type ScriptResult = {
   trace: TraceEntry[];
   finalSelection: { ranges: RangeWithPos[] } | undefined;
   mutations: Map<string, FileMutationSummary>;
-  fileContents: Map<string, string>;
-  originalContents: Map<string, string>;
+  fileContents: Map<string, { content: string; previousContent: string }>;
   fileErrors: FileError[];
 };

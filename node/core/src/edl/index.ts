@@ -252,8 +252,8 @@ export async function runScript(
         ([path, summary]) => ({
           path: toDisplayPath(path),
           summary,
-          content: result.fileContents.get(path) ?? "",
-          previousContent: result.originalContents.get(path) ?? "",
+          content: result.fileContents.get(path)?.content ?? "",
+          previousContent: result.fileContents.get(path)?.previousContent ?? "",
         }),
       ),
       finalSelection: result.finalSelection
