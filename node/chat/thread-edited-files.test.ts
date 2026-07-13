@@ -46,8 +46,18 @@ test("summary shows edited file, opens on <CR>, and resets on next turn", async 
       });
 
       await driver.assertDisplayBufferContains("Files edited this turn:");
-      const pos = await driver.assertDisplayBufferContains("a.txt");
-      await driver.triggerDisplayBufferKey(pos, "<CR>");
+
+      // `=` expands an inline unified diff of the snapshot vs current content.
+      await driver.triggerDisplayBufferKeyOnContent("▶ a.txt", "=");
+      await driver.assertDisplayBufferContains("-hello");
+      await driver.assertDisplayBufferContains("+bye");
+
+      // `=` again collapses it.
+      await driver.triggerDisplayBufferKeyOnContent("▼ a.txt", "=");
+      await driver.assertDisplayBufferDoesNotContain("+bye");
+
+      // `<CR>` opens the snapshot-vs-live diffsplit.
+      await driver.triggerDisplayBufferKeyOnContent("▶ a.txt", "<CR>");
 
       await driver.inputMagentaText("edit b");
       await driver.send();

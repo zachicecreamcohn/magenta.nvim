@@ -16,7 +16,6 @@ import {
   type ThreadMode,
   type ToolName,
   type ToolRequestId,
-  type UnresolvedFilePath,
 } from "@magenta/core";
 import {
   type ContextViewContext,
@@ -312,15 +311,19 @@ function editedFilesSummaryView(
 
   const { cwd, homeDir } = thread.context;
   return d`\n${withExtmark(d`Files edited this turn:\n`, { hl_group: "@comment" })}${editedFiles.map(
-    ({ path: filePath }) => {
+    ({ path: filePath, snapshot }) => {
       const display = displayPath(cwd, filePath, homeDir);
-      return withBindings(d`  ${display}\n`, {
+      const expanded = thread.state.editedFilesExpanded[filePath];
+      const marker = expanded ? "▼" : "▶";
+      const row = withBindings(d`  ${marker} ${display}\n`, {
+        "=": () => dispatch({ type: "toggle-edited-file-expanded", filePath }),
         "<CR>": () =>
-          dispatch({
-            type: "open-edit-file",
-            filePath: filePath as unknown as UnresolvedFilePath,
-          }),
+          dispatch({ type: "open-edit-file-diff", filePath, snapshot }),
       });
+      const body = expanded
+        ? withExtmark(d`${expanded.patch}\n`, { hl_group: "@comment" })
+        : d``;
+      return d`${row}${body}`;
     },
   )}`;
 }
