@@ -81,6 +81,7 @@ export type FileState = {
   doc: Document;
   path: string;
   mutations: FileMutationSummary;
+  originalContent: string;
   isNew?: boolean;
   originalLineStarts: readonly number[];
   originalContentLength: number;
@@ -117,6 +118,7 @@ export class Executor {
       state = {
         doc,
         path,
+        originalContent: content,
         mutations: {
           insertions: 0,
           deletions: 0,
@@ -415,6 +417,7 @@ export class Executor {
         const state: FileState = {
           doc: newDoc,
           path: cmd.path,
+          originalContent: "",
           mutations: {
             insertions: 0,
             deletions: 0,
@@ -870,6 +873,7 @@ export class Executor {
 
     const mutations = new Map<string, FileMutationSummary>();
     const fileContents = new Map<string, string>();
+    const originalContents = new Map<string, string>();
     const newFiles = new Set<string>();
     for (const [path, state] of this.fileDocs) {
       if (failedFiles.has(path)) continue;
@@ -878,10 +882,12 @@ export class Executor {
       if (m.insertions > 0 || m.deletions > 0 || m.replacements > 0) {
         mutations.set(path, m);
         fileContents.set(path, state.doc.content);
+        originalContents.set(path, state.originalContent);
       }
       if (state.isNew) {
         newFiles.add(path);
         fileContents.set(path, state.doc.content);
+        originalContents.set(path, state.originalContent);
       }
     }
 
@@ -913,6 +919,7 @@ export class Executor {
       finalSelection,
       mutations,
       fileContents,
+      originalContents,
       fileErrors,
     };
   }

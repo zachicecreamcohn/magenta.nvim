@@ -34,7 +34,12 @@ export type FileErrorInfo = {
 export type EdlResultData = {
   warnings: string[];
   trace: { command: string; snippet: string }[];
-  mutations: { path: string; summary: FileMutationSummary; content: string }[];
+  mutations: {
+    path: string;
+    summary: FileMutationSummary;
+    content: string;
+    previousContent: string;
+  }[];
   finalSelection: { ranges: RangeInfo[] } | undefined;
   fileErrors: FileErrorInfo[];
 };
@@ -248,6 +253,7 @@ export async function runScript(
           path: toDisplayPath(path),
           summary,
           content: result.fileContents.get(path) ?? "",
+          previousContent: result.originalContents.get(path) ?? "",
         }),
       ),
       finalSelection: result.finalSelection

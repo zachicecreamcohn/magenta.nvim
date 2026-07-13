@@ -73,6 +73,42 @@ replace "planet"`);
     });
   });
 
+  it("surfaces previousContent for an edited existing file", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "test.txt");
+      await fs.writeFile(filePath, "hello world\n", "utf-8");
+
+      const result = await runScript(`\
+file \`${filePath}\`
+narrow /world/
+retain_first
+replace "planet"`);
+
+      expect(result.status).toBe("ok");
+      if (result.status !== "ok") return;
+      expect(result.data.mutations.length).toBe(1);
+      expect(result.data.mutations[0].previousContent).toBe("hello world\n");
+      expect(result.data.mutations[0].content).toBe("hello planet\n");
+    });
+  });
+
+  it("surfaces empty previousContent for a newly created file", async () => {
+    await withTmpDir(async (tmpDir) => {
+      const filePath = path.join(tmpDir, "new.txt");
+
+      const result = await runScript(`\
+newfile \`${filePath}\`
+insert_after <<BODY
+line one
+BODY`);
+
+      expect(result.status).toBe("ok");
+      if (result.status !== "ok") return;
+      expect(result.data.mutations.length).toBe(1);
+      expect(result.data.mutations[0].previousContent).toBe("");
+    });
+  });
+
   it("returns error with message and trace on execution failure", async () => {
     await withTmpDir(async (tmpDir) => {
       const filePath = path.join(tmpDir, "test.txt");

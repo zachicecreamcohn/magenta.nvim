@@ -44,5 +44,6 @@ export type ScriptResult = {
   finalSelection: { ranges: RangeWithPos[] } | undefined;
   mutations: Map<string, FileMutationSummary>;
   fileContents: Map<string, string>;
+  originalContents: Map<string, string>;
   fileErrors: FileError[];
 };
