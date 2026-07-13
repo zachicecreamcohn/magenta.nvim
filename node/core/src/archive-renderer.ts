@@ -51,7 +51,7 @@ function renderEntry(entry: ThreadLogEntry, toolInfoMap: ToolInfoMap): string {
       return `# title: "${entry.title}"\n`;
     case "compaction": {
       const header = `--- compaction (${entry.chunkCount} chunks) ---`;
-      if ("summary" in entry && entry.summary) {
+      if (entry.summary) {
         return `${header}\n${entry.summary}\n`;
       }
       return `${header}\n`;

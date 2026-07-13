@@ -82,6 +82,27 @@ export async function readThreadMeta(
   }
 }
 
+const THREAD_LOG_ENTRY_TYPES: ReadonlySet<ThreadLogEntry["type"]> = new Set([
+  "thread_start",
+  "fork",
+  "message",
+  "compaction",
+  "restart",
+  "title",
+]);
+
+function isThreadLogEntry(value: unknown): value is ThreadLogEntry {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "type" in value &&
+    typeof (value as { type: unknown }).type === "string" &&
+    THREAD_LOG_ENTRY_TYPES.has(
+      (value as { type: string }).type as ThreadLogEntry["type"],
+    )
+  );
+}
+
 /**
  * Read and parse a thread's `conversation.jsonl` log into an ordered array of
  * `ThreadLogEntry`. Best-effort: a missing file resolves to `[]`, and any
@@ -104,10 +125,15 @@ export async function readArchivedThreadLog(
   for (const line of contents.split("\n")) {
     const trimmed = line.trim();
     if (trimmed.length === 0) continue;
+    let parsed: unknown;
     try {
-      entries.push(JSON.parse(trimmed) as ThreadLogEntry);
+      parsed = JSON.parse(trimmed);
     } catch {
       // skip malformed lines
+      continue;
+    }
+    if (isThreadLogEntry(parsed)) {
+      entries.push(parsed);
     }
   }
   return entries;

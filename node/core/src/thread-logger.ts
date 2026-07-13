@@ -31,12 +31,7 @@ export type ThreadLogEntry =
   | {
       type: "compaction";
       timestamp: string;
-      summary: string;
-      chunkCount: number;
-    }
-  | {
-      type: "compaction";
-      timestamp: string;
+      summary?: string | undefined;
       chunkCount: number;
     }
   | { type: "restart"; timestamp: string }
@@ -149,21 +144,12 @@ export class ThreadLogger {
   }
 
   recordCompaction(opts: { summary?: string; chunkCount: number }): void {
-    const timestamp = new Date().toISOString();
-    this.append(
-      opts.summary !== undefined
-        ? {
-            type: "compaction",
-            timestamp,
-            summary: opts.summary,
-            chunkCount: opts.chunkCount,
-          }
-        : {
-            type: "compaction",
-            timestamp,
-            chunkCount: opts.chunkCount,
-          },
-    );
+    this.append({
+      type: "compaction",
+      timestamp: new Date().toISOString(),
+      summary: opts.summary,
+      chunkCount: opts.chunkCount,
+    });
   }
 
   /**

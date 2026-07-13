@@ -106,4 +106,62 @@ describe("renderThreadLogToMarkdown", () => {
       md.indexOf("final answer"),
     );
   });
+
+  it("renders a compaction without a summary as just the header", () => {
+    const entries: ThreadLogEntry[] = [
+      { type: "compaction", timestamp: "t0", chunkCount: 3 },
+    ];
+
+    const md = renderThreadLogToMarkdown(entries);
+
+    expect(md).toContain("--- compaction (3 chunks) ---");
+    expect(md.trim()).toBe("--- compaction (3 chunks) ---");
+  });
+
+  it("renders tool_use parse errors and error tool_results", () => {
+    const entries: ThreadLogEntry[] = [
+      {
+        type: "message",
+        timestamp: "t0",
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_use",
+              id: reqId,
+              name: "get_file" as ToolName,
+              request: {
+                status: "error",
+                error: "bad input",
+              } as never,
+              nativeMessageIdx: idx,
+            },
+          ],
+        },
+      },
+      {
+        type: "message",
+        timestamp: "t1",
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              id: reqId,
+              result: {
+                status: "error",
+                error: "tool blew up",
+              },
+              nativeMessageIdx: idx,
+            } as never,
+          ],
+        },
+      },
+    ];
+
+    const md = renderThreadLogToMarkdown(entries);
+
+    expect(md).toContain("## tool_use: (parse error)");
+    expect(md).toContain("tool blew up");
+  });
 });

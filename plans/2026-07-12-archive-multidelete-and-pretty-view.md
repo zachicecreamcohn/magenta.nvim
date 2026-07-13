@@ -88,6 +88,12 @@ Invariants:
 
 **Status: DONE.** `readArchivedThreadLog` added to `archive.ts` (best-effort, `[]` on missing file, skips malformed lines). New `archive-renderer.ts` with `renderThreadLogToMarkdown` renders liberally (keeps thinking, full get_file contents, system reminders/info/context updates) with inline `# title: "..."`, `--- compaction (N chunks) ---` (+summary), `--- fork ... ---`, `--- thread start ---`, `--- restart ---` markers. Exported from `index.ts` (also re-exported `ThreadLogEntry`/`ForkProvenance` types for stage 2). `compact-renderer.ts` untouched. Unit tests added in `archive.test.ts` and new `archive-renderer.test.ts`. Full `npx vitest run node/core/`, `npx tsgo -b`, `npx biome check .` pass.
 
+**Code-review follow-ups (addressed):**
+- Type representation: `ThreadLogEntry` had two `type: "compaction"` variants sharing a discriminant (defeating union narrowing). Collapsed into a single variant with `summary?: string | undefined`; `recordCompaction` now emits one shape and `archive-renderer.ts` narrows by `entry.summary` truthiness instead of `"summary" in entry`.
+- Parse-boundary validation: `readArchivedThreadLog` no longer casts untrusted JSON straight to `ThreadLogEntry`; added an `isThreadLogEntry` guard that checks the `type` discriminant against a known set, dropping malformed-but-parseable lines.
+- Test coverage: `archive-renderer.test.ts` gained cases for a summary-less compaction (header-only) and for tool_use parse-error / error tool_result branches.
+- Note: 3 pre-existing `node/context/context-manager.test.ts` failures (nvim `E1513: winfixbuf` / socket-not-ready) are environment flakiness, reproduce on clean HEAD, and are unrelated to these core-only changes.
+
 - Goal: `readArchivedThreadLog(threadId)` in `node/core/src/archive.ts` returns the ordered `ThreadLogEntry[]` from a thread's `conversation.jsonl`, tolerating missing files and malformed lines; and a NEW `renderThreadLogToMarkdown(entries)` in `node/core/src/archive-renderer.ts` renders that stream to markdown liberally, with inline compaction/title/fork/restart markers. Both exported from `node/core/src/index.ts`. `compact-renderer.ts` is left untouched.
 - Verification (unit, in `node/core/src/archive.test.ts` and a new `archive-renderer.test.ts`):
   - Behavior: reader parses all entry types in order, best-effort.
