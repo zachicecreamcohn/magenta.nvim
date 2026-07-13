@@ -1,6 +1,5 @@
 # top of mind
 
-- improve expanded edl tool call + result view
 - look into hooking up progressive tool discovery / tool search
 - script improvements
   - think about enriching the script API. Iterate on a thread? Query a thread? Human-in-the-loop?
@@ -8,6 +7,7 @@
   - way to abort a script
   - magenta sets a script title based on script params
   - UX on a script (expanding script state, marking threads vs logs more clearly)
+  - dd deletes the script execution
 - edit a previous user message. e on a user message pops it into the input buffer, and resets the thread to that point, so you can change the message and resubmit
 - openai agent
 - 8j in display buffer (relative column numbers should still work, even with wrapped override)

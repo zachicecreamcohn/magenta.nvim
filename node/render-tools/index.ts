@@ -127,6 +127,30 @@ export function renderToolInput(
   }
 }
 
+export function renderToolInputSummaryExpansion(
+  request: ToolRequest,
+): VDOMNode | undefined {
+  const toolName = request.toolName as StaticToolName;
+  switch (toolName) {
+    case "edl":
+      return EdlRender.renderInputSummary(request);
+    default:
+      return undefined;
+  }
+}
+
+export function renderToolResultSummaryExpansion(
+  info: CompletedToolInfo,
+): VDOMNode | undefined {
+  const toolName = info.request.toolName as StaticToolName;
+  switch (toolName) {
+    case "edl":
+      return EdlRender.renderResultSummaryExpansion(info);
+    default:
+      return undefined;
+  }
+}
+
 export function renderToolProgress(
   request: ToolRequest,
   progress: unknown,

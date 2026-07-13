@@ -96,6 +96,17 @@ export function renderInput(
   return withCode(d`${abridged}`);
 }
 
+export function renderInputSummary(request: UnionToolRequest): VDOMNode {
+  const input = request.input as Input;
+  return withCode(d`${input.script}`);
+}
+
+export function renderResultSummaryExpansion(
+  info: CompletedToolInfo,
+): VDOMNode {
+  return withCode(d`${extractFormattedResult(info)}`);
+}
+
 export function renderResultSummary(info: CompletedToolInfo): VDOMNode {
   const data = extractEdlDisplayData(info);
 

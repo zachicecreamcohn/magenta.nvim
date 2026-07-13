@@ -105,6 +105,55 @@ replace "goodbye"`;
     );
   });
 
+  test("= on the result summary line pretty-prints the trace (not JSON)", async () => {
+    await withDriver(
+      {
+        setupFiles: async (tmpDir) => {
+          await fs.writeFile(path.join(tmpDir, "test.txt"), "hello world\n");
+        },
+      },
+      async (driver, dirs) => {
+        await driver.showSidebar();
+        await driver.inputMagentaText("run edl script");
+        await driver.send();
+
+        const filePath = path.join(dirs.tmpDir, "test.txt");
+        const script = `file \`${filePath}\`
+narrow /hello/
+replace "goodbye"`;
+
+        const stream = await driver.mockAnthropic.awaitPendingStream();
+        stream.respond({
+          stopReason: "tool_use",
+          text: "I'll run an EDL script",
+          toolRequests: [
+            {
+              status: "ok",
+              value: {
+                id: "tool_1" as ToolRequestId,
+                toolName: "edl" as ToolName,
+                input: { script },
+              },
+            },
+          ],
+        });
+
+        await driver.assertDisplayBufferContains("✅ edl:");
+
+        // Expanding the result summary shows the formatted trace, not a raw
+        // JSON.stringify of the tool result value.
+        await driver.triggerDisplayBufferKeyOnContent("✅ edl:", "=");
+        await driver.assertDisplayBufferContains("Trace:");
+        await driver.assertDisplayBufferContains("Mutations:");
+        await driver.assertDisplayBufferDoesNotContain('"type": "text"');
+
+        // Collapse again
+        await driver.triggerDisplayBufferKeyOnContent("✅ edl:", "=");
+        await driver.assertDisplayBufferDoesNotContain("Mutations:");
+      },
+    );
+  });
+
   test("<CR> navigates to the edited file", async () => {
     await withDriver(
       {
@@ -248,6 +297,8 @@ END`;
         await driver.triggerDisplayBufferKeyOnContent("📝 edl script", "=");
         await driver.assertDisplayBufferContains("narrow /hello/");
         await driver.assertDisplayBufferContains("replace <<END");
+        // The script is shown verbatim, not as a JSON.stringify of the input
+        await driver.assertDisplayBufferDoesNotContain('"script":');
       },
     );
   });

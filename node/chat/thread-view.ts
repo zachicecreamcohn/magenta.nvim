@@ -35,9 +35,11 @@ import type {
 import type { SystemPrompt } from "../providers/system-prompt.ts";
 import {
   renderToolInput,
+  renderToolInputSummaryExpansion,
   renderToolProgress,
   renderToolResult,
   renderToolResultSummary,
+  renderToolResultSummaryExpansion,
   renderToolSummary,
 } from "../render-tools/index.ts";
 import { renderStreamdedTool } from "../render-tools/streaming.ts";
@@ -861,9 +863,13 @@ function renderMessageContentBlock(
         },
       );
 
-      // Section 2: Input summary expansion (JSON.stringify of input)
+      // Section 2: Input summary expansion (pretty-printed if the tool
+      // provides one, otherwise a raw JSON.stringify of the input)
+      const inputSummaryContent =
+        renderToolInputSummaryExpansion(request) ??
+        d`${JSON.stringify(request.input, null, 2)}`;
       const inputSummaryView = toolViewState?.inputSummaryExpanded
-        ? withBindings(d`\n${JSON.stringify(request.input, null, 2)}`, {
+        ? withBindings(d`\n${inputSummaryContent}`, {
             "=": () =>
               dispatch({
                 type: "toggle-tool-input-summary",
@@ -951,13 +957,16 @@ function renderMessageContentBlock(
           },
         );
 
-        // Section 6: Result summary expansion (JSON.stringify of result)
+        // Section 6: Result summary expansion (pretty-printed if the tool
+        // provides one, otherwise a raw JSON.stringify of the result)
         if (toolViewState?.resultSummaryExpanded) {
-          const resultJson =
-            toolResult.result.status === "ok"
-              ? JSON.stringify(toolResult.result.value, null, 2)
-              : JSON.stringify({ error: toolResult.result.error }, null, 2);
-          resultSummaryExpansionView = withBindings(d`\n${resultJson}`, {
+          const prettyResult = renderToolResultSummaryExpansion(completedInfo);
+          const resultContent =
+            prettyResult ??
+            (toolResult.result.status === "ok"
+              ? d`${JSON.stringify(toolResult.result.value, null, 2)}`
+              : d`${JSON.stringify({ error: toolResult.result.error }, null, 2)}`);
+          resultSummaryExpansionView = withBindings(d`\n${resultContent}`, {
             "=": () =>
               dispatch({
                 type: "toggle-tool-result-summary",
