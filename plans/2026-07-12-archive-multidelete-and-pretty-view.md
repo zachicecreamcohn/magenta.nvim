@@ -140,6 +140,8 @@ Invariants:
   - Behavior: single-row `dd` unaffected (regression).
 - Before moving on: confirm full `npx vitest run`, `npx tsgo -b`, and `npx biome check .` pass.
 
+**Stage 2 code-review follow-ups (addressed):** Replaced unsafe unchecked casts flagged in review: `openScratchInNonMagentaWindow` now maps `string[]` to `Line[]` element-wise (matching the branded-conversion convention in `buffer.ts`) instead of blanket-casting, and both error-log sites (`openFileInNonMagentaWindow.ts` and the `<CR>` handler in `chat.ts`) narrow the `unknown` catch variable via `error instanceof Error ? error.message : String(error)` instead of `(error as Error).message`. Typecheck, lint, and the archive/core tests all pass.
+
 # Notes / follow-ups
 
 - Optional: parameterize `renderThreadToMarkdown` to optionally include `get_file` contents / thinking blocks for the archive viewer (compaction deliberately strips them). Not required for the initial implementation.

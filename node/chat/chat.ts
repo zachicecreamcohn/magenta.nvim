@@ -1262,7 +1262,7 @@ ${rows}${loadMore}`;
             );
           } catch (error) {
             this.context.nvim.logger.error(
-              `Error opening archived thread ${threadId}: ${(error as Error).message}`,
+              `Error opening archived thread ${threadId}: ${error instanceof Error ? error.message : String(error)}`,
             );
           }
         })();

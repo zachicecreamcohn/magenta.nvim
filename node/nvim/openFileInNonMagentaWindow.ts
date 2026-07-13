@@ -68,7 +68,7 @@ export async function openScratchInNonMagentaWindow(
     await buffer.setLines({
       start: 0 as Row0Indexed,
       end: -1 as Row0Indexed,
-      lines: lines as Line[],
+      lines: lines.map((line) => line as Line),
     });
     await buffer.setOption("filetype", "markdown");
     await buffer.setOption("modifiable", false);
@@ -77,7 +77,7 @@ export async function openScratchInNonMagentaWindow(
     await targetWindow.setBuffer(buffer);
   } catch (error) {
     context.nvim.logger.error(
-      `Error opening scratch buffer ${name}: ${(error as Error).message}`,
+      `Error opening scratch buffer ${name}: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 }
