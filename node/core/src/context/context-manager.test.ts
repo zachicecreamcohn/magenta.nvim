@@ -106,7 +106,7 @@ describe("ContextManager unit tests", () => {
 
     cm.toolApplied(
       TEST_PATH,
-      { type: "edl-edit", content: "edited content" },
+      { type: "edl-edit", content: "edited content", previousContent: "" },
       TEXT_FILE_TYPE,
     );
 
@@ -151,7 +151,7 @@ describe("ContextManager unit tests", () => {
 
     cm.toolApplied(
       TEST_PATH,
-      { type: "edl-edit", content: "const x=1" },
+      { type: "edl-edit", content: "const x=1", previousContent: "" },
       TEXT_FILE_TYPE,
     );
 
@@ -196,7 +196,7 @@ describe("ContextManager unit tests", () => {
     await fileIO.writeFile(TEST_PATH, editedContent);
     cm.toolApplied(
       TEST_PATH,
-      { type: "edl-edit", content: editedContent },
+      { type: "edl-edit", content: editedContent, previousContent: "" },
       TEXT_FILE_TYPE,
     );
 

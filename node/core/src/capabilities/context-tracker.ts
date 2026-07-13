@@ -30,6 +30,7 @@ export type ToolApplied =
   | {
       type: "edl-edit";
       content: string;
+      previousContent: string;
     };
 
 export type OnToolApplied = (

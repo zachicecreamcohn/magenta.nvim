@@ -304,7 +304,7 @@ function renderCompactionHistory(
   })}`;
 }
 function editedFilesSummaryView(
-  editedFiles: ReadonlyArray<AbsFilePath>,
+  editedFiles: ReadonlyArray<{ path: AbsFilePath; snapshot: string }>,
   thread: Thread,
   dispatch: Dispatch<Msg>,
 ): VDOMNode {
@@ -312,7 +312,7 @@ function editedFilesSummaryView(
 
   const { cwd, homeDir } = thread.context;
   return d`\n${withExtmark(d`Files edited this turn:\n`, { hl_group: "@comment" })}${editedFiles.map(
-    (filePath) => {
+    ({ path: filePath }) => {
       const display = displayPath(cwd, filePath, homeDir);
       return withBindings(d`  ${display}\n`, {
         "<CR>": () =>

@@ -97,6 +97,7 @@ export function execute(
             {
               type: "edl-edit",
               content: mutation.content,
+              previousContent: mutation.previousContent,
             },
             {
               category: FileCategory.TEXT,

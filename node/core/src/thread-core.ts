@@ -201,7 +201,7 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
     edlRegisters: EdlRegisters;
     outputTokensSinceLastReminder: number;
     compactionHistory: CompactionRecord[];
-    editedFilesThisTurn: AbsFilePath[];
+    editedFilesThisTurn: { path: AbsFilePath; snapshot: string }[];
     pendingBashReminder: boolean;
     bashTokensSinceLastReminder: number;
     firstBashReminderPending: boolean;
@@ -756,9 +756,12 @@ export class ThreadCore extends Emitter<ThreadCoreEvents> {
           this.contextManager.toolApplied(absFilePath, tool, fileTypeInfo);
           if (
             tool.type === "edl-edit" &&
-            !this.state.editedFilesThisTurn.includes(absFilePath)
+            !this.state.editedFilesThisTurn.some((e) => e.path === absFilePath)
           ) {
-            this.state.editedFilesThisTurn.push(absFilePath);
+            this.state.editedFilesThisTurn.push({
+              path: absFilePath,
+              snapshot: tool.previousContent,
+            });
           }
         },
         helpTagsProvider: this.context.helpTagsProvider,

@@ -635,10 +635,46 @@ describe("ThreadCore.editedFilesThisTurn", () => {
         `waiting for 1 edited file, got ${core.state.editedFilesThisTurn.length}`,
       );
     });
-    expect(core.state.editedFilesThisTurn).toEqual(["/tmp/a.txt"]);
+    expect(core.state.editedFilesThisTurn).toEqual([
+      { path: "/tmp/a.txt", snapshot: "hello" },
+    ]);
 
     await core.sendMessage([{ type: "user", text: "next turn" }]);
     expect(core.state.editedFilesThisTurn).toEqual([]);
+  });
+
+  it("keeps the pre-turn snapshot after a second edit to the same file", async () => {
+    const fileIO = new InMemoryFileIO({ "/tmp/a.txt": "hello" });
+    const { core, mockClient } = createThreadCoreWithMock({
+      fileIO: fileIO as unknown as ThreadCoreContext["fileIO"],
+    });
+    await core.sendMessage([{ type: "user", text: "edit a" }]);
+    const stream = await mockClient.awaitStream();
+    stream.streamToolUse("edl-1" as ToolRequestId, "edl" as ToolName, {
+      script: `file \`/tmp/a.txt\`\nnarrow /hello/\nreplace "bye"`,
+    });
+    stream.finishResponse("tool_use");
+    await pollUntil(() => {
+      if (core.state.editedFilesThisTurn.length === 1) return true;
+      throw new Error(
+        `waiting for 1 edited file, got ${core.state.editedFilesThisTurn.length}`,
+      );
+    });
+    const stream2 = await mockClient.awaitStream();
+    stream2.streamToolUse("edl-2" as ToolRequestId, "edl" as ToolName, {
+      script: `file \`/tmp/a.txt\`\nnarrow /bye/\nreplace "done"`,
+    });
+    stream2.finishResponse("tool_use");
+    await pollUntil(async () => {
+      const content = await fileIO.readFile(
+        "/tmp/a.txt" as unknown as Parameters<typeof fileIO.readFile>[0],
+      );
+      if (content === "done") return true;
+      throw new Error(`waiting for second edit, got ${content}`);
+    });
+    expect(core.state.editedFilesThisTurn).toEqual([
+      { path: "/tmp/a.txt", snapshot: "hello" },
+    ]);
   });
 });
 

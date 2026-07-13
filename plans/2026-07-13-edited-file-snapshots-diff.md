@@ -85,6 +85,8 @@ Alternatives considered:
 
 ## Stage 2: Thread previousContent into ToolApplied and record snapshots
 
+**Status: DONE.** `ToolApplied` `edl-edit` variant gained `previousContent: string` (context-tracker.ts). `tools/edl.ts` passes `mutation.previousContent` through. `thread-core.ts` `editedFilesThisTurn` is now `{ path: AbsFilePath; snapshot: string }[]`, pushed on first edit per file (via `!some(e => e.path === absFilePath)`) with `snapshot: tool.previousContent`. Readers updated: `thread-view.ts` `editedFilesSummaryView` now takes `{ path; snapshot }[]` and destructures `.path` (the `<CR>` open-edit-file binding is untouched — that changes in Stage 3). Tests updated in `thread-core.test.ts` (snapshot equals pre-edit content; second edit to same file keeps the pre-turn snapshot) and `context-manager.test.ts` (added `previousContent: ""` to `edl-edit` fixtures). Full `tsgo -b`, `node/core` tests (615 passing), and biome all pass.
+
 - Goal: `ToolApplied` `edl-edit` carries `previousContent`; `editedFilesThisTurn` entries become `{ path, snapshot }`, populated on first edit; all readers updated.
 - Verification (unit, extend `thread-core.test.ts` "editedFilesThisTurn" block):
   - Behavior: after an edl edit, the entry's `snapshot` holds the pre-edit content; a second edit to the same file does not overwrite it; a new turn clears the array.
