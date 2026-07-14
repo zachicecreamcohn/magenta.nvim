@@ -114,7 +114,7 @@ it("end-to-end: agent invokes run_script, subprocess spawns a thread, yields, an
 
       // 6. The Scripts section reflects the invocation and its log line.
       await driver.magenta.command("threads-overview");
-      await driver.assertDisplayBufferContains("# Scripts");
+      await driver.assertDisplayBufferContains("# SCRIPTS");
       await driver.assertDisplayBufferContains("foo (done)");
 
       // 7. The row starts collapsed (whole invocation body hidden); expanding
@@ -209,7 +209,7 @@ it("bell behavior: pending-approval bells propagate to script+neovim, yields don
       // View the overview so the active main thread is marked viewed and won't
       // contribute its own bell to the assertions below.
       await driver.magenta.command("threads-overview");
-      await driver.assertDisplayBufferContains("# Scripts");
+      await driver.assertDisplayBufferContains("# SCRIPTS");
 
       resetNotificationLog();
       t1.respond({

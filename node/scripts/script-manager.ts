@@ -37,14 +37,17 @@ export type Msg =
   | { type: "invocation-updated"; id: ScriptInvocationId }
   | { type: "toggle-invocation-expand"; id: ScriptInvocationId }
   | { type: "toggle-thread-yield"; id: ThreadId }
-  | { type: "toggle-invocation-sandbox"; id: ScriptInvocationId };
+  | { type: "toggle-invocation-sandbox"; id: ScriptInvocationId }
+  | { type: "abort-invocation"; id: ScriptInvocationId }
+  | { type: "delete-invocation"; id: ScriptInvocationId }
+  | { type: "set-invocation-title"; id: ScriptInvocationId; title: string };
 
 export type ScriptMsg = {
   type: "script-msg";
   msg: Msg;
 };
 
-export type ScriptInvocationStatus = "running" | "done" | "error";
+export type ScriptInvocationStatus = "running" | "done" | "error" | "aborted";
 
 export type ScriptInvocationEntry =
   | { type: "log"; message: string }
@@ -53,6 +56,7 @@ export type ScriptInvocationEntry =
 export type ScriptInvocation = {
   id: ScriptInvocationId;
   scriptName: string;
+  title?: string;
   file: string;
   parameters: unknown;
   status: ScriptInvocationStatus;
@@ -111,6 +115,17 @@ export class ScriptManager {
         return;
       case "toggle-invocation-sandbox": {
         this.toggleInvocationSandbox(msg.msg.id);
+        return;
+      }
+      case "abort-invocation":
+        this.abortInvocation(msg.msg.id);
+        return;
+      case "delete-invocation":
+        this.deleteInvocation(msg.msg.id);
+        return;
+      case "set-invocation-title": {
+        const inv = this.invocations.get(msg.msg.id);
+        if (inv) inv.title = msg.msg.title;
         return;
       }
       case "catalog-updated":
@@ -263,8 +278,53 @@ export class ScriptManager {
     });
     child.on("exit", () => this.handleChildExit(id));
 
+    this.context.chat
+      .generateScriptTitle(scriptName, entry.meta.description, parameters)
+      .then((title) => {
+        if (title) {
+          this.myDispatch({ type: "set-invocation-title", id, title });
+        }
+      })
+      .catch((e: unknown) => {
+        this.context.nvim.logger.error(
+          `Failed to generate script title: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      });
+
     this.myDispatch({ type: "invocation-updated", id });
     return id;
+  }
+
+  private abortInvocation(id: ScriptInvocationId): void {
+    const invocation = this.invocations.get(id);
+    if (!invocation) return;
+    if (invocation.status === "running") {
+      invocation.status = "aborted";
+    }
+    for (const threadId of invocation.threadIds) {
+      this.context.dispatch({
+        type: "thread-msg",
+        id: threadId,
+        msg: { type: "abort" },
+      });
+    }
+    this.terminateInvocation(id);
+    this.myDispatch({ type: "invocation-updated", id });
+  }
+
+  private deleteInvocation(id: ScriptInvocationId): void {
+    const invocation = this.invocations.get(id);
+    if (!invocation) return;
+    this.abortInvocation(id);
+    for (const threadId of invocation.threadIds) {
+      this.context.dispatch({
+        type: "chat-msg",
+        msg: { type: "delete-thread-subtree", id: threadId },
+      });
+    }
+    this.invocations.delete(id);
+    this.expandedInvocations.delete(id);
+    this.myDispatch({ type: "catalog-updated" });
   }
 
   private send(invocation: ScriptInvocation, msg: MagentaToScript): void {
@@ -480,7 +540,13 @@ export class ScriptManager {
     );
     for (const inv of sortedInvocations) {
       const icon =
-        inv.status === "running" ? "⏳" : inv.status === "done" ? "✅" : "❌";
+        inv.status === "running"
+          ? "⏳"
+          : inv.status === "done"
+            ? "✅"
+            : inv.status === "aborted"
+              ? "⛔"
+              : "❌";
       const sandboxIndicator = inv.sandboxBypassed
         ? withError(d` SANDBOX OFF `)
         : d``;
@@ -495,27 +561,29 @@ export class ScriptManager {
         );
       const bell = needsAttention ? "🔔 " : "";
 
-      rows.push(
-        withBindings(
-          d`\n${icon} ${expandIndicator}${bell}${sandboxIndicator}${inv.scriptName} (${inv.status})\n  ${inv.file}`,
-          {
-            "=": () =>
-              this.myDispatch({ type: "toggle-invocation-expand", id: inv.id }),
-            "<CR>": () => this.openScriptFile(inv.file),
-            t: () =>
-              this.myDispatch({
-                type: "toggle-invocation-sandbox",
-                id: inv.id,
-              }),
-          },
-        ),
+      const invRows: VDOMNode[] = [];
+      const headerLine = withBindings(
+        d`\n${icon} ${expandIndicator}${bell}${sandboxIndicator}${inv.title ?? inv.scriptName} (${inv.status})`,
+        {
+          dd: () => this.myDispatch({ type: "delete-invocation", id: inv.id }),
+          t: () =>
+            this.myDispatch({
+              type: "toggle-invocation-sandbox",
+              id: inv.id,
+            }),
+        },
       );
+      const fileLine = withBindings(d`\n  ${inv.file}`, {
+        "<CR>": () => this.openScriptFile(inv.file),
+      });
+      invRows.push(headerLine);
+      invRows.push(fileLine);
 
       if (isExpanded) {
-        rows.push(d`\n  parameters: ${JSON.stringify(inv.parameters)}`);
+        invRows.push(d`\n  parameters: ${JSON.stringify(inv.parameters)}`);
         for (const entry of inv.entries) {
           if (entry.type === "log") {
-            rows.push(d`\n  • ${entry.message}`);
+            invRows.push(d`\n  > ${entry.message}`);
             continue;
           }
 
@@ -526,8 +594,8 @@ export class ScriptManager {
           const threadId = entry.threadId;
           threadViews.forEach((view, idx) => {
             if (idx === 0) {
-              rows.push(
-                d`\n${withBindings(view, {
+              invRows.push(
+                d`\n🧵 ${withBindings(view, {
                   ...view.bindings,
                   "=": () =>
                     this.myDispatch({
@@ -537,12 +605,12 @@ export class ScriptManager {
                 })}`,
               );
             } else {
-              rows.push(d`\n${view}`);
+              invRows.push(d`\n${view}`);
             }
           });
 
           if (this.expandedThreads.has(threadId)) {
-            rows.push(this.renderThreadYield(threadId));
+            invRows.push(this.renderThreadYield(threadId));
           }
         }
       } else {
@@ -551,12 +619,21 @@ export class ScriptManager {
           for (const view of this.context.chat.collectScriptSubtreeViolationViews(
             entry.threadId,
           )) {
-            rows.push(d`\n${view}`);
+            invRows.push(d`\n${view}`);
           }
         }
       }
+
+      rows.push(
+        withBindings(d`${invRows}`, {
+          "=": () =>
+            this.myDispatch({ type: "toggle-invocation-expand", id: inv.id }),
+          a: () => this.myDispatch({ type: "abort-invocation", id: inv.id }),
+        }),
+      );
     }
 
-    return d`\n# Scripts\n${rows}`;
+    const hr = "─".repeat(40);
+    return d`\n${hr}\n# SCRIPTS\n${hr}\n${rows}`;
   }
 }

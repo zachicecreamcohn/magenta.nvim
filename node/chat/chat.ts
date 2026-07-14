@@ -17,6 +17,7 @@ import {
   readThreadMeta,
   renderThreadLogToMarkdown,
   SubagentSupervisor,
+  ThreadTitle,
   threadCreatedAt,
 } from "@magenta/core";
 import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
@@ -39,6 +40,7 @@ import {
 import type { Nvim } from "../nvim/nvim-node/index.ts";
 import { openScratchInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.ts";
 import type { MagentaOptions, Profile } from "../options.ts";
+import { getProvider } from "../providers/provider.ts";
 import {
   buildSystemInfo,
   createSystemPrompt,
@@ -1671,6 +1673,43 @@ ${rows}${loadMore}`;
     });
 
     return thread.id;
+  }
+
+  /** Generate a concise title for a script invocation, mirroring how thread
+   * titles are generated: a fast-model forced tool-use call. */
+  async generateScriptTitle(
+    scriptName: string,
+    description: string,
+    parameters: unknown,
+  ): Promise<string | undefined> {
+    const profile = getActiveProfile(
+      this.context.getOptions().profiles,
+      this.context.getOptions().activeProfile,
+    );
+    const request = getProvider(this.context.nvim, profile).forceToolUse({
+      model: profile.fastModel,
+      input: [
+        {
+          type: "text",
+          text: `\
+A script has been invoked. Come up with a succinct title describing this specific invocation.
+
+Script name: ${scriptName}
+Description: ${description}
+Parameters: ${JSON.stringify(parameters)}
+
+The title must be a single line (no newlines) and a few words long (ideally around 40 characters or fewer).`,
+          nativeMessageIdx: PLACEHOLDER_NATIVE_MESSAGE_IDX,
+        },
+      ],
+      spec: ThreadTitle.spec,
+      disableCaching: true,
+    });
+    const result = await request.promise;
+    if (result.toolRequest.status === "ok") {
+      return (result.toolRequest.value.input as ThreadTitle.Input).title;
+    }
+    return undefined;
   }
 
   onThreadYielded(threadId: ThreadId, callback: () => void): void {

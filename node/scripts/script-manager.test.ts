@@ -434,7 +434,7 @@ it("renders running invocations, logs, and spawned threads in the Scripts overvi
 
       await driver.magenta.command("threads-overview");
 
-      await driver.assertDisplayBufferContains("# Scripts");
+      await driver.assertDisplayBufferContains("# SCRIPTS");
       await driver.assertDisplayBufferContains("foo");
 
       const inv = scriptManager.invocations.get(id);
