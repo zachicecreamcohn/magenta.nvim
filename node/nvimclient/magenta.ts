@@ -29,6 +29,7 @@ import { StraceUnavailableError } from "./capabilities/strace.ts";
 import { Chat } from "./chat/chat.ts";
 import { CommandRegistry } from "./chat/commands/registry.ts";
 import { sliceDisplayBufferSelection } from "./chat/reflect-anchor.ts";
+import { ReflectionsOverview } from "./chat/reflections-overview.ts";
 import { NvimSessionHost } from "./chat/session-host.ts";
 import {
   type BufNr,
@@ -96,6 +97,7 @@ import { getMarkdownExt } from "./utils/markdown.ts";
 const MAGENTA_COMMAND = "magentaCommand";
 const MAGENTA_ON_WINDOW_CLOSED = "magentaWindowClosed";
 const MAGENTA_KEY = "magentaKey";
+const MAGENTA_REFLECTIONS_CURSOR = "magentaReflectionsCursor";
 
 /** Visual selection as sent by lua's `listenToBufKey`: 0-indexed rows, byte
  * columns, and the full buffer lines the selection spans. */
@@ -193,6 +195,14 @@ export class Magenta {
           this.selectThreadEffect(msg.id).catch((e) => {
             nvim.logger.error(
               `Error syncing active view: ${e instanceof Error ? `${e.message}\n${e.stack}` : JSON.stringify(e)}`,
+            );
+          });
+        }
+
+        if (msg.type === "show-reflections-overview") {
+          this.showReflectionsOverview(msg.threadId).catch((e) => {
+            nvim.logger.error(
+              `Error showing reflections overview: ${e instanceof Error ? `${e.message}\n${e.stack}` : JSON.stringify(e)}`,
             );
           });
         }
@@ -598,6 +608,77 @@ export class Magenta {
     return threadId;
   }
 
+  private reflectionsOverview: ReflectionsOverview | undefined;
+
+  /** Opens the reflection overview for `threadId` beside the sidebar's display
+   * window and focuses it. */
+  async showReflectionsOverview(threadId: ThreadId): Promise<void> {
+    if (this.sidebar.state.state !== "visible") return;
+    if (this.reflectionsOverview?.threadId === threadId) {
+      if (await this.reflectionsOverview.window.valid()) {
+        await this.nvim.call("nvim_set_current_win", [
+          this.reflectionsOverview.window.id,
+        ]);
+        return;
+      }
+    }
+    await this.closeReflectionsOverview();
+    this.reflectionsOverview = await ReflectionsOverview.open({
+      nvim: this.nvim,
+      threadId,
+      besideWindow: this.sidebar.state.displayWindow,
+      session: this.chat.session,
+      label: (childId) => this.chat.getThreadDisplayName(childId),
+      onOpen: (childId) => {
+        this.closeReflectionsOverview()
+          .then(() => this.selectThreadEffect(childId))
+          .catch((e: Error) =>
+            this.nvim.logger.error(`Error opening reflection: ${e.message}`),
+          );
+      },
+    });
+  }
+
+  async closeReflectionsOverview(): Promise<void> {
+    const overview = this.reflectionsOverview;
+    if (!overview) return;
+    this.reflectionsOverview = undefined;
+    this.chat.activeReflectionId = undefined;
+    this.bufferManager.getMountedApp(threadKey(overview.threadId))?.render();
+    await overview.close(this.nvim);
+  }
+
+  /** Centres the entry's highlight in the sidebar's display window without
+   * moving focus, and marks it active. */
+  async onReflectionsCursor(line: number): Promise<void> {
+    const overview = this.reflectionsOverview;
+    if (!overview) return;
+    const entry = overview.entryAt(line);
+    const leftApp = this.bufferManager.getMountedApp(
+      threadKey(overview.threadId),
+    );
+    if (this.chat.activeReflectionId !== entry?.threadId) {
+      this.chat.activeReflectionId = entry?.threadId;
+      leftApp?.render();
+      await leftApp?.waitForRender();
+    }
+    if (!entry || !leftApp || this.sidebar.state.state !== "visible") return;
+    const highlight = leftApp.getHighlightPos(entry.threadId);
+    if (!highlight) return;
+    await this.nvim.call("nvim_exec_lua", [
+      `local win, row, col = ...
+      vim.api.nvim_win_call(win, function()
+        vim.api.nvim_win_set_cursor(0, { row, col })
+        vim.cmd("normal! zz")
+      end)`,
+      [
+        this.sidebar.state.displayWindow.id,
+        highlight.startPos.row + 1,
+        highlight.startPos.col,
+      ],
+    ]);
+  }
+
   async forkAtMessageAndSwitch(
     sourceThreadId: ThreadId,
     nativeMessageIdx: NativeMessageIdx,
@@ -818,6 +899,7 @@ export class Magenta {
       }
 
       case "toggle": {
+        await this.closeReflectionsOverview();
         await this.sidebar.toggle(
           this.options.sidebarPosition,
           this.options.sidebarPositionOpts,
@@ -880,7 +962,19 @@ export class Magenta {
         break;
       }
 
+      case "reflections": {
+        const threadId = this.chat.state.activeThreadId;
+        if (this.chat.state.state === "thread-selected" && threadId) {
+          await this.showReflectionsOverview(threadId);
+        }
+        break;
+      }
+
       case "threads-navigate-up": {
+        if (this.reflectionsOverview) {
+          await this.closeReflectionsOverview();
+          break;
+        }
         this.dispatch({
           type: "chat-msg",
           msg: { type: "threads-navigate-up" },
@@ -994,7 +1088,33 @@ ${lines.join("\n")}
         },
       };
     }
-    const mountedApp = this.bufferManager.getMountedApp(this.getActiveKey());
+    const overview = this.reflectionsOverview;
+    if (overview) {
+      getCurrentBuffer(this.nvim)
+        .then((buf) =>
+          this.dispatchKey(
+            buf.id === overview.buffer.id
+              ? overview.mountedApp
+              : this.bufferManager.getMountedApp(this.getActiveKey()),
+            key,
+            ctx,
+          ),
+        )
+        .catch((err: Error) => this.nvim.logger.error(err));
+      return;
+    }
+    this.dispatchKey(
+      this.bufferManager.getMountedApp(this.getActiveKey()),
+      key,
+      ctx,
+    );
+  }
+
+  private dispatchKey(
+    mountedApp: TEA.MountedApp | undefined,
+    key: string,
+    ctx: BindingCtx | undefined,
+  ) {
     if (mountedApp) {
       if (BINDING_KEYS.indexOf(key as BindingKey) > -1) {
         mountedApp.onKey(key as BindingKey, ctx).catch((err) => {
@@ -1260,6 +1380,12 @@ ${lines.join("\n")}
   }
 
   async onWinClosed() {
+    if (
+      this.reflectionsOverview &&
+      !(await this.reflectionsOverview.window.valid())
+    ) {
+      await this.closeReflectionsOverview();
+    }
     await this.sidebar.onWinClosed();
   }
 
@@ -1310,6 +1436,15 @@ ${lines.join("\n")}
     nvim.onNotification(MAGENTA_ON_WINDOW_CLOSED, async () => {
       try {
         await getMagentaIfReady()?.onWinClosed();
+      } catch (err) {
+        nvim.logger.error(err as Error);
+      }
+    });
+
+    nvim.onNotification(MAGENTA_REFLECTIONS_CURSOR, async (args) => {
+      try {
+        const { line } = (args as unknown as { line: number }[])[0];
+        await getMagentaIfReady()?.onReflectionsCursor(line);
       } catch (err) {
         nvim.logger.error(err as Error);
       }

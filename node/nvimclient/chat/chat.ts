@@ -168,6 +168,9 @@ export class Chat {
   /** View-local: when the user last looked at each thread. */
   private lastViewedTimes = new Map<ThreadId, number>();
   private expandedThreads = new Set<ThreadId>();
+  /** View-local: the reflection under the cursor in the reflection overview,
+   * drawn with `MagentaReflectActive` in its source thread. */
+  activeReflectionId: ThreadId | undefined;
 
   get scriptRunner(): ScriptRunner | undefined {
     return this.session.scriptRunner;
@@ -1244,15 +1247,28 @@ ${rows}${loadMore}`;
           parentView = "";
         }
 
-        return d`${parentView}${threadView({
-          thread,
-          dispatch: (msg) =>
-            this.context.dispatch({
-              type: "thread-msg",
-              id: thread.id,
-              msg,
-            }),
-        })}`;
+        // Normal `r` anywhere outside a highlight or content block opens the
+        // reflection overview for this thread.
+        return withBindings(
+          d`${parentView}${threadView({
+            thread,
+            dispatch: (msg) =>
+              this.context.dispatch({
+                type: "thread-msg",
+                id: thread.id,
+                msg,
+              }),
+          })}`,
+          {
+            r: (ctx) => {
+              if (ctx.selection) return;
+              this.context.dispatch({
+                type: "show-reflections-overview",
+                threadId: thread.id,
+              });
+            },
+          },
+        );
       }
       case "error":
         return d`Error: ${threadWrapper.error.message}`;

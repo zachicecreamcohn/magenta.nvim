@@ -414,6 +414,11 @@ Status: DONE. `NodeHighlight`/`withHighlights` in `tea/view.ts`; placement, `fin
   - TEA unit tests (`withHighlights`): a match gets an extmark over the right byte range, including multibyte text. A missing match gets the fallback. Changing the node's text re-places the mark. Re-rendering an unrelated sibling or an earlier node makes no extmark calls for it, and its mark still covers the same text. Removing the node deletes its marks. `getHighlightPos` tracks the match after an earlier node grows.
 
 ## Reflection overview
+Status: DONE. `chat/reflections-overview.ts`: `orderedReflections` (anchor order, creation order breaks ties), `renderReflectionsOverview` (one line per entry: quoted text + child display name; `<CR>` opens), and `ReflectionsOverview`, which owns the overview buffer, its TEA app and a window split right of the sidebar display window. `Magenta.showReflectionsOverview`/`closeReflectionsOverview`/`onReflectionsCursor`; RootMsg `show-reflections-overview`; `:Magenta reflections`; lua `set_reflections_buffer_keymaps` (CursorMoved → `magentaReflectionsCursor`). Normal `r` on a content block (no selection) or on the thread view's root opens the overview. `Chat.activeReflectionId` drives `MagentaReflectActive`. Tests: `chat/reflections-overview.test.ts`. Deviations:
+- No `SidebarState`/right pane yet: the overview window is an ad-hoc `nvim_open_win` split managed by `ReflectionsOverview`, not a `BufferKey` in `BufferManager` (stages 7/8 should fold it into `RightPane`/`Sidebar.sync`). It closes on `-` (`threads-navigate-up` closes it first), toggle, or when its window closes. `onKey` routes to the overview app when the current buffer is the overview buffer.
+- `<CR>` on an entry closes the overview and selects the child in the single column (replaced by `show-reflection` in the pane-state stage).
+- `r` in a reflect thread doesn't descend yet (no right column); `dd` on entries is stage 8.
+- Not tested: "highlight line near the middle row" (the test asserts the left cursor lands on the highlight's line).
 
 - Goal: normal `r` off a highlight shows the overview in the right column. Moving the cursor through it centres the matching highlight in the left window, `r` opens the entry, and `-` closes it.
 - Tests (tier C):

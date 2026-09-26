@@ -56,6 +56,7 @@ export {
   type ScriptInvocationId,
   type SubagentConfig,
   type ThreadId,
+  type ThreadOrigin,
   type ThreadType,
 } from "./chat-types.ts";
 export {

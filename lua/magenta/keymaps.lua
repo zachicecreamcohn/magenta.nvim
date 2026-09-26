@@ -397,6 +397,15 @@ M.set_display_buffer_keymaps = function(bufnr)
   end
 end
 
+M.set_reflections_buffer_keymaps = function(bufnr)
+  vim.api.nvim_create_autocmd("CursorMoved", {
+    buffer = bufnr,
+    callback = function()
+      vim.rpcnotify(magentaChannelId, "magentaReflectionsCursor", { line = vim.api.nvim_win_get_cursor(0)[1] })
+    end,
+  })
+end
+
 M.set_channel_id = function(channelId)
   magentaChannelId = channelId
 end

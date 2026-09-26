@@ -29,6 +29,10 @@ export type RootMsg =
       id: ThreadId;
     }
   | {
+      type: "show-reflections-overview";
+      threadId: ThreadId;
+    }
+  | {
       type: "select-archived-thread-effect";
       id: ThreadId;
     }

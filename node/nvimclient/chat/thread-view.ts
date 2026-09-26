@@ -852,6 +852,13 @@ function renderMessageContent(
       }),
     r: (ctx) => {
       const range = ctx.selection?.range;
+      if (!ctx.selection) {
+        thread.context.dispatch({
+          type: "show-reflections-overview",
+          threadId: thread.id,
+        });
+        return;
+      }
       if (!range) return;
       if (!isRangeWithinNode(range, ctx.node)) {
         notify(
@@ -897,7 +904,10 @@ function reflectionHighlight(
     id: childId,
     text: reflectionText,
     extmarkOptions: {
-      hl_group: "MagentaReflect",
+      hl_group:
+        thread.context.chat.activeReflectionId === childId
+          ? "MagentaReflectActive"
+          : "MagentaReflect",
       virt_lines: [[[`  ↳ reflect: ${label}`, "MagentaReflect"]]],
     },
     fallback: {
