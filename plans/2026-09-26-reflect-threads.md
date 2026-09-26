@@ -419,6 +419,7 @@ Status: DONE. `chat/reflections-overview.ts`: `orderedReflections` (anchor order
 - `<CR>` on an entry closes the overview and selects the child in the single column (replaced by `show-reflection` in the pane-state stage).
 - `r` in a reflect thread doesn't descend yet (no right column); `dd` on entries is stage 8.
 - Not tested: "highlight line near the middle row" (the test asserts the left cursor lands on the highlight's line).
+- Review follow-up: the active entry is `ReflectionsOverview.activeReflectionId` (Chat exposes it via a `getActiveReflectionId` getter supplied by Magenta), so it can't outlive the overview. `entryAt` computes `orderedReflections` on demand (no mutable `entries` field). The `magentaReflectionsCursor` payload is validated (`parseReflectionsCursorLine`). Tests: `reflections-overview.node.test.ts` (messageIdx/contentIdx/creation ordering, `entryAtLine` header/past-end), header-row cursor clears the active highlight, re-open reuses the same window, and `:q` on the overview cleans up so `r`/`-` work again.
 
 - Goal: normal `r` off a highlight shows the overview in the right column. Moving the cursor through it centres the matching highlight in the left window, `r` opens the entry, and `-` closes it.
 - Tests (tier C):

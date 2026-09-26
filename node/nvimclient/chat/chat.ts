@@ -168,9 +168,10 @@ export class Chat {
   /** View-local: when the user last looked at each thread. */
   private lastViewedTimes = new Map<ThreadId, number>();
   private expandedThreads = new Set<ThreadId>();
-  /** View-local: the reflection under the cursor in the reflection overview,
-   * drawn with `MagentaReflectActive` in its source thread. */
-  activeReflectionId: ThreadId | undefined;
+  /** The reflection under the cursor in the open reflection overview, drawn
+   * with `MagentaReflectActive` in its source thread. Supplied by Magenta,
+   * which owns the overview. */
+  getActiveReflectionId: () => ThreadId | undefined = () => undefined;
 
   get scriptRunner(): ScriptRunner | undefined {
     return this.session.scriptRunner;

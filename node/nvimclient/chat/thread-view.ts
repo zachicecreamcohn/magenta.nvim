@@ -905,7 +905,7 @@ function reflectionHighlight(
     text: reflectionText,
     extmarkOptions: {
       hl_group:
-        thread.context.chat.activeReflectionId === childId
+        thread.context.chat.getActiveReflectionId() === childId
           ? "MagentaReflectActive"
           : "MagentaReflect",
       virt_lines: [[[`  ↳ reflect: ${label}`, "MagentaReflect"]]],

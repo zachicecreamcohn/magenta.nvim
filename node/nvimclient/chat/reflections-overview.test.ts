@@ -113,7 +113,7 @@ it("lists reflections in anchor order, centres them, and opens with <CR>", async
       }
     });
     expect((await getCurrentWindow(driver.nvim)).id).toBe(win);
-    expect(driver.magenta.chat.activeReflectionId).toBe(alpha);
+    expect(driver.magenta.chat.getActiveReflectionId()).toBe(alpha);
     await pollUntil(async () => {
       const active = (
         await driver.getDisplayBuffer().getExtmarks(MAGENTA_REFLECT_NAMESPACE)
@@ -123,7 +123,24 @@ it("lists reflections in anchor order, centres them, and opens with <CR>", async
 
     await driver.nvim.call("nvim_win_set_cursor", [win, [3, 0]]);
     await pollUntil(() => {
-      if (driver.magenta.chat.activeReflectionId !== omega) {
+      if (driver.magenta.chat.getActiveReflectionId() !== omega) {
+        throw new Error("omega not active");
+      }
+    });
+    // Header rows map to no entry: the active highlight clears.
+    await driver.nvim.call("nvim_win_set_cursor", [win, [1, 0]]);
+    await pollUntil(async () => {
+      if (driver.magenta.chat.getActiveReflectionId() !== undefined) {
+        throw new Error("still active");
+      }
+      const active = (
+        await driver.getDisplayBuffer().getExtmarks(MAGENTA_REFLECT_NAMESPACE)
+      ).filter((m) => m.options.hl_group === "MagentaReflectActive");
+      if (active.length !== 0) throw new Error(`active: ${active.length}`);
+    });
+    await driver.nvim.call("nvim_win_set_cursor", [win, [3, 0]]);
+    await pollUntil(() => {
+      if (driver.magenta.chat.getActiveReflectionId() !== omega) {
         throw new Error("omega not active");
       }
     });
@@ -134,5 +151,39 @@ it("lists reflections in anchor order, centres them, and opens with <CR>", async
       }
     });
     expect(await driver.nvim.call("nvim_win_is_valid", [win])).toBe(false);
+  });
+});
+
+it("re-opening reuses the overview, and :q cleans it up", async () => {
+  await withDriver({}, async (driver) => {
+    const source = await setupThread(driver);
+    await reflect(driver, source, "alpha line");
+    driver.magenta.dispatch({ type: "select-thread-effect", id: source });
+    await driver.wait(200);
+    const { displayWindow } = driver.getVisibleState();
+    await driver.nvim.call("nvim_set_current_win", [displayWindow.id]);
+    await driver.nvim.call("nvim_command", [":Magenta reflections"]);
+    const win = await overviewWindow(driver);
+    const winCount = async () =>
+      ((await driver.nvim.call("nvim_list_wins", [])) as number[]).length;
+    const before = await winCount();
+    await driver.nvim.call("nvim_set_current_win", [displayWindow.id]);
+    await driver.nvim.call("nvim_command", [":Magenta reflections"]);
+    expect(await overviewWindow(driver)).toBe(win);
+    expect(await winCount()).toBe(before);
+
+    await driver.nvim.call("nvim_command", ["q"]);
+    await driver.nvim.call("nvim_set_current_win", [displayWindow.id]);
+    // After cleanup, r in the display buffer opens a fresh overview.
+    await driver.nvim.call("nvim_win_set_cursor", [displayWindow.id, [1, 0]]);
+    await driver.nvim.call("nvim_command", ["normal r"]);
+    const reopened = await overviewWindow(driver);
+    expect(reopened).not.toBe(win);
+    await driver.nvim.call("nvim_command", ["normal -"]);
+    await pollUntil(async () => {
+      if (await driver.nvim.call("nvim_win_is_valid", [reopened])) {
+        throw new Error("overview still open");
+      }
+    });
   });
 });

@@ -12,7 +12,7 @@ export type ReflectionEntry = {
 
 /** The source's reflections in anchor order (creation order breaks ties). */
 export function orderedReflections(
-  session: Session,
+  session: Pick<Session, "listDerived">,
   threadId: ThreadId,
 ): ReflectionEntry[] {
   return session
@@ -68,13 +68,16 @@ export function entryAtLine(
  * the right of the sidebar's display window. Until the pane-state and
  * two-column stages land, this window is managed here rather than by Sidebar. */
 export class ReflectionsOverview {
-  private entries: ReflectionEntry[] = [];
+  /** The entry under the overview's cursor, drawn with `MagentaReflectActive`
+   * in the source thread. Lives here so it can't outlive the overview. */
+  activeReflectionId: ThreadId | undefined;
 
   private constructor(
     readonly threadId: ThreadId,
+    private session: Pick<Session, "listDerived">,
     readonly buffer: NvimBuffer,
     readonly window: NvimWindow,
-    private app: TEA.App<unknown>,
+    private app: TEA.App<undefined>,
     readonly mountedApp: TEA.MountedApp,
   ) {}
 
@@ -113,15 +116,15 @@ export class ReflectionsOverview {
     await window.setOption("winfixwidth", true);
     await window.setOption("wrap", false);
 
-    let overview: ReflectionsOverview | undefined;
     const app = TEA.createApp<undefined>({
       nvim,
       initialModel: undefined,
-      View: () => {
-        const entries = orderedReflections(session, threadId);
-        if (overview) overview.entries = entries;
-        return renderReflectionsOverview({ entries, label, onOpen });
-      },
+      View: () =>
+        renderReflectionsOverview({
+          entries: orderedReflections(session, threadId),
+          label,
+          onOpen,
+        }),
     });
     const mountedApp = await app.mount({
       nvim,
@@ -129,15 +132,14 @@ export class ReflectionsOverview {
       startPos: pos(0 as Row0Indexed, 0),
       endPos: pos(-1 as Row0Indexed, -1),
     });
-    overview = new ReflectionsOverview(
+    return new ReflectionsOverview(
       threadId,
+      session,
       buffer,
       window,
       app,
       mountedApp,
     );
-    overview.entries = orderedReflections(session, threadId);
-    return overview;
   }
 
   render(): void {
@@ -145,7 +147,7 @@ export class ReflectionsOverview {
   }
 
   entryAt(line: number): ReflectionEntry | undefined {
-    return entryAtLine(this.entries, line);
+    return entryAtLine(orderedReflections(this.session, this.threadId), line);
   }
 
   async close(nvim: Nvim): Promise<void> {

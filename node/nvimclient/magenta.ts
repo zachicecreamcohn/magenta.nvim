@@ -333,6 +333,8 @@ export class Magenta {
       },
       { session: this.session, host: this.host },
     );
+    this.chat.getActiveReflectionId = () =>
+      this.reflectionsOverview?.activeReflectionId;
     this.scripts = new ScriptManager({
       session: this.session,
       logger: this.nvim.logger,
@@ -643,7 +645,6 @@ export class Magenta {
     const overview = this.reflectionsOverview;
     if (!overview) return;
     this.reflectionsOverview = undefined;
-    this.chat.activeReflectionId = undefined;
     this.bufferManager.getMountedApp(threadKey(overview.threadId))?.render();
     await overview.close(this.nvim);
   }
@@ -657,8 +658,8 @@ export class Magenta {
     const leftApp = this.bufferManager.getMountedApp(
       threadKey(overview.threadId),
     );
-    if (this.chat.activeReflectionId !== entry?.threadId) {
-      this.chat.activeReflectionId = entry?.threadId;
+    if (overview.activeReflectionId !== entry?.threadId) {
+      overview.activeReflectionId = entry?.threadId;
       leftApp?.render();
       await leftApp?.waitForRender();
     }
@@ -1443,7 +1444,11 @@ ${lines.join("\n")}
 
     nvim.onNotification(MAGENTA_REFLECTIONS_CURSOR, async (args) => {
       try {
-        const { line } = (args as unknown as { line: number }[])[0];
+        const line = parseReflectionsCursorLine(args);
+        if (line === undefined) {
+          nvim.logger.error(`Invalid reflections cursor payload`);
+          return;
+        }
         await getMagentaIfReady()?.onReflectionsCursor(line);
       } catch (err) {
         nvim.logger.error(err as Error);
@@ -1683,4 +1688,12 @@ ${lines.join("\n")}
     // started before `send` returns.
     return Promise.resolve();
   }
+}
+
+function parseReflectionsCursorLine(args: unknown): number | undefined {
+  if (!Array.isArray(args)) return undefined;
+  const payload: unknown = args[0];
+  if (typeof payload !== "object" || payload === null) return undefined;
+  const line: unknown = (payload as { line?: unknown }).line;
+  return typeof line === "number" && Number.isInteger(line) ? line : undefined;
 }
