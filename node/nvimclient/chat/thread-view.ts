@@ -743,8 +743,8 @@ ${contextFilesView(thread.thread.contextFiles, contextViewCtx(thread), {
       const isLastBlock = contentIdx === lastContentIdx;
       return renderMessageContent(
         content,
-        messageIdx,
-        contentIdx,
+        messageIdx as MessageIdx,
+        contentIdx as ContentBlockIdx,
         thread,
         dispatch,
         message.usage,
@@ -805,8 +805,8 @@ ${statusView}`;
 /** Render a single content block from a message */
 function renderMessageContent(
   content: ProviderMessageContent,
-  messageIdx: number,
-  contentIdx: number,
+  messageIdx: MessageIdx,
+  contentIdx: ContentBlockIdx,
   thread: NvimThread,
   dispatch: Dispatch<Msg>,
   messageUsage: Usage | undefined,
@@ -830,11 +830,12 @@ function renderMessageContent(
       dispatch({
         type: "fork-message",
         nativeMessageIdx: content.nativeMessageIdx,
-        ...(ctx?.selection ? { prepopulate: ctx.selection } : {}),
+        ...(ctx.selection ? { prepopulate: ctx.selection.lines } : {}),
       }),
     r: (ctx) => {
-      if (!ctx?.range) return;
-      if (!ctx.node || !isRangeWithinNode(ctx.range, ctx.node)) {
+      const range = ctx.selection?.range;
+      if (!range) return;
+      if (!isRangeWithinNode(range, ctx.node)) {
         notify(
           thread.context.nvim,
           "Reflection selections must lie within a single content block.",
@@ -844,9 +845,9 @@ function renderMessageContent(
       dispatch({
         type: "reflect-selection",
         anchor: {
-          messageIdx: messageIdx as MessageIdx,
-          contentIdx: contentIdx as ContentBlockIdx,
-          reflectionText: ctx.range.text,
+          messageIdx,
+          contentIdx,
+          reflectionText: range.text,
         },
       });
     },

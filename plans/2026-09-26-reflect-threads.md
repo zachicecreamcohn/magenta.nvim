@@ -381,6 +381,7 @@ Status: DONE. `r` added to `BINDING_KEYS` (`n`/`v`); `BindingCtx` gains `range` 
 - No right column yet: the reflect thread replaces the source in the single sidebar column until the pane/two-column stages.
 - Normal-mode `r` does nothing yet (highlight/overview stages).
 - The reflect display also shows the `# user:` header above `[thread context]`.
+- Review follow-up: `BindingCtx` is `{ selection?: { lines; range? } }` (range only exists with a selection); bindings receive `BoundBindingCtx` with a required `node: NodeExtent`. `VisualRange = Omit<BindingRange, "text">`. The RPC payload is validated in `parseVisualRange` (`magenta.ts`) instead of cast. `renderMessageContent` takes branded `MessageIdx`/`ContentBlockIdx`. Bug fix: `V` reported MAXCOL as the end column, which msgpack decodes as a BigInt, so the range was dropped; lua now clamps linewise columns to the line (`0`..`#lastLine`). Tests: `tea/bindings.node.test.ts` (`isRangeWithinNode` boundaries), a positive `V` case, and per-step assertions in the rejection test. No separate `F`-under-`V` test was added.
 
 - Goal: visual `r` in a display buffer over a text block dispatches `reflect-selection` with a correct `ReflectAnchor`.
 - Tests:

@@ -994,7 +994,7 @@ ${rows}${loadMore}`;
         if (this.state.state !== "archive") return;
         const idx = this.state.threadIds.indexOf(threadId);
         if (idx === -1) return;
-        const count = ctx?.selection?.length ?? 1;
+        const count = ctx.selection?.lines.length ?? 1;
         const ids = this.state.threadIds.slice(idx, idx + count);
         this.myDispatch({ type: "archive-delete-threads", ids });
       },

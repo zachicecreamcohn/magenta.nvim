@@ -369,6 +369,11 @@ M.bridge = function(channelId)
 
           local linewise = vim.fn.visualmode() == "V"
           local rowLines = vim.api.nvim_buf_get_lines(bufnr, startRow, endRow + 1, false)
+          if linewise then
+            -- `V` reports MAXCOL, which msgpack decodes as a BigInt in node.
+            startCol = 0
+            endCol = math.max(1, #(rowLines[#rowLines] or ""))
+          end
           local lines
           if linewise then
             lines = rowLines

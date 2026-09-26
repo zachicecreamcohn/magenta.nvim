@@ -50,6 +50,7 @@ import {
   openFileInNonMagentaWindow,
 } from "./nvim/openFileInNonMagentaWindow.ts";
 import {
+  type ByteIdx,
   NvimWindow,
   type Position0Indexed,
   type Position1Indexed,
@@ -73,6 +74,7 @@ import {
   BINDING_KEYS,
   type BindingCtx,
   type BindingKey,
+  type BindingRange,
 } from "./tea/bindings.ts";
 import type { Dispatch } from "./tea/tea.ts";
 import * as TEA from "./tea/tea.ts";
@@ -97,12 +99,31 @@ const MAGENTA_KEY = "magentaKey";
 
 /** Visual selection as sent by lua's `listenToBufKey`: 0-indexed rows, byte
  * columns, and the full buffer lines the selection spans. */
-type RawVisualRange = {
-  start: [number, number];
-  end: [number, number];
-  linewise: boolean;
-  lines: unknown[];
-};
+function parsePosition(raw: unknown): Position0Indexed | undefined {
+  if (
+    !Array.isArray(raw) ||
+    !Number.isInteger(raw[0]) ||
+    !Number.isInteger(raw[1]) ||
+    raw[0] < 0 ||
+    raw[1] < 0
+  ) {
+    return undefined;
+  }
+  return { row: raw[0] as Row0Indexed, col: raw[1] as ByteIdx };
+}
+function parseVisualRange(raw: unknown): BindingRange | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const r = raw as Record<string, unknown>;
+  const start = parsePosition(r.start);
+  const end = parsePosition(r.end);
+  if (!start || !end || !Array.isArray(r.lines)) return undefined;
+  const lines = r.lines.map(String);
+  const range = { start, end, linewise: r.linewise === true };
+  return {
+    ...range,
+    text: sliceDisplayBufferSelection(lines, range),
+  };
+}
 const MAGENTA_LSP_RESPONSE = "magentaLspResponse";
 const MAGENTA_BUF_ENTER = "magentaBufEnter";
 const MAGENTA_BUF_DELETE = "magentaBufDelete";
@@ -961,23 +982,17 @@ ${lines.join("\n")}
   onKey(args: unknown[]) {
     const key = args[0] as string;
     const rawCtx = args[1] as
-      | { selection?: unknown; range?: RawVisualRange }
+      | { selection?: unknown; range?: unknown }
       | undefined;
     let ctx: BindingCtx | undefined;
     if (rawCtx && Array.isArray(rawCtx.selection)) {
-      ctx = { selection: rawCtx.selection.map((s) => String(s)) };
-      if (rawCtx.range) {
-        const { start, end, linewise, lines } = rawCtx.range;
-        const range = {
-          start: { row: start[0], col: start[1] } as Position0Indexed,
-          end: { row: end[0], col: end[1] } as Position0Indexed,
-          linewise: !!linewise,
-        };
-        ctx.range = {
-          ...range,
-          text: sliceDisplayBufferSelection(lines.map(String), range),
-        };
-      }
+      const range = parseVisualRange(rawCtx.range);
+      ctx = {
+        selection: {
+          lines: rawCtx.selection.map((s) => String(s)),
+          ...(range ? { range } : {}),
+        },
+      };
     }
     const mountedApp = this.bufferManager.getMountedApp(this.getActiveKey());
     if (mountedApp) {

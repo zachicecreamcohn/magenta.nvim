@@ -1,5 +1,5 @@
 import type { DisplayBufferText } from "@magenta/server";
-import type { Position0Indexed } from "../nvim/window.ts";
+import type { VisualRange } from "../tea/bindings.ts";
 
 /** Slices the visually selected text out of the display buffer lines that the
  * selection spans (`lines[0]` is row `start.row`). Columns are byte indices;
@@ -7,7 +7,7 @@ import type { Position0Indexed } from "../nvim/window.ts";
  * `getpos("'>")`, and may exceed the line length (e.g. `v$`). */
 export function sliceDisplayBufferSelection(
   lines: string[],
-  range: { start: Position0Indexed; end: Position0Indexed; linewise: boolean },
+  range: VisualRange,
 ): DisplayBufferText {
   const rowCount = range.end.row - range.start.row + 1;
   const selected = lines.slice(0, rowCount).map((line, i) => {

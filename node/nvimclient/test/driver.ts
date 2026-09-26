@@ -483,7 +483,7 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
             `! No binding for key "${key}" at position ${JSON.stringify(position)}`,
           );
         }
-        binding({ selection });
+        binding({ selection: { lines: selection } });
       },
       { timeout: 2000 },
     );

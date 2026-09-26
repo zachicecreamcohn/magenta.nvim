@@ -102,10 +102,30 @@ it("rejects duplicate reflections and selections spanning blocks", async () => {
     await driver.nvim.call("nvim_command", ["stopinsert"]);
 
     await visualOn(driver, "calls itself", "vlllllllllllr");
+    await driver.wait(300);
+    expect(session.listDerived(sourceId, "reflect")).toHaveLength(1);
+    expect(driver.magenta.chat.state.activeThreadId).toBe(sourceId);
     // Spans the user message and the assistant reply.
     await visualOn(driver, "Why?", "Vjjjjr");
     await driver.wait(300);
     expect(session.listDerived(sourceId, "reflect")).toHaveLength(1);
     expect(driver.magenta.chat.state.activeThreadId).toBe(sourceId);
+  });
+});
+
+it("linewise V inside one block reflects on the full line", async () => {
+  await withDriver({}, async (driver) => {
+    const sourceId = await setupThread(driver);
+    await visualOn(driver, "Second line here.", "Vr");
+    await pollUntil(() => {
+      if (driver.magenta.chat.state.activeThreadId === sourceId) {
+        throw new Error("still on source");
+      }
+    });
+    const [derived] = driver.magenta.chat.session.listDerived(
+      sourceId,
+      "reflect",
+    );
+    expect(derived.origin.anchor.reflectionText).toBe("Second line here.");
   });
 });

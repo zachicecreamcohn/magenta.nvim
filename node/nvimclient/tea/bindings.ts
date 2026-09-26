@@ -35,15 +35,22 @@ export type BindingRange = {
   /** The selected text, sliced from the display buffer lines. */
   text: DisplayBufferText;
 };
-export type BindingCtx = {
-  selection?: string[];
-  range?: BindingRange;
-  /** Extent of the node that owns the invoked binding. */
-  node?: { startPos: Position0Indexed; endPos: Position0Indexed };
+export type VisualRange = Omit<BindingRange, "text">;
+export type NodeExtent = {
+  startPos: Position0Indexed;
+  endPos: Position0Indexed;
 };
-
+/** What the caller (lua → onKey) supplies. `range` only exists for visual
+ * selections. */
+export type BindingCtx = {
+  selection?: { lines: string[]; range?: BindingRange };
+};
+/** What a binding receives: the caller ctx plus the extent of the node that
+ * owns the binding, attached by `getBinding`. */
+export type BoundBindingCtx = BindingCtx & { node: NodeExtent };
+export type Binding = (ctx: BoundBindingCtx) => void;
 export type Bindings = Partial<{
-  [key in BindingKey]: (ctx?: BindingCtx) => void;
+  [key in BindingKey]: Binding;
 }>;
 
 export function getBinding(
@@ -86,7 +93,7 @@ export function getBinding(
 
 function withNode(
   mountedNode: MountedVDOM,
-  binding: ((ctx?: BindingCtx) => void) | undefined,
+  binding: Binding | undefined,
 ): ((ctx?: BindingCtx) => void) | undefined {
   if (!binding) return undefined;
   const node = { startPos: mountedNode.startPos, endPos: mountedNode.endPos };
@@ -95,7 +102,7 @@ function withNode(
 
 export function isRangeWithinNode(
   range: Pick<BindingRange, "start" | "end">,
-  node: { startPos: Position0Indexed; endPos: Position0Indexed },
+  node: NodeExtent,
 ): boolean {
   return (
     comparePos(range.start, node.startPos) !== "lt" &&
