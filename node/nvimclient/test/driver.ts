@@ -246,7 +246,7 @@ export class NvimDriver {
       if (
         desiredState.state === "thread-selected" &&
         desiredState.id !== undefined &&
-        desiredState.id !== state.activeThreadId
+        desiredState.id !== state.left
       ) {
         throw new Error(
           `Unexpected chat state. Desired: ${JSON.stringify(desiredState)} actual: ${JSON.stringify(state)}`,
@@ -299,7 +299,7 @@ export class NvimDriver {
   getActiveThreadId(): ThreadId | undefined {
     const state = this.magenta.chat.state;
     if (state.state === "thread-selected") {
-      return state.activeThreadId;
+      return state.left;
     }
     return undefined;
   }

@@ -297,14 +297,14 @@ it("forks a thread with @compact to clone and compact in one step", async () => 
       toolRequests: [],
     });
 
-    const originalThreadId = driver.magenta.chat.state.activeThreadId;
+    const originalThreadId = driver.magenta.chat.state.left;
 
     // Fork by pressing F on the most recent assistant message, then send
     // @compact + new prompt on the forked thread.
     await driver.pressOnDisplayMessage("3+3 equals 6.", "F");
 
     await pollUntil(() => {
-      if (driver.magenta.chat.state.activeThreadId === originalThreadId) {
+      if (driver.magenta.chat.state.left === originalThreadId) {
         throw new Error("Still on original thread");
       }
     });

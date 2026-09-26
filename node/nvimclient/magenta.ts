@@ -427,9 +427,7 @@ export class Magenta {
   }
 
   private columnThreadId(_column: SidebarColumnName): ThreadId | undefined {
-    return this.chat.state.state === "thread-selected"
-      ? this.chat.state.activeThreadId
-      : undefined;
+    return this.chat.shownThreadId;
   }
 
   private getColumnChrome(column: SidebarColumnName): ColumnChrome {
@@ -458,7 +456,7 @@ export class Magenta {
   getActiveKey(): BufferKey {
     switch (this.chat.state.state) {
       case "thread-selected":
-        return threadKey(this.chat.state.activeThreadId);
+        return threadKey(this.chat.shownThreadId ?? this.chat.state.left);
       case "archive":
         return { kind: "archive" };
       case "archive-thread-selected":
@@ -582,7 +580,7 @@ export class Magenta {
     await this.bufferManager.registerThread(threadId);
     this.dispatch({
       type: "chat-msg",
-      msg: { type: "set-active-thread", id: threadId },
+      msg: { type: "reflect-created", parent: sourceThreadId, child: threadId },
     });
     await this.syncActiveView();
     if (!this.sidebar.isVisible()) {
@@ -612,6 +610,12 @@ export class Magenta {
       }
     }
     await this.closeReflectionsOverview();
+    this.dispatch({
+      type: "chat-msg",
+      msg: { type: "show-reflections-overview", thread: threadId },
+    });
+    await this.syncActiveView();
+    if (this.sidebar.state.state !== "visible") return;
     this.reflectionsOverview = await ReflectionsOverview.open({
       nvim: this.nvim,
       threadId,
@@ -620,7 +624,17 @@ export class Magenta {
       label: (childId) => this.chat.getThreadDisplayName(childId),
       onOpen: (childId) => {
         this.closeReflectionsOverview()
-          .then(() => this.selectThreadEffect(childId))
+          .then(() => {
+            this.dispatch({
+              type: "chat-msg",
+              msg: {
+                type: "show-reflection",
+                parent: threadId,
+                child: childId,
+              },
+            });
+            return this.syncActiveView();
+          })
           .catch((e: Error) =>
             this.nvim.logger.error(`Error opening reflection: ${e.message}`),
           );
@@ -632,6 +646,12 @@ export class Magenta {
     const overview = this.reflectionsOverview;
     if (!overview) return;
     this.reflectionsOverview = undefined;
+    if (
+      this.chat.state.state === "thread-selected" &&
+      this.chat.state.right?.type === "reflections-overview"
+    ) {
+      this.dispatch({ type: "chat-msg", msg: { type: "close-right-pane" } });
+    }
     this.bufferManager.getMountedApp(threadKey(overview.threadId))?.render();
     await overview.close(this.nvim);
   }
@@ -851,12 +871,7 @@ export class Magenta {
 
   /** Make sure `threadId` is what the sidebar shows, opening it if needed. */
   private async revealThread(threadId: ThreadId): Promise<void> {
-    if (
-      !(
-        this.chat.state.state === "thread-selected" &&
-        this.chat.state.activeThreadId === threadId
-      )
-    ) {
+    if (!(this.chat.shownThreadId === threadId)) {
       this.dispatch({
         type: "chat-msg",
         msg: { type: "set-active-thread", id: threadId },
@@ -1014,7 +1029,7 @@ export class Magenta {
         }
         this.dispatch({
           type: "chat-msg",
-          msg: { type: "threads-navigate-up" },
+          msg: { type: "reflect-navigate-up" },
         });
         await this.syncActiveView();
         if (

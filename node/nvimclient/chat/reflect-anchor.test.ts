@@ -19,7 +19,7 @@ async function setupThread(driver: Driver) {
   await driver.assertDisplayBufferContains("Second line here.");
   // Let trailing renders (e.g. the title) settle so row lookups stay valid.
   await driver.wait(200);
-  return driver.magenta.chat.state.activeThreadId!;
+  return driver.magenta.chat.shownThreadId!;
 }
 
 /** Puts the cursor on `text` in the display window and runs `keys` through
@@ -49,11 +49,11 @@ it("visual r creates an unsent reflect thread anchored on the selection", async 
     await visualOn(driver, "calls itself", "vlllllllllllr");
 
     await pollUntil(() => {
-      if (driver.magenta.chat.state.activeThreadId === sourceId) {
+      if (driver.magenta.chat.shownThreadId === sourceId) {
         throw new Error("still on source");
       }
     });
-    const reflectId = driver.magenta.chat.state.activeThreadId!;
+    const reflectId = driver.magenta.chat.shownThreadId!;
     const origin = driver.magenta.chat.session.getOrigin(reflectId);
     expect(origin).toEqual({
       type: "reflect",
@@ -93,7 +93,7 @@ it("rejects duplicate reflections and selections spanning blocks", async () => {
 
     await visualOn(driver, "calls itself", "vlllllllllllr");
     await pollUntil(() => {
-      if (driver.magenta.chat.state.activeThreadId === sourceId) {
+      if (driver.magenta.chat.shownThreadId === sourceId) {
         throw new Error("reflection not shown yet");
       }
     });
@@ -105,12 +105,12 @@ it("rejects duplicate reflections and selections spanning blocks", async () => {
     await visualOn(driver, "calls itself", "vlllllllllllr");
     await driver.wait(300);
     expect(session.listDerived(sourceId, "reflect")).toHaveLength(1);
-    expect(driver.magenta.chat.state.activeThreadId).toBe(sourceId);
+    expect(driver.magenta.chat.shownThreadId).toBe(sourceId);
     // Spans the user message and the assistant reply.
     await visualOn(driver, "Why?", "Vjjjjr");
     await driver.wait(300);
     expect(session.listDerived(sourceId, "reflect")).toHaveLength(1);
-    expect(driver.magenta.chat.state.activeThreadId).toBe(sourceId);
+    expect(driver.magenta.chat.shownThreadId).toBe(sourceId);
   });
 });
 
@@ -119,7 +119,7 @@ it("linewise V inside one block reflects on the full line", async () => {
     const sourceId = await setupThread(driver);
     await visualOn(driver, "Second line here.", "Vr");
     await pollUntil(() => {
-      if (driver.magenta.chat.state.activeThreadId === sourceId) {
+      if (driver.magenta.chat.shownThreadId === sourceId) {
         throw new Error("still on source");
       }
     });
@@ -136,7 +136,7 @@ it("highlights reflections, jumps with ]r/[r, and r on a highlight shows it", as
     await visualOn(driver, "calls itself", "vlllllllllllr");
     const backToSource = async () => {
       await pollUntil(() => {
-        if (driver.magenta.chat.state.activeThreadId === sourceId) {
+        if (driver.magenta.chat.shownThreadId === sourceId) {
           throw new Error("reflection not shown yet");
         }
       });
@@ -187,11 +187,11 @@ it("highlights reflections, jumps with ]r/[r, and r on a highlight shows it", as
     // normal r on the highlight shows that reflection
     await driver.nvim.call("nvim_command", ["normal r"]);
     await pollUntil(() => {
-      if (driver.magenta.chat.state.activeThreadId === sourceId) {
+      if (driver.magenta.chat.shownThreadId === sourceId) {
         throw new Error("still on source");
       }
     });
-    const shown = driver.magenta.chat.state.activeThreadId!;
+    const shown = driver.magenta.chat.shownThreadId!;
     expect(driver.magenta.chat.session.getOrigin(shown)).toMatchObject({
       type: "reflect",
       anchor: { reflectionText: "calls itself" },

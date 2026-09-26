@@ -33,7 +33,7 @@ it("rebuilding the view adapter over an existing session makes no new thread or 
     const chat = driver.magenta.chat;
     if (chat.state.state !== "thread-selected")
       throw new Error("expected a selected thread");
-    const threadId = chat.state.activeThreadId;
+    const threadId = chat.state.left;
     const serverThread = leftThread(chat).thread;
     const titleRequests = driver.mockAnthropic.forceToolUseRequests.length;
 

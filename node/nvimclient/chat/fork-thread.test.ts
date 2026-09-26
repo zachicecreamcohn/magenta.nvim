@@ -18,7 +18,7 @@ it("sandbox bypass and write approvals use the fork owner", async () => {
       toolRequests: [],
     });
 
-    const sourceThreadId = driver.magenta.chat.state.activeThreadId!;
+    const sourceThreadId = driver.magenta.chat.state.left!;
     const sourceThread = leftThread(driver.magenta.chat);
     driver.magenta.chat.host.setSandboxBypassed(sourceThreadId, true);
 
@@ -78,7 +78,7 @@ it("fork appends an id-free fork_notification and records the fork origin", asyn
 
     await driver.assertDisplayBufferContains("hi");
 
-    const sourceThreadId = driver.magenta.chat.state.activeThreadId!;
+    const sourceThreadId = driver.magenta.chat.state.left!;
     const sourceThread = leftThread(driver.magenta.chat);
     const idx = sourceThread.thread.nativeMessageIdx;
 
@@ -149,7 +149,7 @@ it("child shows 'forked from' and <CR> navigates to parent", async () => {
 
     await driver.assertDisplayBufferContains("hi");
 
-    const sourceThreadId = driver.magenta.chat.state.activeThreadId!;
+    const sourceThreadId = driver.magenta.chat.state.left!;
     const sourceThread = leftThread(driver.magenta.chat);
     const idx = sourceThread.thread.nativeMessageIdx;
 
@@ -169,7 +169,7 @@ it("child shows 'forked from' and <CR> navigates to parent", async () => {
     await driver.pressOnDisplayMessage("forked from", "<CR>");
 
     await pollUntil(() => {
-      if (driver.magenta.chat.state.activeThreadId !== sourceThreadId) {
+      if (driver.magenta.chat.state.left !== sourceThreadId) {
         throw new Error("active thread did not switch to parent");
       }
     });
@@ -191,7 +191,7 @@ it("parent shows 'forked to' (not in agent messages) and <CR> navigates to child
 
     await driver.assertDisplayBufferContains("hi");
 
-    const sourceThreadId = driver.magenta.chat.state.activeThreadId!;
+    const sourceThreadId = driver.magenta.chat.state.left!;
     const sourceThread = leftThread(driver.magenta.chat);
     const idx = sourceThread.thread.nativeMessageIdx;
 
@@ -221,7 +221,7 @@ it("parent shows 'forked to' (not in agent messages) and <CR> navigates to child
     await driver.pressOnDisplayMessage("forked to thread", "<CR>");
 
     await pollUntil(() => {
-      if (driver.magenta.chat.state.activeThreadId !== childThreadId) {
+      if (driver.magenta.chat.state.left !== childThreadId) {
         throw new Error("active thread did not switch to child");
       }
     });

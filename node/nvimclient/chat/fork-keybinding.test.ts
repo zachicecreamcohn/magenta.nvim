@@ -51,12 +51,12 @@ it("normal mode F on a previous assistant message creates a fork ending there", 
       toolRequests: [],
     });
 
-    const originalThreadId = driver.magenta.chat.state.activeThreadId;
+    const originalThreadId = driver.magenta.chat.state.left;
 
     await driver.pressOnDisplayMessage("The capital of France is Paris.", "F");
 
     await pollUntil(() => {
-      if (driver.magenta.chat.state.activeThreadId === originalThreadId) {
+      if (driver.magenta.chat.state.left === originalThreadId) {
         throw new Error("Still on original thread");
       }
     });
@@ -107,12 +107,12 @@ it("normal mode F on a user message keeps that user message", async () => {
       toolRequests: [],
     });
 
-    const originalThreadId = driver.magenta.chat.state.activeThreadId;
+    const originalThreadId = driver.magenta.chat.state.left;
 
     await driver.pressOnDisplayMessage("What about Germany?", "F");
 
     await pollUntil(() => {
-      if (driver.magenta.chat.state.activeThreadId === originalThreadId) {
+      if (driver.magenta.chat.state.left === originalThreadId) {
         throw new Error("Still on original thread");
       }
     });
@@ -157,13 +157,13 @@ it("normal mode F on assistant message with tool_use extends to keep tool_result
 
     await driver.assertDisplayBufferContains("Done reading the poem.");
 
-    const originalThreadId = driver.magenta.chat.state.activeThreadId;
+    const originalThreadId = driver.magenta.chat.state.left;
 
     // Fork at the assistant message that contains the tool_use
     await driver.pressOnDisplayMessage("I'll read poem.txt for you.", "F");
 
     await pollUntil(() => {
-      if (driver.magenta.chat.state.activeThreadId === originalThreadId) {
+      if (driver.magenta.chat.state.left === originalThreadId) {
         throw new Error("Still on original thread");
       }
     });
@@ -215,11 +215,11 @@ it("F on first user message keeps just that message and resets input", async () 
       toolRequests: [],
     });
 
-    const originalThreadId = driver.magenta.chat.state.activeThreadId;
+    const originalThreadId = driver.magenta.chat.state.left;
     await driver.pressOnDisplayMessage("Hello", "F");
 
     await pollUntil(() => {
-      if (driver.magenta.chat.state.activeThreadId === originalThreadId) {
+      if (driver.magenta.chat.state.left === originalThreadId) {
         throw new Error("Still on original thread");
       }
     });
@@ -263,7 +263,7 @@ it("visual mode F includes selection as a markdown blockquote", async () => {
       toolRequests: [],
     });
 
-    const originalThreadId = driver.magenta.chat.state.activeThreadId;
+    const originalThreadId = driver.magenta.chat.state.left;
 
     await driver.pressOnDisplayMessageWithSelection(
       "The capital of Germany is Berlin.",
@@ -272,7 +272,7 @@ it("visual mode F includes selection as a markdown blockquote", async () => {
     );
 
     await pollUntil(() => {
-      if (driver.magenta.chat.state.activeThreadId === originalThreadId) {
+      if (driver.magenta.chat.state.left === originalThreadId) {
         throw new Error("Still on original thread");
       }
     });
@@ -301,7 +301,7 @@ it("multi-line visual selection produces a multi-line quote", async () => {
       toolRequests: [],
     });
 
-    const originalThreadId = driver.magenta.chat.state.activeThreadId;
+    const originalThreadId = driver.magenta.chat.state.left;
 
     await driver.pressOnDisplayMessageWithSelection(
       "Line one of the poem",
@@ -310,7 +310,7 @@ it("multi-line visual selection produces a multi-line quote", async () => {
     );
 
     await pollUntil(() => {
-      if (driver.magenta.chat.state.activeThreadId === originalThreadId) {
+      if (driver.magenta.chat.state.left === originalThreadId) {
         throw new Error("Still on original thread");
       }
     });

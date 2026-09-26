@@ -4,6 +4,7 @@ import type {
   StopReason,
   SubmissionResult,
   ThreadId,
+  ThreadOrigin,
 } from "@magenta/server";
 import {
   ABORTED,
@@ -72,20 +73,29 @@ type ThreadWrapper = (
 };
 
 type ArchiveStateFields = {
-  activeThreadId: ThreadId | undefined;
+  left: ThreadId | undefined;
   threadIds: ThreadId[];
   loadedCount: number;
   entries: { [id: ThreadId]: ArchiveEntry };
 };
 
-type ChatState =
+/** What the right column shows beside `left`. A `reflection` is always a
+ * direct reflect child of `left`; the overview lists `left`'s reflections. */
+export type RightPane =
+  | { type: "reflection"; threadId: ThreadId }
+  | { type: "reflections-overview" };
+
+/** What the sidebar shows. `left` is the left column's thread; it never says
+ * where a command goes. */
+export type SidebarState =
   | {
       state: "thread-overview";
-      activeThreadId: ThreadId | undefined;
+      left: ThreadId | undefined;
     }
   | {
       state: "thread-selected";
-      activeThreadId: ThreadId;
+      left: ThreadId;
+      right?: RightPane | undefined;
     }
   | ({ state: "archive" } & ArchiveStateFields)
   | ({
@@ -93,7 +103,86 @@ type ChatState =
       archivedThreadId: ThreadId;
     } & ArchiveStateFields);
 
+export type PaneMsg =
+  | { type: "reflect-created"; parent: ThreadId; child: ThreadId }
+  | { type: "show-reflection"; parent: ThreadId; child: ThreadId }
+  | { type: "show-reflections-overview"; thread: ThreadId }
+  | { type: "close-right-pane" };
+
+/** The thread the right pane shows, if it shows one. */
+function rightThreadId(state: SidebarState): ThreadId | undefined {
+  return state.state === "thread-selected" && state.right?.type === "reflection"
+    ? state.right.threadId
+    : undefined;
+}
+
+/** Pure pane transitions. Acting from the right pane's thread descends one
+ * level: that thread moves to the left. */
+export function paneTransition(
+  state: SidebarState,
+  msg: PaneMsg,
+): SidebarState {
+  switch (msg.type) {
+    case "reflect-created":
+    case "show-reflection":
+      return {
+        state: "thread-selected",
+        left: msg.parent,
+        right: { type: "reflection", threadId: msg.child },
+      };
+    case "show-reflections-overview":
+      return {
+        state: "thread-selected",
+        left: msg.thread,
+        right: { type: "reflections-overview" },
+      };
+    case "close-right-pane":
+      return state.state === "thread-selected"
+        ? { state: "thread-selected", left: state.left }
+        : state;
+    default:
+      return assertUnreachable(msg);
+  }
+}
+
+/** `-` with a right pane open: pop exactly one level. Returns undefined when
+ * there is no right pane, so the caller falls through to navigate-up. */
+export function reflectNavigateUp(
+  state: SidebarState,
+  getOrigin: (id: ThreadId) => ThreadOrigin | undefined,
+): SidebarState | undefined {
+  if (state.state !== "thread-selected" || !state.right) return undefined;
+  if (state.right.type === "reflection") {
+    const origin = getOrigin(state.left);
+    if (origin?.type === "reflect") {
+      return {
+        state: "thread-selected",
+        left: origin.sourceThreadId,
+        right: { type: "reflection", threadId: state.left },
+      };
+    }
+  }
+  return { state: "thread-selected", left: state.left };
+}
+
+/** Selecting a thread explicitly: a reflect thread opens beside its parent. */
+export function selectThreadPanes(
+  id: ThreadId,
+  getOrigin: (id: ThreadId) => ThreadOrigin | undefined,
+): SidebarState {
+  const origin = getOrigin(id);
+  return origin?.type === "reflect"
+    ? {
+        state: "thread-selected",
+        left: origin.sourceThreadId,
+        right: { type: "reflection", threadId: id },
+      }
+    : { state: "thread-selected", left: id };
+}
+
 export type Msg =
+  | PaneMsg
+  | { type: "reflect-navigate-up" }
   | {
       type: "set-active-thread";
       id: ThreadId;
@@ -182,7 +271,7 @@ export function pickExternalTarget({
 }
 
 export class Chat {
-  state: ChatState;
+  state: SidebarState;
   /** The thread whose display/input buffer most recently held the cursor.
    * Only used as the tie-break in `externalTarget`; cleared when the thread
    * is removed. */
@@ -230,7 +319,7 @@ export class Chat {
   ) {
     this.state = {
       state: "thread-overview",
-      activeThreadId: undefined,
+      left: undefined,
     };
 
     this.host = host;
@@ -311,7 +400,7 @@ export class Chat {
       this.lastViewedTimes.set(id, Date.now());
     }
     if (record.state === "error" && this.state.state === "thread-selected") {
-      this.state = { state: "thread-overview", activeThreadId: id };
+      this.state = { state: "thread-overview", left: id };
       return;
     }
     if (record.state !== "initialized") return;
@@ -337,8 +426,14 @@ export class Chat {
     this.expandedThreads.delete(id);
     if (this.cursorThreadId === id) this.cursorThreadId = undefined;
     this.context.removeThreadBuffers?.([id]);
-    if (this.state.activeThreadId === id) {
-      this.state = { state: "thread-overview", activeThreadId: undefined };
+    if (this.state.left === id) {
+      this.state = { state: "thread-overview", left: undefined };
+    }
+    if (
+      rightThreadId(this.state) === id &&
+      this.state.state === "thread-selected"
+    ) {
+      this.state = { state: "thread-selected", left: this.state.left };
     }
   };
 
@@ -368,9 +463,16 @@ export class Chat {
   /** Record that we've stopped viewing the currently-selected thread, so that
    * any activity from this point on counts as unviewed. */
   private markActiveThreadViewed() {
-    if (this.state.state === "thread-selected" && this.state.activeThreadId) {
-      this.lastViewedTimes.set(this.state.activeThreadId, Date.now());
-    }
+    const shown = this.shownThreadId;
+    if (shown) this.lastViewedTimes.set(shown, Date.now());
+  }
+
+  /** The thread the single sidebar column displays: the right pane's
+   * reflection when one is open, else `left`. Until the two-column sidebar
+   * lands, only one of the two panes is on screen. */
+  get shownThreadId(): ThreadId | undefined {
+    if (this.state.state !== "thread-selected") return undefined;
+    return rightThreadId(this.state) ?? this.state.left;
   }
 
   private myUpdate(msg: Msg) {
@@ -379,12 +481,32 @@ export class Chat {
         if (this.session.getThread(msg.id)) {
           this.markActiveThreadViewed();
           this.lastViewedTimes.set(msg.id, Date.now());
-          this.state = {
-            state: "thread-selected",
-            activeThreadId: msg.id,
-          };
+          this.state = selectThreadPanes(msg.id, (id) =>
+            this.session.getOrigin(id),
+          );
         }
         return;
+
+      case "reflect-created":
+      case "show-reflection":
+      case "show-reflections-overview":
+      case "close-right-pane":
+        this.markActiveThreadViewed();
+        this.state = paneTransition(this.state, msg);
+        return;
+
+      case "reflect-navigate-up": {
+        const next = reflectNavigateUp(this.state, (id) =>
+          this.session.getOrigin(id),
+        );
+        if (next) {
+          this.markActiveThreadViewed();
+          this.state = next;
+        } else {
+          this.myUpdate({ type: "threads-navigate-up" });
+        }
+        return;
+      }
 
       case "threads-navigate-up":
         this.markActiveThreadViewed();
@@ -396,23 +518,20 @@ export class Chat {
         if (this.state.state === "archive") {
           this.state = {
             state: "thread-overview",
-            activeThreadId: this.state.activeThreadId,
+            left: this.state.left,
           };
           return;
         }
         // If we're viewing a thread and it has a parent, navigate to parent
-        if (
-          this.state.state === "thread-selected" &&
-          this.state.activeThreadId
-        ) {
+        if (this.state.state === "thread-selected" && this.state.left) {
           const parentThreadId = this.session.getThread(
-            this.state.activeThreadId,
+            this.state.left,
           )?.parentThreadId;
           if (parentThreadId) {
             // Navigate to parent thread
             this.state = {
               state: "thread-selected",
-              activeThreadId: parentThreadId,
+              left: parentThreadId,
             };
 
             // Scroll to bottom when navigating to parent
@@ -432,7 +551,7 @@ export class Chat {
         // Otherwise, navigate to thread overview
         this.state = {
           state: "thread-overview",
-          activeThreadId: this.state.activeThreadId,
+          left: this.state.left,
         };
         return;
 
@@ -441,7 +560,7 @@ export class Chat {
         // Force navigation to thread overview regardless of current state
         this.state = {
           state: "thread-overview",
-          activeThreadId: this.state.activeThreadId,
+          left: this.state.left,
         };
         return;
 
@@ -468,7 +587,7 @@ export class Chat {
         } else if (this.state.state !== "archive") {
           this.state = {
             state: "archive",
-            activeThreadId: this.state.activeThreadId,
+            left: this.state.left,
             threadIds: [],
             loadedCount: ARCHIVE_PAGE_SIZE,
             entries: {},
@@ -482,7 +601,7 @@ export class Chat {
         this.markActiveThreadViewed();
         this.state = {
           state: "archive",
-          activeThreadId: this.state.activeThreadId,
+          left: this.state.left,
           threadIds: [],
           loadedCount: ARCHIVE_PAGE_SIZE,
           entries: {},
@@ -503,7 +622,7 @@ export class Chat {
           archiveState = this.state;
         } else {
           archiveState = {
-            activeThreadId: this.state.activeThreadId,
+            left: this.state.left,
             threadIds: [],
             loadedCount: ARCHIVE_PAGE_SIZE,
             entries: {},
@@ -536,7 +655,7 @@ export class Chat {
       case "archive-navigate-back": {
         this.state = {
           state: "thread-overview",
-          activeThreadId: this.state.activeThreadId,
+          left: this.state.left,
         };
         return;
       }
@@ -603,11 +722,9 @@ export class Chat {
   }
 
   getMessages() {
-    if (
-      this.state.state === "thread-selected" &&
-      this.session.getThread(this.state.activeThreadId)
-    ) {
-      const threadState = this.wrapper(this.state.activeThreadId);
+    const shown = this.shownThreadId;
+    if (shown && this.session.getThread(shown)) {
+      const threadState = this.wrapper(shown);
       if (threadState?.state === "initialized") {
         return [...threadState.thread.thread.getProviderMessages()];
       }
@@ -705,7 +822,7 @@ export class Chat {
   ) {
     if (!this.session.getThread(threadId)) return;
     views.push(
-      this.renderThread(threadId, depth, this.state.activeThreadId, undefined, {
+      this.renderThread(threadId, depth, this.state.left, undefined, {
         showTokenCount: true,
       }),
     );
@@ -785,7 +902,7 @@ export class Chat {
   private renderThread(
     threadId: ThreadId,
     depth: number,
-    activeThreadId: ThreadId | undefined,
+    left: ThreadId | undefined,
     options?: {
       hasChildren: boolean;
       isExpanded: boolean;
@@ -797,7 +914,7 @@ export class Chat {
   ): VDOMNode {
     const displayName = this.getThreadDisplayName(threadId);
     const status = this.formatThreadStatus(threadId);
-    const marker = threadId === activeThreadId ? "*" : "-";
+    const marker = threadId === left ? "*" : "-";
     const indent = "  ".repeat(depth);
     const threadWrapper = this.wrapper(threadId);
     const threadType =
@@ -874,15 +991,15 @@ export class Chat {
   private renderThreadSubtree(
     threadId: ThreadId,
     childrenMap: Map<ThreadId, ThreadId[]>,
-    activeThreadId: ThreadId | undefined,
+    left: ThreadId | undefined,
     views: VDOMNode[],
   ) {
     const wrapper = this.wrapper(threadId);
     if (!wrapper) return;
-    views.push(this.renderThread(threadId, wrapper.depth, activeThreadId));
+    views.push(this.renderThread(threadId, wrapper.depth, left));
     const children = childrenMap.get(threadId) || [];
     for (const childId of children) {
-      this.renderThreadSubtree(childId, childrenMap, activeThreadId, views);
+      this.renderThreadSubtree(childId, childrenMap, left, views);
     }
   }
 
@@ -936,7 +1053,7 @@ No threads yet`;
         : 0;
 
       threadViews.push(
-        this.renderThread(id, 0, this.state.activeThreadId, {
+        this.renderThread(id, 0, this.state.left, {
           hasChildren,
           isExpanded,
           childCount,
@@ -949,7 +1066,7 @@ No threads yet`;
           this.renderThreadSubtree(
             childId,
             childrenMap,
-            this.state.activeThreadId,
+            this.state.left,
             threadViews,
           );
         }
@@ -1041,9 +1158,8 @@ ${rows}${loadMore}`;
   /** The thread shown in the (single) sidebar column, if the sidebar is
    * visible and showing a thread. Only used to pick external targets. */
   private visibleThreadIds(sidebarVisible: boolean): ThreadId[] {
-    return sidebarVisible && this.state.state === "thread-selected"
-      ? [this.state.activeThreadId]
-      : [];
+    const shown = this.shownThreadId;
+    return sidebarVisible && shown ? [shown] : [];
   }
 
   /** Target for commands that come from outside magenta (code buffers,

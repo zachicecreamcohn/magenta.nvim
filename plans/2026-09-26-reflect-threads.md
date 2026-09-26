@@ -450,6 +450,12 @@ Status: DONE. `Chat.getActiveThread` (and the unused root-thread getters) remove
 
 ## Pane state
 
+Status: DONE. `ChatState` → exported `SidebarState` in `chat.ts`; `activeThreadId` renamed `left`; `thread-selected` gains `right?: RightPane`. Pure transitions `paneTransition` (`reflect-created`, `show-reflection`, `show-reflections-overview`, `close-right-pane`), `reflectNavigateUp` and `selectThreadPanes` are exported and wrapped by Chat msgs (plus `reflect-navigate-up`, which falls through to `threads-navigate-up` with no right pane). Magenta dispatches `reflect-created` on creation, `show-reflection` on overview `<CR>`, `show-reflections-overview`/`close-right-pane` around the ad-hoc overview window, and `-` dispatches `reflect-navigate-up`. Normal `r` on a highlight still goes through `select-thread-effect`, which now uses `selectThreadPanes` (parent left, child right), equivalent to `show-reflection`. Removing the right thread clears `right`. Tests: `chat/pane-state.node.test.ts`. Deviations:
+- `visible` is not in `SidebarState` yet; `Sidebar` still owns visibility (moved in the two-column stage).
+- Since `parent` is always either `left` or the right pane's thread, the transitions just set `left = parent`; descent falls out of that.
+- Single column still: `Chat.shownThreadId` (right reflection ?? `left`) is what the column, chrome, `getMessages`, external-target visibility and `revealThread` use. Tests that meant "shown" use it.
+- Pane tests exercise the pure functions with a fake `getOrigin` rather than a `Chat` with a test session.
+
 - Goal: `SidebarState` (replacing `ChatState`) carries `left`/`right`. Creation, `r` (on and off highlights), `-`, and thread-overview selection follow the transition rules.
 - Tests (tier A/`node` project on `Chat` with a test session, no nvim):
   - Reflect from left: right pane = child. Reflect from right: shift left. `-` from depth 2 goes to depth 1 with the former left thread on the right. `-` with a root on the left closes the right pane on the first press. `-` with the overview open closes it. `-` with no right pane falls through to the existing navigate-up.

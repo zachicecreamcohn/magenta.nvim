@@ -26,7 +26,7 @@ async function setupThread(driver: Driver): Promise<ThreadId> {
   r1.respond({ stopReason: "end_turn", text: LONG_REPLY, toolRequests: [] });
   await driver.assertDisplayBufferContains("omega line");
   await driver.wait(200);
-  return driver.magenta.chat.state.activeThreadId!;
+  return driver.magenta.chat.shownThreadId!;
 }
 
 async function reflect(driver: Driver, source: ThreadId, text: string) {
@@ -146,7 +146,7 @@ it("lists reflections in anchor order, centres them, and opens with <CR>", async
     });
     await driver.nvim.call("nvim_command", ['exe "normal \\<CR>"']);
     await pollUntil(() => {
-      if (driver.magenta.chat.state.activeThreadId !== omega) {
+      if (driver.magenta.chat.shownThreadId !== omega) {
         throw new Error("omega not shown");
       }
     });
