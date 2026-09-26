@@ -95,7 +95,7 @@ export type SidebarState =
   | {
       state: "thread-selected";
       left: ThreadId;
-      right?: RightPane | undefined;
+      right: RightPane | undefined;
     }
   | ({ state: "archive" } & ArchiveStateFields)
   | ({
@@ -138,7 +138,7 @@ export function paneTransition(
       };
     case "close-right-pane":
       return state.state === "thread-selected"
-        ? { state: "thread-selected", left: state.left }
+        ? { state: "thread-selected", left: state.left, right: undefined }
         : state;
     default:
       return assertUnreachable(msg);
@@ -162,7 +162,7 @@ export function reflectNavigateUp(
       };
     }
   }
-  return { state: "thread-selected", left: state.left };
+  return { state: "thread-selected", left: state.left, right: undefined };
 }
 
 /** Selecting a thread explicitly: a reflect thread opens beside its parent. */
@@ -177,7 +177,7 @@ export function selectThreadPanes(
         left: origin.sourceThreadId,
         right: { type: "reflection", threadId: id },
       }
-    : { state: "thread-selected", left: id };
+    : { state: "thread-selected", left: id, right: undefined };
 }
 
 export type Msg =
@@ -433,7 +433,11 @@ export class Chat {
       rightThreadId(this.state) === id &&
       this.state.state === "thread-selected"
     ) {
-      this.state = { state: "thread-selected", left: this.state.left };
+      this.state = {
+        state: "thread-selected",
+        left: this.state.left,
+        right: undefined,
+      };
     }
   };
 
@@ -532,6 +536,7 @@ export class Chat {
             this.state = {
               state: "thread-selected",
               left: parentThreadId,
+              right: undefined,
             };
 
             // Scroll to bottom when navigating to parent

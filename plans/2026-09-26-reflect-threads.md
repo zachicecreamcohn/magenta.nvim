@@ -455,6 +455,7 @@ Status: DONE. `ChatState` → exported `SidebarState` in `chat.ts`; `activeThrea
 - Since `parent` is always either `left` or the right pane's thread, the transitions just set `left = parent`; descent falls out of that.
 - Single column still: `Chat.shownThreadId` (right reflection ?? `left`) is what the column, chrome, `getMessages`, external-target visibility and `revealThread` use. Tests that meant "shown" use it.
 - Pane tests exercise the pure functions with a fake `getOrigin` rather than a `Chat` with a test session.
+- Review follow-up: `thread-selected.right` is required (`RightPane | undefined`), so every construction decides it. `chat/pane-state.test.ts` (tier C) covers deleting the shown reflection (→ `{left, right: undefined}`), deleting `left` (→ overview), `-` beside a root closing the right pane and marking the reflection viewed, then falling through to navigate-up. `reflections-overview.test.ts` asserts `chat.state` after opening the overview, `-` closing it, and `<CR>` showing the child beside the source.
 
 - Goal: `SidebarState` (replacing `ChatState`) carries `left`/`right`. Creation, `r` (on and off highlights), `-`, and thread-overview selection follow the transition rules.
 - Tests (tier A/`node` project on `Chat` with a test session, no nvim):

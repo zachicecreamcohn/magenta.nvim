@@ -59,7 +59,7 @@ async function lines(driver: Driver, win: number): Promise<string[]> {
 
 it("r off a highlight opens an empty overview, and - closes it", async () => {
   await withDriver({}, async (driver) => {
-    await setupThread(driver);
+    const source = await setupThread(driver);
     const { displayWindow } = driver.getVisibleState();
     await driver.nvim.call("nvim_set_current_win", [displayWindow.id]);
     await driver.nvim.call("nvim_win_set_cursor", [displayWindow.id, [1, 0]]);
@@ -69,11 +69,21 @@ it("r off a highlight opens an empty overview, and - closes it", async () => {
       const text = (await lines(driver, win)).join("\n");
       if (!text.includes("No reflections yet")) throw new Error(text);
     });
+    expect(driver.magenta.chat.state).toEqual({
+      state: "thread-selected",
+      left: source,
+      right: { type: "reflections-overview" },
+    });
     await driver.nvim.call("nvim_command", ["normal -"]);
     await pollUntil(async () => {
       if (await driver.nvim.call("nvim_win_is_valid", [win])) {
         throw new Error("overview still open");
       }
+    });
+    expect(driver.magenta.chat.state).toEqual({
+      state: "thread-selected",
+      left: source,
+      right: undefined,
     });
   });
 });
@@ -151,6 +161,11 @@ it("lists reflections in anchor order, centres them, and opens with <CR>", async
       }
     });
     expect(await driver.nvim.call("nvim_win_is_valid", [win])).toBe(false);
+    expect(driver.magenta.chat.state).toEqual({
+      state: "thread-selected",
+      left: source,
+      right: { type: "reflection", threadId: omega },
+    });
   });
 });
 

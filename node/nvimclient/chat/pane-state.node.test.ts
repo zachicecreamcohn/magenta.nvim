@@ -30,7 +30,7 @@ const getOrigin = (t: ThreadId) => origins[t];
 const sel = (left: ThreadId, right?: ThreadId): SidebarState => ({
   state: "thread-selected",
   left,
-  ...(right ? { right: { type: "reflection", threadId: right } } : {}),
+  right: right ? { type: "reflection", threadId: right } : undefined,
 });
 
 describe("pane transitions", () => {
