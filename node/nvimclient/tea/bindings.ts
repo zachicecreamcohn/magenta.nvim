@@ -1,8 +1,18 @@
+import type { DisplayBufferText } from "@magenta/server";
 import type { Position0Indexed } from "../nvim/window.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { MountedVDOM } from "./view.ts";
 
-export const BINDING_KEYS = ["<CR>", "t", "dd", "=", "F", "d", "a"] as const;
+export const BINDING_KEYS = [
+  "<CR>",
+  "t",
+  "dd",
+  "=",
+  "F",
+  "d",
+  "a",
+  "r",
+] as const;
 
 export type BindingKey = (typeof BINDING_KEYS)[number];
 
@@ -12,12 +22,24 @@ export const BINDING_MODES: Partial<
 > = {
   F: ["n", "v"],
   d: ["v"],
+  r: ["n", "v"],
 };
 
 /** Optional context passed from lua → tea when invoking a binding. The visual
  * variant of `F` includes the visual selection text. */
+export type BindingRange = {
+  start: Position0Indexed;
+  /** Inclusive: the byte column of the last selected character. */
+  end: Position0Indexed;
+  linewise: boolean;
+  /** The selected text, sliced from the display buffer lines. */
+  text: DisplayBufferText;
+};
 export type BindingCtx = {
   selection?: string[];
+  range?: BindingRange;
+  /** Extent of the node that owns the invoked binding. */
+  node?: { startPos: Position0Indexed; endPos: Position0Indexed };
 };
 
 export type Bindings = Partial<{
@@ -44,7 +66,7 @@ export function getBinding(
 
   switch (mountedNode.type) {
     case "string":
-      return mountedNode.bindings?.[key];
+      return withNode(mountedNode, mountedNode.bindings?.[key]);
     case "node":
     case "array": {
       // Walk children to find the most specific (innermost) binding for this
@@ -55,11 +77,30 @@ export function getBinding(
           return childBinding;
         }
       }
-      return mountedNode.bindings?.[key];
+      return withNode(mountedNode, mountedNode.bindings?.[key]);
     }
     default:
       assertUnreachable(mountedNode);
   }
+}
+
+function withNode(
+  mountedNode: MountedVDOM,
+  binding: ((ctx?: BindingCtx) => void) | undefined,
+): ((ctx?: BindingCtx) => void) | undefined {
+  if (!binding) return undefined;
+  const node = { startPos: mountedNode.startPos, endPos: mountedNode.endPos };
+  return (ctx) => binding({ ...ctx, node });
+}
+
+export function isRangeWithinNode(
+  range: Pick<BindingRange, "start" | "end">,
+  node: { startPos: Position0Indexed; endPos: Position0Indexed },
+): boolean {
+  return (
+    comparePos(range.start, node.startPos) !== "lt" &&
+    comparePos(range.end, node.endPos) === "lt"
+  );
 }
 
 /**

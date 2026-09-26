@@ -6,6 +6,7 @@ import {
   activeTools,
   type CompactionRunState,
   type CompletedToolInfo,
+  type ContentBlockIdx,
   type ContextFileAccess,
   compactionRunChunkIndex,
   compactionRunThreadIds,
@@ -13,6 +14,7 @@ import {
   type EditedFileGroup,
   formatToolSpec,
   formatToolSpecs,
+  type MessageIdx,
   type NativeMessageIdx,
   type ProviderToolSpec,
   renderPending,
@@ -29,6 +31,7 @@ import {
   renderContextUpdate,
   renderGitUpdate,
 } from "../context/context-manager.ts";
+import { notify } from "../nvim/nvim.ts";
 import type {
   ProviderMessage,
   ProviderMessageContent,
@@ -48,6 +51,7 @@ import {
 } from "../render-tools/index.ts";
 import { renderStreamdedTool } from "../render-tools/streaming.ts";
 import { spinnerFrame } from "../spinner.ts";
+import { isRangeWithinNode } from "../tea/bindings.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import {
   d,
@@ -828,6 +832,24 @@ function renderMessageContent(
         nativeMessageIdx: content.nativeMessageIdx,
         ...(ctx?.selection ? { prepopulate: ctx.selection } : {}),
       }),
+    r: (ctx) => {
+      if (!ctx?.range) return;
+      if (!ctx.node || !isRangeWithinNode(ctx.range, ctx.node)) {
+        notify(
+          thread.context.nvim,
+          "Reflection selections must lie within a single content block.",
+        ).catch(() => {});
+        return;
+      }
+      dispatch({
+        type: "reflect-selection",
+        anchor: {
+          messageIdx: messageIdx as MessageIdx,
+          contentIdx: contentIdx as ContentBlockIdx,
+          reflectionText: ctx.range.text,
+        },
+      });
+    },
   });
 }
 
@@ -1202,6 +1224,25 @@ function renderMessageContentBlock(
         );
       }
       return d`🌐 Search results\n`;
+    }
+
+    case "thread_context": {
+      const viewState = thread.state.messageViewState[messageIdx];
+      const isExpanded = viewState?.expandedContent?.[contentIdx] || false;
+      const toggle = {
+        "=": () =>
+          dispatch({
+            type: "toggle-expand-content",
+            messageIdx,
+            contentIdx,
+          }),
+      };
+      return withBindings(
+        isExpanded
+          ? d`${withExtmark(d`[thread context]`, { hl_group: "@comment" })}\n${content.text}\n\n`
+          : withExtmark(d`[thread context]\n\n`, { hl_group: "@comment" }),
+        toggle,
+      );
     }
 
     case "fork_notification": {

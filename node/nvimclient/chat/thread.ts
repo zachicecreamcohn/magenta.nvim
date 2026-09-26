@@ -1,5 +1,6 @@
 import type {
   GitState,
+  ReflectAnchor,
   ScriptSandboxRoot,
   SubagentConfig,
   SystemInfo,
@@ -174,6 +175,10 @@ export type Msg =
       type: "fork-message";
       nativeMessageIdx: NativeMessageIdx;
       prepopulate?: string[];
+    }
+  | {
+      type: "reflect-selection";
+      anchor: ReflectAnchor;
     };
 
 export type ThreadMsg = {
@@ -684,6 +689,7 @@ export class NvimThread {
         return;
 
       case "fork-message":
+      case "reflect-selection":
         // Handled at the Magenta dispatch level; ignored here.
         return;
 

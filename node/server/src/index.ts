@@ -47,6 +47,7 @@ export type {
   ThreadManager,
 } from "./capabilities/thread-manager.ts";
 export {
+  type ContentBlockIdx,
   type DisplayBufferText,
   isThreadId,
   type MessageIdx,

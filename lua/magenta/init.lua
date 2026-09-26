@@ -367,8 +367,24 @@ M.bridge = function(channelId)
           local endRow = endPos[2] - 1
           local endCol = endPos[3]
 
-          local lines = vim.api.nvim_buf_get_text(bufnr, startRow, startCol, endRow, endCol, {})
-          safe_rpcnotify(channelId, "magentaKey", vimKey, { selection = lines })
+          local linewise = vim.fn.visualmode() == "V"
+          local rowLines = vim.api.nvim_buf_get_lines(bufnr, startRow, endRow + 1, false)
+          local lines
+          if linewise then
+            lines = rowLines
+          else
+            local lastLen = #(rowLines[#rowLines] or "")
+            lines = vim.api.nvim_buf_get_text(bufnr, startRow, startCol, endRow, math.min(endCol, lastLen), {})
+          end
+          safe_rpcnotify(channelId, "magentaKey", vimKey, {
+            selection = lines,
+            range = {
+              start = { startRow, startCol },
+              ["end"] = { endRow, endCol - 1 },
+              linewise = linewise,
+              lines = rowLines,
+            },
+          })
         end,
         { buffer = bufnr, noremap = true, silent = true }
       )

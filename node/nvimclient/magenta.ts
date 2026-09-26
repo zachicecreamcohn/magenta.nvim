@@ -7,6 +7,7 @@ import {
   type NativeMessageIdx,
   parseDelivery,
   probeAndSaveClipboardImage,
+  type ReflectAnchor,
   readArchivedThreadLog,
   readThreadMeta,
   renderThreadLogToMarkdown,
@@ -27,6 +28,7 @@ import { Lsp } from "./capabilities/lsp.ts";
 import { StraceUnavailableError } from "./capabilities/strace.ts";
 import { Chat } from "./chat/chat.ts";
 import { CommandRegistry } from "./chat/commands/registry.ts";
+import { sliceDisplayBufferSelection } from "./chat/reflect-anchor.ts";
 import { NvimSessionHost } from "./chat/session-host.ts";
 import {
   type BufNr,
@@ -35,7 +37,13 @@ import {
   NvimBuffer,
 } from "./nvim/buffer.ts";
 import { initializeMagentaHighlightGroups } from "./nvim/extmarks.ts";
-import { getCurrentBuffer, getcwd, getpos, notifyErr } from "./nvim/nvim.ts";
+import {
+  getCurrentBuffer,
+  getcwd,
+  getpos,
+  notify,
+  notifyErr,
+} from "./nvim/nvim.ts";
 import type { Nvim } from "./nvim/nvim-node/index.ts";
 import {
   findOrCreateNonMagentaWindow,
@@ -43,6 +51,7 @@ import {
 } from "./nvim/openFileInNonMagentaWindow.ts";
 import {
   NvimWindow,
+  type Position0Indexed,
   type Position1Indexed,
   pos1col1to0,
   type Row0Indexed,
@@ -85,6 +94,15 @@ import { getMarkdownExt } from "./utils/markdown.ts";
 const MAGENTA_COMMAND = "magentaCommand";
 const MAGENTA_ON_WINDOW_CLOSED = "magentaWindowClosed";
 const MAGENTA_KEY = "magentaKey";
+
+/** Visual selection as sent by lua's `listenToBufKey`: 0-indexed rows, byte
+ * columns, and the full buffer lines the selection spans. */
+type RawVisualRange = {
+  start: [number, number];
+  end: [number, number];
+  linewise: boolean;
+  lines: unknown[];
+};
 const MAGENTA_LSP_RESPONSE = "magentaLspResponse";
 const MAGENTA_BUF_ENTER = "magentaBufEnter";
 const MAGENTA_BUF_DELETE = "magentaBufDelete";
@@ -187,6 +205,15 @@ export class Magenta {
           ).catch((e) => {
             nvim.logger.error(
               `Error forking thread at message: ${e instanceof Error ? `${e.message}\n${e.stack}` : JSON.stringify(e)}`,
+            );
+          });
+          return;
+        }
+
+        if (msg.type === "thread-msg" && msg.msg.type === "reflect-selection") {
+          this.reflectAndSwitch(msg.id, msg.msg.anchor).catch((e) => {
+            nvim.logger.error(
+              `Error creating reflection: ${e instanceof Error ? `${e.message}\n${e.stack}` : JSON.stringify(e)}`,
             );
           });
           return;
@@ -505,6 +532,48 @@ export class Magenta {
       msg: { type: "set-active-thread", id: threadId },
     });
     await this.syncActiveView();
+    return threadId;
+  }
+
+  /** Creates a reflect thread on `anchor` without sending anything, shows it,
+   * and leaves the cursor in its input buffer in insert mode. Until the two
+   * column layout lands, the reflection replaces the source in the sidebar. */
+  async reflectAndSwitch(
+    sourceThreadId: ThreadId,
+    anchor: ReflectAnchor,
+  ): Promise<ThreadId | Aborted> {
+    const duplicate = this.chat.session
+      .listDerived(sourceThreadId, "reflect")
+      .some(
+        ({ origin }) =>
+          origin.anchor.messageIdx === anchor.messageIdx &&
+          origin.anchor.contentIdx === anchor.contentIdx &&
+          origin.anchor.reflectionText === anchor.reflectionText,
+      );
+    if (duplicate) {
+      await notify(this.nvim, "This selection already has a reflection.");
+      return ABORTED;
+    }
+    const threadId = await this.chat.session.reflectThread(
+      sourceThreadId,
+      anchor,
+    );
+    if (threadId === ABORTED) return ABORTED;
+    await this.bufferManager.registerThread(threadId);
+    this.dispatch({
+      type: "chat-msg",
+      msg: { type: "set-active-thread", id: threadId },
+    });
+    await this.syncActiveView();
+    if (!this.sidebar.isVisible()) {
+      await this.command("toggle");
+    }
+    if (this.sidebar.state.state === "visible") {
+      await this.nvim.call("nvim_set_current_win", [
+        this.sidebar.state.inputWindow.id,
+      ]);
+      await this.nvim.call("nvim_command", ["startinsert"]);
+    }
     return threadId;
   }
 
@@ -891,10 +960,24 @@ ${lines.join("\n")}
 
   onKey(args: unknown[]) {
     const key = args[0] as string;
-    const rawCtx = args[1] as { selection?: unknown } | undefined;
+    const rawCtx = args[1] as
+      | { selection?: unknown; range?: RawVisualRange }
+      | undefined;
     let ctx: BindingCtx | undefined;
     if (rawCtx && Array.isArray(rawCtx.selection)) {
       ctx = { selection: rawCtx.selection.map((s) => String(s)) };
+      if (rawCtx.range) {
+        const { start, end, linewise, lines } = rawCtx.range;
+        const range = {
+          start: { row: start[0], col: start[1] } as Position0Indexed,
+          end: { row: end[0], col: end[1] } as Position0Indexed,
+          linewise: !!linewise,
+        };
+        ctx.range = {
+          ...range,
+          text: sliceDisplayBufferSelection(lines.map(String), range),
+        };
+      }
     }
     const mountedApp = this.bufferManager.getMountedApp(this.getActiveKey());
     if (mountedApp) {

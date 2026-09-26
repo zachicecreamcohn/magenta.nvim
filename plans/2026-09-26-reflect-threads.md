@@ -377,6 +377,11 @@ Status: DONE. `ThreadType` `"reflect"`, `ReflectAnchor`, `DisplayBufferText` and
 
 ## Anchor capture
 
+Status: DONE. `r` added to `BINDING_KEYS` (`n`/`v`); `BindingCtx` gains `range` (`start`, inclusive `end`, `linewise`, and the sliced `text: DisplayBufferText`) and `node` (extent of the node owning the binding, injected by `getBinding`). Lua's visual handler sends `range` plus the full spanned lines (and now handles `V` correctly); `Magenta.onKey` slices them with `sliceDisplayBufferSelection` (`chat/reflect-anchor.ts`, the only cast to `DisplayBufferText`). The content-block wrapper in `thread-view.ts` binds visual `r`: out-of-block selections notify, otherwise it dispatches thread msg `reflect-selection`, handled in `Magenta.reflectAndSwitch` (duplicate check → `session.reflectThread` → show → input window, `startinsert`). `thread_context` renders collapsed as `[thread context]` + blank line, `=` expands. Tests: `reflect-anchor.node.test.ts`, `reflect-anchor.test.ts`. Deviations:
+- No right column yet: the reflect thread replaces the source in the single sidebar column until the pane/two-column stages.
+- Normal-mode `r` does nothing yet (highlight/overview stages).
+- The reflect display also shows the `# user:` header above `[thread context]`.
+
 - Goal: visual `r` in a display buffer over a text block dispatches `reflect-selection` with a correct `ReflectAnchor`.
 - Tests:
   - Pure unit tests for buffer-range → `reflectionText`: charwise within one line, across lines, linewise, multibyte characters.
