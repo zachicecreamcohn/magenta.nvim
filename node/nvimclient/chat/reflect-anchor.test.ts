@@ -1,4 +1,5 @@
 import { expect, it } from "vitest";
+import { MAGENTA_REFLECT_NAMESPACE } from "../nvim/buffer.ts";
 import { getCurrentWindow } from "../nvim/nvim.ts";
 import type { Row0Indexed } from "../nvim/window.ts";
 import type { NvimDriver as Driver } from "../test/driver.ts";
@@ -127,5 +128,73 @@ it("linewise V inside one block reflects on the full line", async () => {
       "reflect",
     );
     expect(derived.origin.anchor.reflectionText).toBe("Second line here.");
+  });
+});
+it("highlights reflections, jumps with ]r/[r, and r on a highlight shows it", async () => {
+  await withDriver({}, async (driver) => {
+    const sourceId = await setupThread(driver);
+    await visualOn(driver, "calls itself", "vlllllllllllr");
+    const backToSource = async () => {
+      await pollUntil(() => {
+        if (driver.magenta.chat.state.activeThreadId === sourceId) {
+          throw new Error("reflection not shown yet");
+        }
+      });
+      await driver.nvim.call("nvim_command", ["stopinsert"]);
+      driver.magenta.dispatch({ type: "select-thread-effect", id: sourceId });
+      await driver.assertDisplayBufferContains("Second line here.");
+      await driver.wait(200);
+    };
+    await backToSource();
+    await visualOn(driver, "Second line here.", "vlllllr");
+    await backToSource();
+    const buffer = driver.getDisplayBuffer();
+    const marks = await pollUntil(async () => {
+      const ms = (await buffer.getExtmarks(MAGENTA_REFLECT_NAMESPACE)).filter(
+        (m) => m.options.hl_group === "MagentaReflect",
+      );
+      if (ms.length !== 2) throw new Error(`marks: ${ms.length}`);
+      return ms;
+    });
+    const lines = await buffer.getLines({
+      start: 0 as Row0Indexed,
+      end: -1 as Row0Indexed,
+    });
+    const texts = marks.map((m) =>
+      Buffer.from(lines[m.startPos.row])
+        .subarray(m.startPos.col, m.endPos.col)
+        .toString(),
+    );
+    expect(texts.sort()).toEqual(["Second", "calls itself"]);
+    expect(marks[0].options.virt_lines?.[0][0][0]).toContain("↳ reflect:");
+
+    const { displayWindow } = driver.getVisibleState();
+    await driver.nvim.call("nvim_set_current_win", [displayWindow.id]);
+    await driver.nvim.call("nvim_win_set_cursor", [displayWindow.id, [1, 0]]);
+    const cursorAfter = async (keys: string) => {
+      await driver.nvim.call("nvim_command", [`normal ${keys}`]);
+      return (await driver.nvim.call("nvim_win_get_cursor", [
+        displayWindow.id,
+      ])) as [number, number];
+    };
+    const sorted = [...marks].sort((a, b) => a.startPos.row - b.startPos.row);
+    const first = sorted[0].startPos;
+    const second = sorted[1].startPos;
+    expect(await cursorAfter("]r")).toEqual([first.row + 1, first.col]);
+    expect(await cursorAfter("]r")).toEqual([second.row + 1, second.col]);
+    expect(await cursorAfter("[r")).toEqual([first.row + 1, first.col]);
+
+    // normal r on the highlight shows that reflection
+    await driver.nvim.call("nvim_command", ["normal r"]);
+    await pollUntil(() => {
+      if (driver.magenta.chat.state.activeThreadId === sourceId) {
+        throw new Error("still on source");
+      }
+    });
+    const shown = driver.magenta.chat.state.activeThreadId!;
+    expect(driver.magenta.chat.session.getOrigin(shown)).toMatchObject({
+      type: "reflect",
+      anchor: { reflectionText: "calls itself" },
+    });
   });
 });

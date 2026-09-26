@@ -301,7 +301,37 @@ local function jump_to_header(direction, filter)
 end
 
 
+-- Reflection highlights (and their fallback markers) live in their own
+-- namespace, placed by node's TEA highlight pass.
+local function jump_to_reflection(direction)
+  local ns = vim.api.nvim_create_namespace("magenta-reflect")
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  local row, col = cursor[1] - 1, cursor[2]
+  local marks = vim.api.nvim_buf_get_extmarks(0, ns, 0, -1, {})
+  local target = nil
+  if direction == "next" then
+    for _, m in ipairs(marks) do
+      if m[2] > row or (m[2] == row and m[3] > col) then
+        target = m
+        break
+      end
+    end
+  else
+    for i = #marks, 1, -1 do
+      local m = marks[i]
+      if m[2] < row or (m[2] == row and m[3] < col) then
+        target = m
+        break
+      end
+    end
+  end
+  if target then
+    vim.api.nvim_win_set_cursor(0, { target[2] + 1, target[3] })
+  end
+end
 local message_jump_keymaps = {
+  ["]r"] = function() jump_to_reflection("next") end,
+  ["[r"] = function() jump_to_reflection("prev") end,
   ["]m"] = function() jump_to_header("next", "any") end,
   ["[m"] = function() jump_to_header("prev", "any") end,
   ["]u"] = function() jump_to_header("next", "user") end,

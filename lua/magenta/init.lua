@@ -102,6 +102,9 @@ M.setup = function(opts)
 
   Options.set_options(opts)
 
+  vim.api.nvim_set_hl(0, "MagentaReflect", { link = "Search", default = true })
+  vim.api.nvim_set_hl(0, "MagentaReflectActive", { link = "IncSearch", default = true })
+
   M.start(true)
   Timings.record("lua: after M.start (node job spawned)")
 

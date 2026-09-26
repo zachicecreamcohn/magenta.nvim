@@ -393,6 +393,14 @@ Status: DONE. `r` added to `BINDING_KEYS` (`n`/`v`); `BindingCtx` gains `range` 
 
 ## Highlights and jumping
 
+Status: DONE. `NodeHighlight`/`withHighlights` in `tea/view.ts`; placement, `findInDisplayBufferText`, `clearHighlights`, `getHighlightPos` in `tea/highlights.ts`; `MountedApp.getHighlightPos`; highlight bindings in `getBinding` (normal mode, match only, checked after children and before the node's own bindings); marks live in a new `MAGENTA_REFLECT_NAMESPACE` (`magenta-reflect`), which `]r`/`[r` (`keymaps.lua`) scan; `MagentaReflect`/`MagentaReflectActive` are default-linked to `Search`/`IncSearch` in `init.lua` setup. `thread-view.ts` wraps each content block with its reflections (label: child title / `streaming…` / `n messages`). Tests: `tea/highlights.node.test.ts`, `tea/highlights.test.ts`, and a tier C case in `chat/reflect-anchor.test.ts`. Deviations:
+- Change detection is a post-pass (`syncHighlights`, after `render`/`update`) rather than a `changed` flag from `visitNode`: each highlighted node keeps a signature of its rendered text + highlights and only re-places marks when it differs. Unhighlighted nodes cost nothing; highlighted ones cost a string join per render.
+- `findInDisplayBufferText(haystack, needle)` takes the node's joined text (not lines) and returns byte offsets; it lives in `tea/highlights.ts`, not `chat/reflect-highlights.ts`.
+- Recorded positions are stored relative to the node's `startPos` (which `update` keeps current), so bindings and `getHighlightPos` need no extmark RPC.
+- No right pane yet: `MagentaReflectActive` is defined but unused, and normal `r` on a highlight dispatches `select-thread-effect` for the child (replaces `show-reflection` until the pane-state stage). Normal `r` off a highlight still does nothing (overview stage).
+- The parent's labels refresh only when the parent re-renders.
+- Not covered by tests: fallback toggling in tier C, resize stability.
+
 - Goal: reflected passages render highlighted with a virt-line label. Normal `r` on a highlight shows the child, `<CR>` is unchanged, and `]r`/`[r` jump. `withHighlights`/`getHighlightPos` work.
 - Tests:
   - `findInDisplayBufferText` unit tests: single line, spanning lines, not found, repeated text (first occurrence).

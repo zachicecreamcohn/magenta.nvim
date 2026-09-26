@@ -34,6 +34,9 @@ export const HL_GROUPS = [
   "Normal",
   "Function",
   "CursorLine",
+  // Magenta groups, defined (default-linked) in lua setup
+  "MagentaReflect",
+  "MagentaReflectActive",
   // Diff highlight groups
   "DiffAdd",
   "DiffDelete",

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { SystemPrompt } from "@magenta/server";
+import type { DisplayBufferText, SystemPrompt } from "@magenta/server";
 import {
   activeTools,
   type CompactionRunState,
@@ -55,10 +55,12 @@ import { isRangeWithinNode } from "../tea/bindings.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import {
   d,
+  type NodeHighlight,
   type VDOMNode,
   type View,
   withBindings,
   withExtmark,
+  withHighlights,
 } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { formatTokens } from "../utils/tokens.ts";
@@ -611,6 +613,20 @@ ${contextFilesView(thread.thread.contextFiles, contextViewCtx(thread), {
     childThreadId: d.threadId,
     atMessageIdx: d.origin.nativeMessageIdx,
   }));
+  const reflections = session.listDerived(thread.id, "reflect");
+  const reflectionsFor = (
+    messageIdx: MessageIdx,
+    contentIdx: ContentBlockIdx,
+  ): NodeHighlight[] =>
+    reflections
+      .filter(
+        ({ origin }) =>
+          origin.anchor.messageIdx === messageIdx &&
+          origin.anchor.contentIdx === contentIdx,
+      )
+      .map(({ threadId, origin }) =>
+        reflectionHighlight(thread, threadId, origin.anchor.reflectionText),
+      );
   const forkedToAtIdx = (messageIdx: number) => {
     const forks = forkedTo.filter((fork) => fork.atMessageIdx === messageIdx);
     return forks.length > 0
@@ -749,6 +765,7 @@ ${contextFilesView(thread.thread.contextFiles, contextViewCtx(thread), {
         dispatch,
         message.usage,
         isLastBlock,
+        reflectionsFor(messageIdx as MessageIdx, contentIdx as ContentBlockIdx),
       );
     });
 
@@ -811,6 +828,7 @@ function renderMessageContent(
   dispatch: Dispatch<Msg>,
   messageUsage: Usage | undefined,
   isLastBlock: boolean,
+  highlights: NodeHighlight[],
 ): VDOMNode {
   const inner = renderMessageContentBlock(
     content,
@@ -825,7 +843,7 @@ function renderMessageContent(
   // <CR> to expand a thinking block) live on a child node and continue to
   // take precedence per getBindings' "most specific wins" traversal. The F
   // binding lives on the outer wrapper.
-  return withBindings(d`${inner}`, {
+  const wrapper = withBindings(d`${inner}`, {
     F: (ctx) =>
       dispatch({
         type: "fork-message",
@@ -852,6 +870,46 @@ function renderMessageContent(
       });
     },
   });
+  return withHighlights(wrapper, highlights);
+}
+
+function reflectionLabel(thread: NvimThread, childId: ThreadId): string {
+  const record = thread.context.chat.session.getThread(childId);
+  if (record?.state !== "initialized") return record?.state ?? "missing";
+  const child = record.thread;
+  if (child.state.type === "running") return "streaming…";
+  if (child.title) return child.title;
+  const n = child.getProviderMessages().length;
+  return `${n} message${n === 1 ? "" : "s"}`;
+}
+
+function reflectionHighlight(
+  thread: NvimThread,
+  childId: ThreadId,
+  reflectionText: DisplayBufferText,
+): NodeHighlight {
+  const label = reflectionLabel(thread, childId);
+  const quoted =
+    reflectionText.length > 40
+      ? `${reflectionText.slice(0, 40).replace(/\n/g, " ")}…`
+      : reflectionText.replace(/\n/g, " ");
+  return {
+    id: childId,
+    text: reflectionText,
+    extmarkOptions: {
+      hl_group: "MagentaReflect",
+      virt_lines: [[[`  ↳ reflect: ${label}`, "MagentaReflect"]]],
+    },
+    fallback: {
+      virt_lines: [[[`  reflection → ${quoted} (${label})`, "MagentaReflect"]]],
+    },
+    bindings: {
+      // Until the two-column layout lands, showing a reflection replaces the
+      // source in the single sidebar column.
+      r: () =>
+        thread.context.dispatch({ type: "select-thread-effect", id: childId }),
+    },
+  };
 }
 
 function renderMessageContentBlock(

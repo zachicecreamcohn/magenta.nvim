@@ -36,12 +36,16 @@ export const MAGENTA_COMMENT_ANCHOR_NAMESPACE = "magenta-comment-anchors";
  */
 export const MAGENTA_COMMENT_NAMESPACE = "magenta-comments";
 
+/** Reflection highlights and their fallback markers. Separate so lua's
+ * `]r`/`[r` can jump between them without scanning other highlights. */
+export const MAGENTA_REFLECT_NAMESPACE = "magenta-reflect";
 /** The namespaces magenta owns. Keeps a typo from silently creating a fresh,
  * invisible namespace. */
 export type MagentaNamespace =
   | typeof MAGENTA_HIGHLIGHT_NAMESPACE
   | typeof MAGENTA_COMMENT_ANCHOR_NAMESPACE
-  | typeof MAGENTA_COMMENT_NAMESPACE;
+  | typeof MAGENTA_COMMENT_NAMESPACE
+  | typeof MAGENTA_REFLECT_NAMESPACE;
 
 export class NvimBuffer {
   constructor(

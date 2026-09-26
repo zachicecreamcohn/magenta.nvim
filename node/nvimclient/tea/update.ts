@@ -4,6 +4,7 @@ import {
   extmarkOptionsEqual,
 } from "../nvim/extmarks.ts";
 import type { ByteIdx, Position0Indexed, Row0Indexed } from "../nvim/window.ts";
+import { clearHighlights } from "./highlights.ts";
 import { render } from "./render.ts";
 import { replaceBetweenPositions } from "./util.ts";
 import type {
@@ -140,6 +141,7 @@ async function cleanupExtmarks(
   if (node.extmarkId) {
     await mount.buffer.deleteExtmark(node.extmarkId);
   }
+  await clearHighlights(node, mount);
 
   // Recursively clean up children's extmarks
   if (node.type === "node" || node.type === "array") {
@@ -339,6 +341,7 @@ export async function update({
             current as unknown as CurrentMountedVDOM,
           );
           updatedNode.bindings = nextStringNode.bindings;
+          updatedNode.highlights = nextStringNode.highlights;
 
           // Handle extmark updates for content that didn't change
           const extmarkId = await handleExtmarkUpdate({
@@ -412,6 +415,7 @@ export async function update({
             startPos: finalStartPos as unknown as NextPosition,
             endPos: finalEndPos as unknown as NextPosition,
             bindings: nextNode.bindings,
+            highlights: nextNode.highlights,
             ...(nextNode.extmarkOptions && {
               extmarkOptions: nextNode.extmarkOptions,
             }),
@@ -537,6 +541,7 @@ export async function update({
           startPos: finalStartPos as unknown as NextPosition,
           endPos: finalEndPos as unknown as NextPosition,
           bindings: nextNode.bindings,
+          highlights: nextNode.highlights,
           ...(nextNode.extmarkOptions && {
             extmarkOptions: nextNode.extmarkOptions,
           }),

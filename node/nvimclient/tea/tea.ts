@@ -1,11 +1,11 @@
-import type { NvimBuffer } from "../nvim/buffer.ts";
+import { MAGENTA_REFLECT_NAMESPACE, type NvimBuffer } from "../nvim/buffer.ts";
 import {
   getCurrentWindow,
   restoreWinViews,
   saveWinViews,
 } from "../nvim/nvim.ts";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
-import type { Row0Indexed } from "../nvim/window.ts";
+import type { Position0Indexed, Row0Indexed } from "../nvim/window.ts";
 import { Defer } from "../utils/async.ts";
 import {
   BINDING_KEYS,
@@ -14,6 +14,7 @@ import {
   type BindingKey,
   getBinding,
 } from "./bindings.ts";
+import { getHighlightPos } from "./highlights.ts";
 import {
   d,
   type MountedVDOM,
@@ -45,6 +46,9 @@ export type MountedApp = {
   waitForRender(): Promise<void>;
   waitForNextRender(): Promise<void>;
   renderVersion: number;
+  getHighlightPos(
+    id: string,
+  ): { startPos: Position0Indexed; endPos: Position0Indexed } | undefined;
 };
 
 export type UnhandledKeyHandler = (args: {
@@ -132,6 +136,9 @@ export function createApp<Model>({
               try {
                 nvim.logger.info("Attempting to recover by re-mounting view");
                 await mountPoint.buffer.clearAllExtmarks();
+                await mountPoint.buffer.clearAllExtmarks(
+                  MAGENTA_REFLECT_NAMESPACE,
+                );
                 const wasModifiable =
                   await mountPoint.buffer.getOption("modifiable");
                 await mountPoint.buffer.setOption("modifiable", true);
@@ -254,6 +261,10 @@ export function createApp<Model>({
           }
         },
 
+        getHighlightPos(id: string) {
+          return root ? getHighlightPos(root._getMountedNode(), id) : undefined;
+        },
+
         get renderVersion() {
           return renderVersion;
         },
@@ -318,6 +329,9 @@ export function createApp<Model>({
         root = undefined;
       }
       if (mountPoint) {
+        mountPoint.buffer
+          .clearAllExtmarks(MAGENTA_REFLECT_NAMESPACE)
+          .catch(() => {});
         mountPoint.buffer.clearAllExtmarks().catch((err) => {
           nvim.logger.error(
             err instanceof Error

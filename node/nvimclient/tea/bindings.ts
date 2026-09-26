@@ -1,6 +1,7 @@
 import type { DisplayBufferText } from "@magenta/server";
 import type { Position0Indexed } from "../nvim/window.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
+import { placedPos } from "./highlights.ts";
 import type { MountedVDOM } from "./view.ts";
 
 export const BINDING_KEYS = [
@@ -73,7 +74,10 @@ export function getBinding(
 
   switch (mountedNode.type) {
     case "string":
-      return withNode(mountedNode, mountedNode.bindings?.[key]);
+      return (
+        getHighlightBinding(mountedNode, cursor, mode, key) ??
+        withNode(mountedNode, mountedNode.bindings?.[key])
+      );
     case "node":
     case "array": {
       // Walk children to find the most specific (innermost) binding for this
@@ -84,11 +88,43 @@ export function getBinding(
           return childBinding;
         }
       }
+      const highlightBinding = getHighlightBinding(
+        mountedNode,
+        cursor,
+        mode,
+        key,
+      );
+      if (highlightBinding) return highlightBinding;
       return withNode(mountedNode, mountedNode.bindings?.[key]);
     }
     default:
       assertUnreachable(mountedNode);
   }
+}
+
+/** Normal-mode bindings of a highlight whose match contains the cursor. */
+function getHighlightBinding(
+  mountedNode: MountedVDOM,
+  cursor: Position0Indexed,
+  mode: "n" | "v",
+  key: BindingKey,
+): ((ctx?: BindingCtx) => void) | undefined {
+  if (mode !== "n" || !mountedNode.highlightState || !mountedNode.highlights) {
+    return undefined;
+  }
+  for (const h of mountedNode.highlights) {
+    const binding = h.bindings?.[key];
+    const placed = mountedNode.highlightState.placed.get(h.id);
+    if (!binding || !placed?.matched) continue;
+    const extent = placedPos(mountedNode, placed);
+    if (
+      comparePos(cursor, extent.startPos) !== "lt" &&
+      comparePos(cursor, extent.endPos) === "lt"
+    ) {
+      return (ctx) => binding({ ...ctx, node: extent });
+    }
+  }
+  return undefined;
 }
 
 function withNode(

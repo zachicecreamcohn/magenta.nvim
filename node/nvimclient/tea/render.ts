@@ -4,7 +4,12 @@ import type { ByteIdx } from "../nvim/window.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { Bindings } from "./bindings.ts";
 import { calculatePosition, replaceBetweenPositions } from "./util.ts";
-import type { MountedVDOM, MountPoint, VDOMNode } from "./view.ts";
+import type {
+  MountedVDOM,
+  MountPoint,
+  NodeHighlight,
+  VDOMNode,
+} from "./view.ts";
 
 export async function render({
   vdom,
@@ -21,6 +26,7 @@ export async function render({
         end: ByteIdx;
         bindings?: Bindings | undefined;
         extmarkOptions?: ExtmarkOptions | undefined;
+        highlights?: NodeHighlight[] | undefined;
       }
     | {
         type: "node";
@@ -30,6 +36,7 @@ export async function render({
         end: ByteIdx;
         bindings?: Bindings | undefined;
         extmarkOptions?: ExtmarkOptions | undefined;
+        highlights?: NodeHighlight[] | undefined;
       }
     | {
         type: "array";
@@ -38,6 +45,7 @@ export async function render({
         end: ByteIdx;
         bindings?: Bindings | undefined;
         extmarkOptions?: ExtmarkOptions | undefined;
+        highlights?: NodeHighlight[] | undefined;
       };
 
   // First pass: build the complete string and create tree structure with positions
@@ -59,6 +67,7 @@ export async function render({
           end: currentByteWidth,
           bindings: node.bindings,
           extmarkOptions: node.extmarkOptions,
+          highlights: node.highlights,
         };
       }
       case "node": {
@@ -72,6 +81,7 @@ export async function render({
           end: currentByteWidth,
           bindings: node.bindings,
           extmarkOptions: node.extmarkOptions,
+          highlights: node.highlights,
         };
       }
       case "array": {
@@ -84,6 +94,7 @@ export async function render({
           end: currentByteWidth,
           bindings: node.bindings,
           extmarkOptions: node.extmarkOptions,
+          highlights: node.highlights,
         };
       }
       default: {
@@ -128,6 +139,7 @@ export async function render({
           bindings: node.bindings,
           ...(node.extmarkOptions && { extmarkOptions: node.extmarkOptions }),
           ...(extmarkId && { extmarkId }),
+          ...(node.highlights && { highlights: node.highlights }),
         };
       case "node": {
         const children = await Promise.all(node.children.map(assignPositions));
@@ -140,6 +152,7 @@ export async function render({
           bindings: node.bindings,
           ...(node.extmarkOptions && { extmarkOptions: node.extmarkOptions }),
           ...(extmarkId && { extmarkId }),
+          ...(node.highlights && { highlights: node.highlights }),
         };
       }
       case "array": {
@@ -152,6 +165,7 @@ export async function render({
           bindings: node.bindings,
           ...(node.extmarkOptions && { extmarkOptions: node.extmarkOptions }),
           ...(extmarkId && { extmarkId }),
+          ...(node.highlights && { highlights: node.highlights }),
         };
       }
       default:

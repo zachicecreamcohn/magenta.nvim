@@ -1,9 +1,11 @@
+import type { DisplayBufferText } from "@magenta/server";
 import type { NvimBuffer } from "../nvim/buffer.ts";
 import type { ExtmarkId, ExtmarkOptions } from "../nvim/extmarks.ts";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
-import type { Position0Indexed } from "../nvim/window.ts";
+import type { ByteIdx, Position0Indexed } from "../nvim/window.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { Bindings } from "./bindings.ts";
+import { syncHighlights } from "./highlights.ts";
 import { render } from "./render.ts";
 import { update } from "./update.ts";
 
@@ -18,12 +20,40 @@ export interface MountPoint {
   endPos: Position0Indexed;
 }
 
+/** A passage within a node's rendered text that gets its own extmark. */
+export type NodeHighlight = {
+  /** Stable across renders, e.g. the reflect child's ThreadId. */
+  id: string;
+  /** Searched for within this node's rendered text. */
+  text: DisplayBufferText;
+  extmarkOptions: ExtmarkOptions;
+  /** Placed at the node's end when `text` isn't found. */
+  fallback: ExtmarkOptions;
+  /** Active (normal mode) when the cursor is inside the match. */
+  bindings?: Bindings;
+};
+
+/** Where a highlight's mark sits, relative to its node's startPos so that it
+ * follows the node as earlier content shifts. */
+export type PlacedHighlight = {
+  extmarkId: ExtmarkId;
+  matched: boolean;
+  start: RelativePos;
+  end: RelativePos;
+};
+export type RelativePos = { rowDelta: number; col: ByteIdx };
+export type HighlightState = {
+  signature: string;
+  placed: Map<string, PlacedHighlight>;
+};
+
 export type View<P> = (props: P) => VDOMNode;
 export type StringVDOMNode = {
   type: "string";
   content: string;
   bindings?: Bindings | undefined;
   extmarkOptions?: ExtmarkOptions;
+  highlights?: NodeHighlight[] | undefined;
 };
 export type ComponentVDOMNode = {
   type: "node";
@@ -31,12 +61,14 @@ export type ComponentVDOMNode = {
   template: TemplateStringsArray;
   bindings?: Bindings;
   extmarkOptions?: ExtmarkOptions;
+  highlights?: NodeHighlight[] | undefined;
 };
 export type ArrayVDOMNode = {
   type: "array";
   children: VDOMNode[];
   bindings?: Bindings;
   extmarkOptions?: ExtmarkOptions;
+  highlights?: NodeHighlight[] | undefined;
 };
 
 export type VDOMNode = StringVDOMNode | ComponentVDOMNode | ArrayVDOMNode;
@@ -49,6 +81,8 @@ export type MountedStringNode = {
   bindings?: Bindings | undefined;
   extmarkOptions?: ExtmarkOptions;
   extmarkId?: ExtmarkId;
+  highlights?: NodeHighlight[] | undefined;
+  highlightState?: HighlightState;
 };
 
 export type MountedComponentNode = {
@@ -60,6 +94,8 @@ export type MountedComponentNode = {
   bindings?: Bindings | undefined;
   extmarkOptions?: ExtmarkOptions;
   extmarkId?: ExtmarkId;
+  highlights?: NodeHighlight[] | undefined;
+  highlightState?: HighlightState;
 };
 
 export type MountedArrayNode = {
@@ -70,6 +106,8 @@ export type MountedArrayNode = {
   bindings?: Bindings | undefined;
   extmarkOptions?: ExtmarkOptions;
   extmarkId?: ExtmarkId;
+  highlights?: NodeHighlight[] | undefined;
+  highlightState?: HighlightState;
 };
 
 export type MountedVDOM =
@@ -138,6 +176,7 @@ export async function mountView<P>({
   props: P;
 }): Promise<MountedView<P>> {
   let mountedNode = await render({ vdom: view(props), mount });
+  await syncHighlights(mountedNode, mount);
 
   return {
     async render(props) {
@@ -148,6 +187,7 @@ export async function mountView<P>({
           nextRoot: next,
           mount,
         });
+        await syncHighlights(mountedNode, mount);
       } catch (e) {
         // Check if the buffer/mount point is still valid
         const isBufferValid = await mount.buffer.isValid();
@@ -205,6 +245,15 @@ export function withBindings(node: VDOMNode, bindings: Bindings) {
     ...node,
     bindings,
   };
+}
+
+/** Highlight passages of this node's rendered text. Positions are found by
+ * TEA; the view only names the text. */
+export function withHighlights(
+  node: VDOMNode,
+  highlights: NodeHighlight[],
+): VDOMNode {
+  return highlights.length ? { ...node, highlights } : node;
 }
 
 export function withExtmark(
