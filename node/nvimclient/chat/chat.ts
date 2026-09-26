@@ -184,8 +184,15 @@ export function pickExternalTarget({
 export class Chat {
   state: ChatState;
   /** The thread whose display/input buffer most recently held the cursor.
-   * Only used as the tie-break in `externalTarget`. */
-  lastCursorThreadId: ThreadId | undefined;
+   * Only used as the tie-break in `externalTarget`; cleared when the thread
+   * is removed. */
+  private cursorThreadId: ThreadId | undefined;
+  get lastCursorThreadId(): ThreadId | undefined {
+    return this.cursorThreadId;
+  }
+  recordCursorThread(id: ThreadId): void {
+    if (this.wrapper(id)) this.cursorThreadId = id;
+  }
   readonly session: Session;
   readonly host: NvimSessionHost;
   /** View-local: the NvimThread wrapper per initialized thread. */
@@ -328,6 +335,7 @@ export class Chat {
     this.threadViews.delete(id);
     this.lastViewedTimes.delete(id);
     this.expandedThreads.delete(id);
+    if (this.cursorThreadId === id) this.cursorThreadId = undefined;
     this.context.removeThreadBuffers?.([id]);
     if (this.state.activeThreadId === id) {
       this.state = { state: "thread-overview", activeThreadId: undefined };
@@ -1044,10 +1052,7 @@ ${rows}${loadMore}`;
   externalTarget(sidebarVisible: boolean): ThreadId | undefined {
     return pickExternalTarget({
       visible: this.visibleThreadIds(sidebarVisible),
-      lastCursorThreadId:
-        this.lastCursorThreadId && this.wrapper(this.lastCursorThreadId)
-          ? this.lastCursorThreadId
-          : undefined,
+      lastCursorThreadId: this.cursorThreadId,
       threadIds: this.session
         .listThreads()
         .filter((t) => t.state === "initialized" && !t.parentThreadId)

@@ -91,3 +91,40 @@ it("paste-selection with the sidebar hidden goes to the thread last entered", as
     await driver.assertInputBufferContains("poem.txt");
   });
 });
+it("send from a display buffer does nothing", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+    const a = leftThread(driver.magenta.chat).id;
+    await driver.inputMagentaText("should not send");
+    const { displayBuffer } =
+      await driver.magenta.bufferManager.registerThread(a);
+    await driver.magenta.command("send", displayBuffer.id);
+    expect(
+      driver.magenta.chat.getThread(a).thread.getProviderMessages(),
+    ).toEqual([]);
+  });
+});
+it("external target forgets a deleted thread and never falls back to a subagent", async () => {
+  await withDriver({}, async (driver) => {
+    const [a, b] = await twoThreads(driver);
+    const chat = driver.magenta.chat;
+    await pollUntil(() => {
+      if (chat.lastCursorThreadId !== b) throw new Error("wait");
+    });
+    chat.recordCursorThread(a);
+    expect(chat.lastCursorThreadId).toBe(a);
+    const sub = await chat.session.spawnThread({
+      parentThreadId: b,
+      prompt: "child work",
+      threadType: "subagent",
+    });
+    await pollUntil(() => {
+      if (!chat.threadWrappers[sub as ThreadId]) throw new Error("wait");
+    });
+    chat.session.deleteThread(a);
+    await pollUntil(() => {
+      if (chat.lastCursorThreadId !== undefined) throw new Error("wait");
+    });
+    expect(chat.externalTarget(false)).toBe(b);
+  });
+});

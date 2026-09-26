@@ -440,13 +440,13 @@ export class Magenta {
     return {
       profile: thread ? thread.context.profile : this.getActiveProfile(),
       tokenCount: thread ? thread.thread.getLastStopTokenCount() : 0,
-      statusIcon: !thread
-        ? ""
+      status: !thread
+        ? "none"
         : thread.thread.isBusy
-          ? "⏳"
+          ? "busy"
           : thread.thread.lastResult()?.type === "failed"
-            ? "✗"
-            : "✓",
+            ? "failed"
+            : "ok",
       sandboxBypassed: this.host.isSandboxBypassed(threadId, this.session),
     };
   }
@@ -1174,7 +1174,7 @@ ${lines.join("\n")}
     if (enteredThreadId) {
       getCurrentBuffer(this.nvim)
         .then((buf) => {
-          if (buf.id === bufNr) this.chat.lastCursorThreadId = enteredThreadId;
+          if (buf.id === bufNr) this.chat.recordCursorThread(enteredThreadId);
         })
         .catch((err: Error) => this.nvim.logger.error(err));
     }
@@ -1460,18 +1460,23 @@ ${lines.join("\n")}
     const getMagentaIfReady = (): Magenta | undefined => magenta;
     const lsp = new Lsp(nvim);
     nvim.onNotification(MAGENTA_COMMAND, async (args: unknown[]) => {
+      const input = args[0];
+      if (typeof input !== "string") {
+        nvim.logger.error(`Invalid magenta command: ${JSON.stringify(args)}`);
+        return;
+      }
       try {
         await getMagenta().command(
-          args[0] as string,
+          input,
           typeof args[1] === "number" ? (args[1] as BufNr) : undefined,
         );
       } catch (err) {
         nvim.logger.error(
           err instanceof Error
-            ? `Error executing command ${args[0] as string}: ${err.message}\n${err.stack}`
+            ? `Error executing command ${input}: ${err.message}\n${err.stack}`
             : JSON.stringify(err),
         );
-        notifyErr(nvim, `error processing command ${args[0] as string}`, err);
+        notifyErr(nvim, `error processing command ${input}`, err);
       }
     });
 

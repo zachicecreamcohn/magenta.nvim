@@ -47,11 +47,18 @@ function resolveResponsivePosition(
 
 export type SidebarColumnName = "left";
 
+export type ColumnStatus = "none" | "busy" | "failed" | "ok";
+const STATUS_ICONS: Record<ColumnStatus, string> = {
+  none: "",
+  busy: "⏳",
+  failed: "✗",
+  ok: "✓",
+};
 /** Winbar chrome, computed per column from the thread that column shows. */
 export type ColumnChrome = {
   profile: Profile;
   tokenCount: number;
-  statusIcon: string;
+  status: ColumnStatus;
   sandboxBypassed: boolean;
 };
 
@@ -151,7 +158,7 @@ export class Sidebar {
   }
 
   private getInputWindowTitle(): string {
-    const { profile, tokenCount, statusIcon, sandboxBypassed } =
+    const { profile, tokenCount, status, sandboxBypassed } =
       this.getColumnChrome("left");
     const thinkingStatus = profile.thinking?.enabled
       ? profile.thinking.effort
@@ -164,8 +171,9 @@ export class Sidebar {
       ? " %#ErrorMsg# SANDBOX OFF %#Normal#"
       : "";
 
-    const status = statusIcon ? `${statusIcon} ` : "";
-    return `${baseTitle} ${status}[${formatTokenCount(tokenCount)}]${bypassIndicator}`;
+    const icon = STATUS_ICONS[status];
+    const statusText = icon ? `${icon} ` : "";
+    return `${baseTitle} ${statusText}[${formatTokenCount(tokenCount)}]${bypassIndicator}`;
   }
 
   async onWinClosed() {

@@ -438,6 +438,7 @@ Status: DONE. `Chat.getActiveThread` (and the unused root-thread getters) remove
 - `profile` still just sets the global active profile (it never targeted a thread).
 - `ChatState.activeThreadId` is not renamed yet (pane-state stage); tests read it via `test/left-thread.ts` `leftThread(chat)`. Driver gained `assertVisibleInputThread` for waiting until `send` would hit a switched-to thread.
 - The newest-thread fallback only considers initialized root (parentless) threads.
+- Review follow-up: `Chat.lastCursorThreadId` is a read-only getter; Magenta writes it via `recordCursorThread(id)` (ignores unknown ids) and `removeThreadView` clears it, so `externalTarget` no longer re-checks existence. `ColumnChrome.status` is a `ColumnStatus` union (`none|busy|failed|ok`) the sidebar maps to icons. The `MAGENTA_COMMAND` handler checks `typeof args[0] === "string"`. Tests: `send` from a display buffer is a no-op; deleting the last-cursor thread clears it and the fallback picks the newest root thread, not a subagent.
 
 - Goal: `getActiveThread` is removed. Every command resolves its thread from the invoking buffer or from `externalTarget()`, and per-column chrome reads its own thread. This stage lands before two columns exist, and is observable with one column plus the thread overview.
 - Tests:
