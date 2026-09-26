@@ -1,8 +1,14 @@
 import { afterEach, expect, it, vi } from "vitest";
-import type { DisplayBufferText, ThreadId } from "./chat-types.ts";
+import type {
+  ContentBlockIdx,
+  DisplayBufferText,
+  MessageIdx,
+  ThreadId,
+} from "./chat-types.ts";
 import type { ProviderProfile } from "./provider-options.ts";
 import type { NativeMessageIdx } from "./providers/provider-types.ts";
 import { REFLECT_SYSTEM_PROMPT } from "./providers/system-prompt.ts";
+import type { SessionCreateOptions } from "./session.ts";
 import { pendingMessage, renderPending } from "./submission/index.ts";
 import {
   createHarness,
@@ -573,8 +579,8 @@ it("creates a reflect thread seeded from the source without sending", async () =
   await first;
   const streamsBefore = mockClient.streams.length;
   const anchor = {
-    messageIdx: 1,
-    contentIdx: 0,
+    messageIdx: 1 as MessageIdx,
+    contentIdx: 0 as ContentBlockIdx,
     reflectionText: "calls itself" as DisplayBufferText,
   };
   const reflectId = await created(session.reflectThread(id, anchor));
@@ -640,4 +646,72 @@ it("creates a reflect thread seeded from the source without sending", async () =
 
   session.deleteThread(id);
   expect(session.getThread(reflectId)).toBeUndefined();
+});
+
+it("rejects reflecting on a missing message or an unavailable source", async () => {
+  const { session } = fixture();
+  const id = await created(session.createRootThread());
+  const anchorAt = (messageIdx: number) => ({
+    messageIdx: messageIdx as MessageIdx,
+    contentIdx: 0 as ContentBlockIdx,
+    reflectionText: "x" as DisplayBufferText,
+  });
+  expect(() => session.reflectThread(id, anchorAt(-1))).toThrow();
+  expect(() => session.reflectThread(id, anchorAt(0))).toThrow();
+  const pending = session.createRootThread();
+  const pendingId = session
+    .listThreads()
+    .find((t) => t.state !== "initialized")?.id;
+  if (!pendingId) throw new Error("expected a pending thread");
+  expect(() => session.reflectThread(pendingId, anchorAt(0))).toThrow();
+  await pending;
+  session.deleteThread(id);
+  expect(() => session.reflectThread(id, anchorAt(0))).toThrow();
+});
+
+it("only creates reflect threads through reflectThread", () => {
+  const { session } = fixture();
+  const options: SessionCreateOptions = {
+    profile: {} as ProviderProfile,
+    // @ts-expect-error reflect threads need a seed and an origin
+    threadType: "reflect",
+  };
+  expect(options.threadType).toBe("reflect");
+  expect(session).toBeDefined();
+});
+
+it("deletes nested and pending reflections with their source", async () => {
+  const { session, mockClient } = fixture();
+  const id = await created(session.createRootThread());
+  const record = session.getThread(id);
+  if (record?.state !== "initialized") throw new Error("expected source");
+  const first = record.thread.submit({
+    type: "resolved",
+    messages: [{ type: "text", text: "hi" }],
+  });
+  const stream = await mockClient.awaitStream();
+  stream.streamText("hello");
+  stream.finishResponse("end_turn");
+  await first;
+  const anchor = {
+    messageIdx: 1 as MessageIdx,
+    contentIdx: 0 as ContentBlockIdx,
+    reflectionText: "hello" as DisplayBufferText,
+  };
+  const reflectId = await created(session.reflectThread(id, anchor));
+  const nestedId = await created(
+    session.reflectThread(reflectId, {
+      ...anchor,
+      messageIdx: 0 as MessageIdx,
+      reflectionText: "[thread context]" as DisplayBufferText,
+    }),
+  );
+  const pendingCreation = session.reflectThread(id, anchor);
+  expect(session.listDerived(id, "reflect")).toHaveLength(2);
+  session.deleteThread(id);
+  expect(session.getThread(reflectId)).toBeUndefined();
+  expect(session.getThread(nestedId)).toBeUndefined();
+  expect(session.listDerived(id, "reflect")).toEqual([]);
+  await pendingCreation;
+  expect(session.listThreads()).toEqual([]);
 });

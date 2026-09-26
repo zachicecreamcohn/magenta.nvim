@@ -16,6 +16,7 @@ export function isThreadId(value: unknown): value is ThreadId {
 export type ScriptInvocationId = string & { __scriptInvocationId: true };
 
 export type MessageIdx = number & { __messageIdx: true };
+export type ContentBlockIdx = number & { __contentBlockIdx: true };
 
 export type ThreadType =
   | "subagent"
@@ -30,9 +31,9 @@ export type DisplayBufferText = string & { __displayBufferText: true };
 
 export type ReflectAnchor = {
   /** Index into the source's ProviderMessage[]. */
-  messageIdx: number;
+  messageIdx: MessageIdx;
   /** Content block within that message. */
-  contentIdx: number;
+  contentIdx: ContentBlockIdx;
   reflectionText: DisplayBufferText;
 };
 

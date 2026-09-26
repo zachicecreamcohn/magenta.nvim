@@ -74,6 +74,14 @@ describe("archive", () => {
     expect(await readThreadMeta(withoutMeta, TEST_BASE_DIR)).toEqual({});
   });
 
+  it("reads reflect thread meta", async () => {
+    const id = uuidv7() as ThreadId;
+    await makeThreadDir(id, { title: "Why?", threadType: "reflect" });
+    expect(await readThreadMeta(id, TEST_BASE_DIR)).toEqual({
+      title: "Why?",
+      threadType: "reflect",
+    });
+  });
   it("returns {} for a malformed sidecar", async () => {
     const id = uuidv7() as ThreadId;
     await makeThreadDir(id);

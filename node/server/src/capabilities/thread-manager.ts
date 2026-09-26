@@ -15,7 +15,7 @@ export interface ThreadManager {
   spawnThread(opts: {
     parentThreadId: ThreadId;
     prompt: string;
-    threadType: ThreadType;
+    threadType: Exclude<ThreadType, "reflect">;
     subagentConfig?: SubagentConfig;
     contextFiles?: UnresolvedFilePath[];
     dockerSpawnConfig?: DockerSpawnConfig;

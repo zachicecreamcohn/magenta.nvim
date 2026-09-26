@@ -54,7 +54,7 @@ export type ThreadInitialization =
     }
   | {
       type: "fresh";
-      threadType: ChatThreadType;
+      threadType: Exclude<ChatThreadType, "reflect">;
       policy: ChatThreadPolicy;
       archiveOptions?: ThreadArchiveOptions;
     }
@@ -150,7 +150,7 @@ export function assembleThread(args: {
                 dependencies,
                 threadCallbacks,
                 initialization.archiveOptions ?? {},
-                "seed" in initialization
+                initialization.threadType === "reflect"
                   ? { type: "seed", messages: initialization.seed }
                   : undefined,
               );

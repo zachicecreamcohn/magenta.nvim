@@ -44,7 +44,9 @@ export type SessionId = string & { __sessionId: true };
 export type SessionCreateOptions = {
   threadId?: ThreadId;
   profile: ProviderProfile;
-  threadType: ThreadType;
+  /** Reflect threads need a seed and an origin, so only
+   * `Session.reflectThread` creates them. */
+  threadType: Exclude<ThreadType, "reflect">;
   parent?: ThreadId;
   contextFiles?: UnresolvedFilePath[];
   /** Bootstrap content the session submits itself, with no view involved. */
@@ -63,20 +65,27 @@ export type SessionCreateOptions = {
 
 /** What the host is asked to prepare: a fresh thread, or a fork frozen at an
  * index of a source thread this session owns. */
-export type ThreadPreparation = {
-  options: SessionCreateOptions & { threadId: ThreadId };
-} & (
-  | { type: "fresh" }
-  | { type: "fork"; source: Thread; nativeMessageIdx: NativeMessageIdx }
+/** Options of a thread the session owns, whichever way it was created. */
+export type ThreadOptions = Omit<SessionCreateOptions, "threadType"> & {
+  threadType: ThreadType;
+};
+export type ThreadPreparation =
+  | { type: "fresh"; options: SessionCreateOptions & { threadId: ThreadId } }
+  | {
+      type: "fork";
+      options: ThreadOptions & { threadId: ThreadId };
+      source: Thread;
+      nativeMessageIdx: NativeMessageIdx;
+    }
   /** A fresh thread whose native log starts with `seed`; the source is
    * recorded as its origin, not cloned. */
   | {
       type: "reflect";
+      options: ThreadOptions & { threadId: ThreadId; threadType: "reflect" };
       source: Thread;
       anchor: ReflectAnchor;
       seed: AgentInput[];
-    }
-);
+    };
 
 export type PreparedThread = {
   context: PreparedThreadContext;
@@ -114,7 +123,7 @@ export type SessionThread = {
   lastActivityTime: number;
   /** Retained so child profile/environment derivation and forking read session
    * state rather than a view wrapper. */
-  options: SessionCreateOptions;
+  options: ThreadOptions;
 } & (
   | { state: "pending" }
   | { state: "error"; error: Error }
@@ -575,12 +584,9 @@ The title must be a single line (no newlines) and a few words long (ideally arou
         seed: request.seed,
       };
     }
-    if (options.threadType === "reflect") {
-      throw new Error("Reflect threads are created with Session.reflectThread");
-    }
     return {
       type: "fresh",
-      threadType: options.threadType,
+      threadType: request.options.threadType,
       ...archiveOptions,
       policy,
     };

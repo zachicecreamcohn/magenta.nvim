@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { DisplayBufferText } from "../chat-types.ts";
+import type {
+  ContentBlockIdx,
+  DisplayBufferText,
+  MessageIdx,
+} from "../chat-types.ts";
 import type {
   NativeMessageIdx,
   ProviderMessage,
@@ -47,8 +51,8 @@ const toolResult = (id: string, t: string): ProviderMessage => ({
   ],
 });
 const anchor = (messageIdx: number, t: string) => ({
-  messageIdx,
-  contentIdx: 0,
+  messageIdx: messageIdx as MessageIdx,
+  contentIdx: 0 as ContentBlockIdx,
   reflectionText: t as DisplayBufferText,
 });
 
