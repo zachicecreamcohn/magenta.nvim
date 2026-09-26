@@ -11,6 +11,7 @@ import type {
   ScriptInvocationId,
   SubagentConfig,
   ThreadId,
+  ThreadOrigin,
   ThreadType,
 } from "./chat-types.ts";
 import type { ThreadCompactor } from "./compaction/compactor.ts";
@@ -97,6 +98,9 @@ export type SessionThread = {
   id: ThreadId;
   parentThreadId: ThreadId | undefined;
   scriptInvocationId?: ScriptInvocationId;
+  /** Set once at creation for forks; separate from `parentThreadId`, since a
+   * fork is not a subagent child. */
+  origin?: ThreadOrigin;
   lastActivityTime: number;
   /** Retained so child profile/environment derivation and forking read session
    * state rather than a view wrapper. */
@@ -171,6 +175,25 @@ export class Session extends Emitter<SessionEvents> implements ThreadManager {
 
   listThreads(): readonly Readonly<SessionThread>[] {
     return [...this.records.values()];
+  }
+
+  getOrigin(id: ThreadId): ThreadOrigin | undefined {
+    return this.records.get(id)?.origin;
+  }
+
+  /** Threads derived from `id` by `type`, in creation order. */
+  listDerived(
+    id: ThreadId,
+    type: ThreadOrigin["type"],
+  ): Array<{ threadId: ThreadId; origin: ThreadOrigin }> {
+    const derived: Array<{ threadId: ThreadId; origin: ThreadOrigin }> = [];
+    for (const record of this.records.values()) {
+      const origin = record.origin;
+      if (origin?.type === type && origin.sourceThreadId === id) {
+        derived.push({ threadId: record.id, origin });
+      }
+    }
+    return derived;
   }
 
   getRootAncestorId(id: ThreadId): ThreadId {
@@ -345,6 +368,15 @@ The title must be a single line (no newlines) and a few words long (ideally arou
       id,
       state: "pending",
       parentThreadId: options.parent,
+      ...(request.type === "fork"
+        ? {
+            origin: {
+              type: "fork",
+              sourceThreadId: request.source.id,
+              nativeMessageIdx: request.nativeMessageIdx,
+            },
+          }
+        : {}),
       ...(options.scriptInvocationId
         ? { scriptInvocationId: options.scriptInvocationId }
         : {}),

@@ -1087,18 +1087,6 @@ ${rows}${loadMore}`;
       };
     }
 
-    const markerIdx = thread.thread.forkSeamIdx;
-    if (markerIdx !== undefined) {
-      thread.state.messageViewState[markerIdx] = {
-        ...thread.state.messageViewState[markerIdx],
-        forkedFrom: sourceThreadId,
-      };
-    }
-    sourceThread.state.forkedTo.push({
-      childThreadId: newThreadId,
-      atMessageIdx: idx,
-    });
-
     return newThreadId;
   }
 

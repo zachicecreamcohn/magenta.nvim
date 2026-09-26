@@ -1,5 +1,6 @@
 import type { AgentTier } from "./agents/agents.ts";
 import type { ThinkingEffort } from "./provider-options.ts";
+import type { NativeMessageIdx } from "./providers/provider-types.ts";
 
 export type Role = "user" | "assistant";
 
@@ -17,6 +18,12 @@ export type ScriptInvocationId = string & { __scriptInvocationId: true };
 export type MessageIdx = number & { __messageIdx: true };
 
 export type ThreadType = "subagent" | "compact" | "root" | "docker_root";
+/** How a thread was derived from another one it is not a subagent of. */
+export type ThreadOrigin = {
+  type: "fork";
+  sourceThreadId: ThreadId;
+  nativeMessageIdx: NativeMessageIdx;
+};
 
 export type SubagentConfig = {
   agentName?: string | undefined;

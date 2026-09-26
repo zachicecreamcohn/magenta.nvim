@@ -68,6 +68,25 @@ it("owns construction and fork policies with no view attached", async () => {
   ).toEqual([MaxTokensSupervisor, TitleSupervisor]);
 });
 
+it("records fork origins on the server", async () => {
+  const { session } = fixture();
+  const id = await created(session.createRootThread());
+  const record = session.getThread(id);
+  if (record?.state !== "initialized") throw new Error("expected initialized");
+  const idx = record.thread.nativeMessageIdx;
+  const forkId = await created(session.forkThread(id, idx));
+  expect(session.getOrigin(forkId)).toEqual({
+    type: "fork",
+    sourceThreadId: id,
+    nativeMessageIdx: idx,
+  });
+  expect(session.getOrigin(id)).toBeUndefined();
+  expect(session.listDerived(id, "fork").map((d) => d.threadId)).toEqual([
+    forkId,
+  ]);
+  expect(session.listDerived(forkId, "fork")).toEqual([]);
+});
+
 it("derives a child's profile and environment from the parent record", async () => {
   const { session, host, profile } = fixture();
   host.contextOverrides = {

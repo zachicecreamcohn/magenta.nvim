@@ -184,7 +184,6 @@ export type ThreadMsg = {
 
 /** View state for a single message, stored separately from provider thread content */
 export type MessageViewState = {
-  forkedFrom?: ThreadId;
   expandedUpdates?: { [absFilePath: string]: boolean };
   expandedContent?: { [contentIdx: number]: boolean };
 };
@@ -236,7 +235,6 @@ export class NvimThread {
       [runId: CompactionRunId]: { expanded: boolean };
     };
     toolResultMap: Map<ToolRequestId, ToolResultInput>;
-    forkedTo: { childThreadId: ThreadId; atMessageIdx: NativeMessageIdx }[];
   };
 
   private myDispatch: Dispatch<Msg>;
@@ -275,7 +273,6 @@ export class NvimThread {
       toolViewState: {},
       compactionViewState: {},
       toolResultMap: new Map(),
-      forkedTo: [],
     };
 
     // The status line and the history section both read the compactor, so a

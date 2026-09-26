@@ -602,10 +602,19 @@ ${contextFilesView(thread.thread.contextFiles, contextViewCtx(thread), {
       },
     );
 
+  const session = thread.context.chat.session;
+  const forkedTo = session.listDerived(thread.id, "fork").flatMap((d) =>
+    d.origin.type === "fork"
+      ? [
+          {
+            childThreadId: d.threadId,
+            atMessageIdx: d.origin.nativeMessageIdx,
+          },
+        ]
+      : [],
+  );
   const forkedToAtIdx = (messageIdx: number) => {
-    const forks = thread.state.forkedTo.filter(
-      (fork) => fork.atMessageIdx === messageIdx,
-    );
+    const forks = forkedTo.filter((fork) => fork.atMessageIdx === messageIdx);
     return forks.length > 0
       ? d`${forks.map((fork) => renderForkIndicator(fork))}`
       : d``;
@@ -614,9 +623,8 @@ ${contextFilesView(thread.thread.contextFiles, contextViewCtx(thread), {
   // Forks whose atMessageIdx is past the last rendered message are appended at
   // the end so they aren't lost.
   const trailingForkedToView =
-    thread.state.forkedTo.filter((fork) => fork.atMessageIdx >= messages.length)
-      .length > 0
-      ? d`\n${thread.state.forkedTo
+    forkedTo.filter((fork) => fork.atMessageIdx >= messages.length).length > 0
+      ? d`\n${forkedTo
           .filter((fork) => fork.atMessageIdx >= messages.length)
           .map((fork) => renderForkIndicator(fork))}`
       : d``;
@@ -1203,8 +1211,9 @@ function renderMessageContentBlock(
     }
 
     case "fork_notification": {
-      const viewState = thread.state.messageViewState[messageIdx];
-      const parentThreadId = viewState?.forkedFrom;
+      const origin = thread.context.chat.session.getOrigin(thread.id);
+      const parentThreadId =
+        origin?.type === "fork" ? origin.sourceThreadId : undefined;
       const shortId = parentThreadId ? parentThreadId.slice(-8) : "unknown";
       const line = withExtmark(d`↰ forked from ${shortId}\n`, {
         hl_group: "@comment",

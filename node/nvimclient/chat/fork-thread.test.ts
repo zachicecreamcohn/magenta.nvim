@@ -62,7 +62,7 @@ it("sandbox bypass and write approvals use the fork owner", async () => {
   });
 });
 
-it("fork appends an id-free fork_notification and records forkedFrom", async () => {
+it("fork appends an id-free fork_notification and records the fork origin", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
 
@@ -108,9 +108,16 @@ it("fork appends an id-free fork_notification and records forkedFrom", async () 
       expect(markerContent.text).not.toContain(sourceThreadId);
     }
 
-    expect(forkThread.state.messageViewState[markerIdx]?.forkedFrom).toBe(
+    expect(driver.magenta.chat.session.getOrigin(forkThread.id)).toEqual({
+      type: "fork",
       sourceThreadId,
-    );
+      nativeMessageIdx: idx,
+    });
+    expect(
+      driver.magenta.chat.session
+        .listDerived(sourceThreadId, "fork")
+        .map((d) => d.threadId),
+    ).toEqual([forkThread.id]);
     // The next user message merges into the seam notice rather than following
     // it as a second consecutive user message, which some providers reject.
     expect(
