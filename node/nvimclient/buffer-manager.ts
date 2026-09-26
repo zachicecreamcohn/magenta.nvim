@@ -476,6 +476,10 @@ export class BufferManager {
     return this.bufNrToInfo.get(bufNr);
   }
 
+  keyForBuffer(bufNr: BufNr): BufferInfo["key"] | undefined {
+    return this.bufNrToInfo.get(bufNr)?.key;
+  }
+
   /** Check if a buffer id belongs to any magenta buffer. */
   isMagentaBuffer(bufNr: BufNr): boolean {
     return this.bufNrToInfo.has(bufNr);

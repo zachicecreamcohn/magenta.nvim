@@ -159,8 +159,33 @@ type StoppedReason =
 /** The view adapter over a Session: selection, expansion, viewed timestamps,
  * archive navigation and the NvimThread wrappers. The session owns identity,
  * hierarchy, construction and lifecycle; lifecycle methods here delegate. */
+/** Pure tie-break behind `Chat.externalTarget`. `threadIds` is in creation
+ * order. */
+export function pickExternalTarget({
+  visible,
+  lastCursorThreadId,
+  threadIds,
+}: {
+  visible: ThreadId[];
+  lastCursorThreadId: ThreadId | undefined;
+  threadIds: ThreadId[];
+}): ThreadId | undefined {
+  if (visible.length === 1) return visible[0];
+  if (
+    lastCursorThreadId &&
+    (visible.length === 0 || visible.includes(lastCursorThreadId))
+  ) {
+    return lastCursorThreadId;
+  }
+  if (visible.length > 1) return visible[0];
+  return threadIds.at(-1);
+}
+
 export class Chat {
   state: ChatState;
+  /** The thread whose display/input buffer most recently held the cursor.
+   * Only used as the tie-break in `externalTarget`. */
+  lastCursorThreadId: ThreadId | undefined;
   readonly session: Session;
   readonly host: NvimSessionHost;
   /** View-local: the NvimThread wrapper per initialized thread. */
@@ -1005,45 +1030,35 @@ ${rows}${loadMore}`;
     });
   }
 
-  /** The root of the active thread's ancestry. */
-  getActiveRootThreadId(): ThreadId {
-    return this.getRootAncestorId(this.getActiveThread().id);
+  /** The thread shown in the (single) sidebar column, if the sidebar is
+   * visible and showing a thread. Only used to pick external targets. */
+  private visibleThreadIds(sidebarVisible: boolean): ThreadId[] {
+    return sidebarVisible && this.state.state === "thread-selected"
+      ? [this.state.activeThreadId]
+      : [];
   }
 
-  /** The active root thread, or `undefined` while the chat has no active
-   * thread, that thread hasn't finished initializing, or its root ancestor
-   * is not a root thread (script threads are parentless subagents). */
-  getActiveRootThreadOrUndefined(): NvimThread | undefined {
-    if (!this.state.activeThreadId) return undefined;
-    const threadWrapper = this.wrapper(
-      this.getRootAncestorId(this.state.activeThreadId),
-    );
-    if (!(threadWrapper && threadWrapper.state === "initialized")) {
-      return undefined;
-    }
-    const thread = threadWrapper.thread;
-    return thread;
+  /** Target for commands that come from outside magenta (code buffers,
+   * pickers): the one visible thread; otherwise whichever visible (or, with
+   * none visible, any) thread last held the cursor; otherwise the newest. */
+  externalTarget(sidebarVisible: boolean): ThreadId | undefined {
+    return pickExternalTarget({
+      visible: this.visibleThreadIds(sidebarVisible),
+      lastCursorThreadId:
+        this.lastCursorThreadId && this.wrapper(this.lastCursorThreadId)
+          ? this.lastCursorThreadId
+          : undefined,
+      threadIds: this.session
+        .listThreads()
+        .filter((t) => t.state === "initialized" && !t.parentThreadId)
+        .map((t) => t.id),
+    });
   }
 
-  /** The root ancestor of the active thread. */
-  getActiveRootThread(): NvimThread {
-    const threadWrapper = this.wrapper(this.getActiveRootThreadId());
+  getThread(id: ThreadId): NvimThread {
+    const threadWrapper = this.wrapper(id);
     if (!(threadWrapper && threadWrapper.state === "initialized")) {
-      throw new Error(`Root thread not initialized yet...`);
-    }
-    const thread = threadWrapper.thread;
-    return thread;
-  }
-
-  getActiveThread(): NvimThread {
-    if (!this.state.activeThreadId) {
-      throw new Error(`Chat is not initialized yet... no active thread`);
-    }
-    const threadWrapper = this.wrapper(this.state.activeThreadId);
-    if (!(threadWrapper && threadWrapper.state === "initialized")) {
-      throw new Error(
-        `Thread ${this.state.activeThreadId} not initialized yet...`,
-      );
+      throw new Error(`Thread ${id} not initialized yet...`);
     }
     return threadWrapper.thread;
   }

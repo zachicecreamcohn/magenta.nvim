@@ -1,6 +1,7 @@
 import type { ToolName, ToolRequestId } from "@magenta/server";
 import { expect, it } from "vitest";
 import type { Row0Indexed } from "../nvim/window.ts";
+import { leftThread } from "../test/left-thread.ts";
 import { withDriver } from "../test/preamble.ts";
 import { delay, pollUntil } from "../utils/async.ts";
 
@@ -33,7 +34,7 @@ it("clears pending file permission checks when aborting", async () => {
     // Wait for approval dialog to appear
     await driver.assertDisplayBufferContains("May I run command");
 
-    const thread = driver.magenta.chat.getActiveThread();
+    const thread = leftThread(driver.magenta.chat);
 
     // Verify we have a pending permission
     expect(thread.sandboxViolationHandler!.getPendingViolations().size).toBe(1);
@@ -78,7 +79,7 @@ it("clears pending permissions when sending a new message during tool_use", asyn
     // Wait for approval dialog to appear
     await driver.assertDisplayBufferContains("May I run command");
 
-    const thread = driver.magenta.chat.getActiveThread();
+    const thread = leftThread(driver.magenta.chat);
 
     // Verify we have a pending permission
     expect(thread.sandboxViolationHandler!.getPendingViolations().size).toBe(1);
@@ -121,7 +122,7 @@ it("appends pending messages to input buffer on abort", async () => {
     await driver.inputMagentaText("@async Queued pending message");
     await driver.send();
 
-    const thread = driver.magenta.chat.getActiveThread();
+    const thread = leftThread(driver.magenta.chat);
     expect(thread.thread.queued.async).toHaveLength(1);
 
     // Type some in-progress text into the input buffer
@@ -169,7 +170,7 @@ it("recovers pending messages into empty input buffer on abort", async () => {
     await driver.inputMagentaText("@async Queued pending message");
     await driver.send();
 
-    const thread = driver.magenta.chat.getActiveThread();
+    const thread = leftThread(driver.magenta.chat);
     expect(thread.thread.queued.async).toHaveLength(1);
 
     // Do not type anything into the input buffer; abort with an empty buffer

@@ -17,6 +17,7 @@ import type { MountedVDOM } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { pollUntil } from "../utils/async.ts";
 import { NvimDriver } from "./driver.ts";
+import { leftThread } from "./left-thread.ts";
 import { MockSandboxManager } from "./mock-sandbox-manager.ts";
 
 type ToolResultBlockParam = Anthropic.Messages.ToolResultBlockParam;
@@ -193,7 +194,7 @@ export async function pollForToolResult(
 ): Promise<ProviderToolResult> {
   return pollUntil(
     () => {
-      const thread = driver.magenta.chat.getActiveThread();
+      const thread = leftThread(driver.magenta.chat);
       if (!thread) {
         throw new Error("No active thread");
       }

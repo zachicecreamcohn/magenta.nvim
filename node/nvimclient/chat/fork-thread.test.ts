@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { expect, it } from "vitest";
+import { leftThread } from "../test/left-thread.ts";
 import { withDriver } from "../test/preamble.ts";
 import { pollUntil } from "../utils/async.ts";
 
@@ -18,13 +19,13 @@ it("sandbox bypass and write approvals use the fork owner", async () => {
     });
 
     const sourceThreadId = driver.magenta.chat.state.activeThreadId!;
-    const sourceThread = driver.magenta.chat.getActiveThread();
+    const sourceThread = leftThread(driver.magenta.chat);
     driver.magenta.chat.host.setSandboxBypassed(sourceThreadId, true);
 
     const idx = sourceThread.thread.nativeMessageIdx;
     await driver.magenta.forkAtMessageAndSwitch(sourceThreadId, idx);
 
-    const forkThread = driver.magenta.chat.getActiveThread();
+    const forkThread = leftThread(driver.magenta.chat);
     expect(forkThread.isSandboxBypassed).toBe(true);
 
     driver.magenta.chat.host.setSandboxBypassed(sourceThreadId, false);
@@ -78,7 +79,7 @@ it("fork appends an id-free fork_notification and records the fork origin", asyn
     await driver.assertDisplayBufferContains("hi");
 
     const sourceThreadId = driver.magenta.chat.state.activeThreadId!;
-    const sourceThread = driver.magenta.chat.getActiveThread();
+    const sourceThread = leftThread(driver.magenta.chat);
     const idx = sourceThread.thread.nativeMessageIdx;
 
     await driver.magenta.forkAtMessageAndSwitch(sourceThreadId, idx);
@@ -92,7 +93,7 @@ it("fork appends an id-free fork_notification and records the fork origin", asyn
     });
     await driver.assertDisplayBufferContains("sure");
 
-    const forkThread = driver.magenta.chat.getActiveThread();
+    const forkThread = leftThread(driver.magenta.chat);
     const messages = forkThread.thread.getProviderMessages();
 
     const markerIdx = messages.findIndex((m) =>
@@ -149,7 +150,7 @@ it("child shows 'forked from' and <CR> navigates to parent", async () => {
     await driver.assertDisplayBufferContains("hi");
 
     const sourceThreadId = driver.magenta.chat.state.activeThreadId!;
-    const sourceThread = driver.magenta.chat.getActiveThread();
+    const sourceThread = leftThread(driver.magenta.chat);
     const idx = sourceThread.thread.nativeMessageIdx;
 
     await driver.magenta.forkAtMessageAndSwitch(sourceThreadId, idx);
@@ -191,7 +192,7 @@ it("parent shows 'forked to' (not in agent messages) and <CR> navigates to child
     await driver.assertDisplayBufferContains("hi");
 
     const sourceThreadId = driver.magenta.chat.state.activeThreadId!;
-    const sourceThread = driver.magenta.chat.getActiveThread();
+    const sourceThread = leftThread(driver.magenta.chat);
     const idx = sourceThread.thread.nativeMessageIdx;
 
     const childThreadId = await driver.magenta.forkAtMessageAndSwitch(

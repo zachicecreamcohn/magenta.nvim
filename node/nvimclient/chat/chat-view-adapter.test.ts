@@ -2,8 +2,8 @@
 
 import type { ThreadId, ToolName, ToolRequestId } from "@magenta/server";
 import { ABORTED } from "@magenta/server";
-
 import { expect, it } from "vitest";
+import { leftThread } from "../test/left-thread.ts";
 import { withDriver } from "../test/preamble.ts";
 import { Chat } from "./chat.ts";
 
@@ -34,7 +34,7 @@ it("rebuilding the view adapter over an existing session makes no new thread or 
     if (chat.state.state !== "thread-selected")
       throw new Error("expected a selected thread");
     const threadId = chat.state.activeThreadId;
-    const serverThread = chat.getActiveThread().thread;
+    const serverThread = leftThread(chat).thread;
     const titleRequests = driver.mockAnthropic.forceToolUseRequests.length;
 
     const rebuilt = new Chat(chat.context, {
@@ -62,7 +62,7 @@ it("a turn completes with no view listener attached to the session", async () =>
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
     const chat = driver.magenta.chat;
-    const thread = chat.getActiveThread().thread;
+    const thread = leftThread(chat).thread;
 
     // Detach every observer: execution must not depend on one.
     chat.session.removeAllListeners();
@@ -92,7 +92,7 @@ it("renders an initialized record whose view has not been built as initializing"
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
     const chat = driver.magenta.chat;
-    const threadId = chat.getActiveThread().id;
+    const threadId = leftThread(chat).id;
     // Drop the view-local wrapper while the session record stays initialized:
     // the same window a change event that has not been observed yet leaves.
     chat["threadViews"].get(threadId)?.dispose();
@@ -128,7 +128,7 @@ it("a disposed view observes no further session events", async () => {
     await driver.showSidebar();
     const chat = driver.magenta.chat;
     const session = chat.session;
-    const existingId = chat.getActiveThread().id;
+    const existingId = leftThread(chat).id;
     chat.dispose();
     expect(chat["threadViews"].size).toBe(0);
     // Session mutations after dispose must not repopulate the view cache.

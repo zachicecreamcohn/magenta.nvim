@@ -1,5 +1,6 @@
 import type { ToolName, ToolRequestId } from "@magenta/server";
 import { describe, expect, it } from "vitest";
+import { leftThread } from "../test/left-thread.ts";
 import { withDriver } from "../test/preamble.ts";
 import { LOGO } from "./thread-view.ts";
 
@@ -37,7 +38,7 @@ describe("node/nvimclient/chat/chat.test.ts", () => {
   it("summarizes a submission that never issued a request as empty", async () => {
     await withDriver({}, async (driver) => {
       await driver.showSidebar();
-      const thread = driver.magenta.chat.getActiveThread();
+      const thread = leftThread(driver.magenta.chat);
       expect(
         await thread.thread.submit({ type: "resolved", messages: [] }),
       ).toEqual({ type: "empty" });

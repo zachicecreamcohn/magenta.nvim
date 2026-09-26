@@ -4,6 +4,7 @@ import type { ToolName, ToolRequestId } from "@magenta/server";
 import { compactionRunThreadIds, type ThreadCompactor } from "@magenta/server";
 import { expect, it } from "vitest";
 import type { MockStream } from "../providers/mock-anthropic-client.ts";
+import { leftThread } from "../test/left-thread.ts";
 import { withDriver } from "../test/preamble.ts";
 import { pollUntil } from "../utils/async.ts";
 import { notificationLog, resetNotificationLog } from "./notify.ts";
@@ -70,7 +71,7 @@ it("compact flow: user initiates @compact, spawns compact thread, compacts and c
       toolRequests: [],
     });
 
-    const originalThread = driver.magenta.chat.getActiveThread();
+    const originalThread = leftThread(driver.magenta.chat);
     const originalThreadId = originalThread.id;
 
     // Wait for second response to be fully processed
@@ -224,7 +225,7 @@ it("compact flow: user initiates @compact, spawns compact thread, compacts and c
     });
 
     // We should still be on the same thread (compact doesn't create a new root thread)
-    expect(driver.magenta.chat.getActiveThread().id).toBe(originalThreadId);
+    expect(leftThread(driver.magenta.chat).id).toBe(originalThreadId);
 
     await driver.assertDisplayBufferContains(
       "What multiplication would you like help with?",
@@ -368,7 +369,7 @@ it("forks a thread with @compact to clone and compact in one step", async () => 
     });
 
     // Verify we're on the new forked thread (not the original)
-    const newThread = driver.magenta.chat.getActiveThread();
+    const newThread = leftThread(driver.magenta.chat);
     expect(newThread.id).not.toBe(originalThreadId);
 
     await driver.assertDisplayBufferContains(
@@ -410,7 +411,7 @@ it("spawns one compact child thread per chunk, carrying the summary forward", as
       toolRequests: [],
     });
 
-    const thread = driver.magenta.chat.getActiveThread();
+    const thread = leftThread(driver.magenta.chat);
     expect(finishedRuns(thread)).toHaveLength(0);
 
     // Trigger compaction

@@ -19,6 +19,7 @@ import { calculatePosition } from "../tea/util.ts";
 import { pollUntil } from "../utils/async.ts";
 import { CompletionsInteraction } from "./driver/completions.ts";
 import { SidebarInteraction } from "./driver/sidebar.ts";
+import { leftThread } from "./left-thread.ts";
 import type { MockSandboxManager } from "./mock-sandbox-manager.ts";
 
 export class NvimDriver {
@@ -103,7 +104,7 @@ export class NvimDriver {
     return await pollUntil(
       () => {
         try {
-          this.magenta.chat.getActiveThread();
+          leftThread(this.magenta.chat);
           return true;
         } catch (e) {
           if ((e as Error).message.includes("Chat is not initialized yet")) {
@@ -284,6 +285,17 @@ export class NvimDriver {
   }
 
   /** Get the active thread ID */
+  /** Throws unless the sidebar's input buffer belongs to `threadId`. `send`
+   * targets the input buffer's thread, so wait for this after switching. */
+  assertVisibleInputThread(threadId: ThreadId): void {
+    const key = this.magenta.bufferManager.keyForBuffer(
+      this.magenta.activeBuffers.inputBuffer.id,
+    );
+    if (!(key?.kind === "thread" && key.threadId === threadId)) {
+      throw new Error(`input buffer is not ${threadId}'s yet`);
+    }
+  }
+
   getActiveThreadId(): ThreadId | undefined {
     const state = this.magenta.chat.state;
     if (state.state === "thread-selected") {
@@ -684,8 +696,7 @@ vim.rpcnotify(${this.nvim.channelId}, "magentaKey", "${key}")
 
     // Wait for all files to be tracked in the context manager
     await pollUntil(async () => {
-      const fileSupervisor =
-        this.magenta.chat.getActiveThread().thread.contextFiles;
+      const fileSupervisor = leftThread(this.magenta.chat).thread.contextFiles;
       const tracked = Object.values(fileSupervisor.files).map(
         (f) => f.relFilePath,
       );

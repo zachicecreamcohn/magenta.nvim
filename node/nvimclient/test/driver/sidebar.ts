@@ -7,6 +7,7 @@ import { type ByteIdx, pos0to1 } from "../../nvim/window.ts";
 import type { BindingKey } from "../../tea/bindings.ts";
 import { calculatePosition } from "../../tea/util.ts";
 import { pollUntil } from "../../utils/async.ts";
+import { leftThread } from "../left-thread.ts";
 
 export class SidebarInteraction {
   constructor(
@@ -354,7 +355,7 @@ export class SidebarInteraction {
     await pollUntil(
       () => {
         try {
-          this.magenta.chat.getActiveThread();
+          leftThread(this.magenta.chat);
           return true;
         } catch (e) {
           if ((e as Error).message.includes("Chat is not initialized yet")) {

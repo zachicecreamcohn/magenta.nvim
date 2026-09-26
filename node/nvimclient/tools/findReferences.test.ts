@@ -6,6 +6,7 @@ import {
 } from "@magenta/server";
 import { describe, expect, it } from "vitest";
 import { findToolResult } from "../chat/thread-view.ts";
+import { leftThread } from "../test/left-thread.ts";
 import { normalizePaths, withDriver } from "../test/preamble.ts";
 
 describe("node/nvimclient/tools/findReferences.test.ts", () => {
@@ -39,7 +40,7 @@ describe("node/nvimclient/tools/findReferences.test.ts", () => {
 
       const result = await pollUntil(
         () => {
-          const thread = driver.magenta.chat.getActiveThread();
+          const thread = leftThread(driver.magenta.chat);
           if (!thread || !thread.state || typeof thread.state !== "object") {
             throw new Error("Thread state is not valid");
           }

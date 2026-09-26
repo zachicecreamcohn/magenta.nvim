@@ -1,6 +1,7 @@
 import type { ToolName, ToolRequestId } from "@magenta/server";
 import { expect, it } from "vitest";
 import { getCurrentWindow } from "../nvim/nvim.ts";
+import { leftThread } from "../test/left-thread.ts";
 import { withDriver } from "../test/preamble.ts";
 import { pollUntil } from "../utils/async.ts";
 import type { NvimThread } from "./thread.ts";
@@ -60,7 +61,7 @@ it("normal mode F on a previous assistant message creates a fork ending there", 
       }
     });
 
-    const newThread = driver.magenta.chat.getActiveThread();
+    const newThread = leftThread(driver.magenta.chat);
     expect(newThread.id).not.toBe(originalThreadId);
 
     // The new thread should have native messages [user, assistant], plus the
@@ -116,7 +117,7 @@ it("normal mode F on a user message keeps that user message", async () => {
       }
     });
 
-    const newThread = driver.magenta.chat.getActiveThread();
+    const newThread = leftThread(driver.magenta.chat);
     expect(forkedMessages(newThread)).toHaveLength(3);
     expectForkNotificationQueued(newThread);
   });
@@ -167,7 +168,7 @@ it("normal mode F on assistant message with tool_use extends to keep tool_result
       }
     });
 
-    const newThread = driver.magenta.chat.getActiveThread();
+    const newThread = leftThread(driver.magenta.chat);
     const messages = newThread.thread.getProviderMessages();
 
     // Per the truncate algorithm, when forking at the assistant tool_use
@@ -223,7 +224,7 @@ it("F on first user message keeps just that message and resets input", async () 
       }
     });
 
-    const newThread = driver.magenta.chat.getActiveThread();
+    const newThread = leftThread(driver.magenta.chat);
     const messages = forkedMessages(newThread);
     expect(messages).toHaveLength(1);
     expect(messages[0].role).toBe("user");

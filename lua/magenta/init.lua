@@ -279,7 +279,7 @@ M.bridge = function(channelId)
         require("magenta.keymaps").do_paste()
         return
       end
-      safe_rpcnotify(channelId, "magentaCommand", opts.args)
+      safe_rpcnotify(channelId, "magentaCommand", opts.args, vim.api.nvim_get_current_buf())
     end,
     {
       nargs = "+",

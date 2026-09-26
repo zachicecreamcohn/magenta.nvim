@@ -7,6 +7,7 @@ import {
 } from "@magenta/server";
 import { describe, expect, it } from "vitest";
 import type { Chat } from "../chat/chat.ts";
+import { leftThread } from "../test/left-thread.ts";
 import { withDriver } from "../test/preamble.ts";
 
 type ToolResultBlockParam = Anthropic.Messages.ToolResultBlockParam;
@@ -50,7 +51,7 @@ it("navigates to spawned subagent thread when pressing Enter on completed summar
     const stream1 =
       await driver.mockAnthropic.awaitPendingStreamWithText("spawn_subagents");
 
-    const parentThread = driver.magenta.chat.getActiveThread();
+    const parentThread = leftThread(driver.magenta.chat);
     const parentThreadId = parentThread.id;
 
     stream1.respond({
@@ -95,7 +96,7 @@ it("navigates to spawned subagent thread when pressing Enter on completed summar
     );
 
     await pollUntil(
-      () => driver.magenta.chat.getActiveThread().id !== parentThreadId,
+      () => leftThread(driver.magenta.chat).id !== parentThreadId,
     );
   });
 });

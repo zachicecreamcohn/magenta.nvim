@@ -1,6 +1,7 @@
 import type { ThreadId, ToolName, ToolRequestId } from "@magenta/server";
 import { expect, it } from "vitest";
 import type { NvimDriver } from "../test/driver.ts";
+import { leftThread } from "../test/left-thread.ts";
 import { withDriver } from "../test/preamble.ts";
 import { pollUntil } from "../utils/async.ts";
 import type { NvimThread } from "./thread.ts";
@@ -24,7 +25,7 @@ async function startCompaction(
     toolRequests: [],
   });
 
-  const thread = driver.magenta.chat.getActiveThread();
+  const thread = leftThread(driver.magenta.chat);
   await driver.inputMagentaText("@compact");
   await driver.send();
   const chunkThreadId = await pollUntil(
@@ -252,7 +253,7 @@ it("points the live status line at the chunk thread currently running", async ()
       });
     }
 
-    const thread = driver.magenta.chat.getActiveThread();
+    const thread = leftThread(driver.magenta.chat);
     await driver.inputMagentaText("@compact");
     await driver.send();
 

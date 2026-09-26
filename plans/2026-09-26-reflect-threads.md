@@ -432,6 +432,13 @@ Status: DONE. `chat/reflections-overview.ts`: `orderedReflections` (anchor order
 
 ## Buffer-scoped commands
 
+Status: DONE. `Chat.getActiveThread` (and the unused root-thread getters) removed; `Chat.getThread(id)`, `Chat.externalTarget(sidebarVisible)` over the pure `pickExternalTarget`, and `Chat.lastCursorThreadId`. `BufferManager.keyForBuffer`. Lua `:Magenta` sends the current bufnr; `Magenta.command(input, bufnr?)` resolves `send`/`abort`/`reflections`/`sandbox-bypass` from it, while `paste-selection`, `:Magenta paste`/clipboard paste and `context-files` use `externalTarget` (paste reveals the target thread first). `Sidebar` takes one `getColumnChrome(column)` callback (`SidebarColumnName` is just `"left"` for now); chrome is empty/default when the column shows no thread. Tests: `chat/external-target.node.test.ts`, `chat/buffer-scoped-commands.test.ts`. Deviations:
+- `lastCursorThreadId` is fed by the existing global `magentaBufEnter` notification (no new autocmd). Because `nvim_win_set_buf` on a non-current window also fires BufEnter, it is only recorded if the entered buffer is still current when node checks.
+- Programmatic `command()` calls without a bufnr act as if invoked from the sidebar's input buffer (so driver `send()`/`abort()` keep working). `send` from a non-thread input buffer (e.g. the overview's shared input) is a no-op.
+- `profile` still just sets the global active profile (it never targeted a thread).
+- `ChatState.activeThreadId` is not renamed yet (pane-state stage); tests read it via `test/left-thread.ts` `leftThread(chat)`. Driver gained `assertVisibleInputThread` for waiting until `send` would hit a switched-to thread.
+- The newest-thread fallback only considers initialized root (parentless) threads.
+
 - Goal: `getActiveThread` is removed. Every command resolves its thread from the invoking buffer or from `externalTarget()`, and per-column chrome reads its own thread. This stage lands before two columns exist, and is observable with one column plus the thread overview.
 - Tests:
   - Unit (`node` project): `externalTarget()` with one visible thread returns it. With none visible, it returns `lastCursorThreadId`. With two visible, it returns whichever of the two held the cursor last, ignoring a more recently focused thread that isn't visible. With no history, it falls back to the newest thread.

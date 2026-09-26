@@ -45,6 +45,16 @@ function resolveResponsivePosition(
   }
 }
 
+export type SidebarColumnName = "left";
+
+/** Winbar chrome, computed per column from the thread that column shows. */
+export type ColumnChrome = {
+  profile: Profile;
+  tokenCount: number;
+  statusIcon: string;
+  sandboxBypassed: boolean;
+};
+
 /** This will mostly manage the window toggle
  */
 export class Sidebar {
@@ -127,12 +137,9 @@ export class Sidebar {
 
   constructor(
     private nvim: Nvim,
-    private getProfile: () => Profile,
-    private getTokenCount: () => number,
-    private getStatusIcon: () => string,
+    private getColumnChrome: (column: SidebarColumnName) => ColumnChrome,
     public bufferManager: BufferManager,
     private getActiveKey: () => BufferKey,
-    private getIsSandboxBypassed: () => boolean,
   ) {
     this.state = {
       state: "hidden",
@@ -144,20 +151,19 @@ export class Sidebar {
   }
 
   private getInputWindowTitle(): string {
-    const profile = this.getProfile();
+    const { profile, tokenCount, statusIcon, sandboxBypassed } =
+      this.getColumnChrome("left");
     const thinkingStatus = profile.thinking?.enabled
       ? profile.thinking.effort
         ? ` thinking:${profile.thinking.effort}`
         : " thinking"
       : "";
     const baseTitle = `Magenta Input (${profile.name}${thinkingStatus})`;
-    const tokenCount = this.getTokenCount();
 
-    const bypassIndicator = this.getIsSandboxBypassed()
+    const bypassIndicator = sandboxBypassed
       ? " %#ErrorMsg# SANDBOX OFF %#Normal#"
       : "";
 
-    const statusIcon = this.getStatusIcon();
     const status = statusIcon ? `${statusIcon} ` : "";
     return `${baseTitle} ${status}[${formatTokenCount(tokenCount)}]${bypassIndicator}`;
   }

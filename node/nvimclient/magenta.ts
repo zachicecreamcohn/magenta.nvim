@@ -31,6 +31,7 @@ import { CommandRegistry } from "./chat/commands/registry.ts";
 import { sliceDisplayBufferSelection } from "./chat/reflect-anchor.ts";
 import { ReflectionsOverview } from "./chat/reflections-overview.ts";
 import { NvimSessionHost } from "./chat/session-host.ts";
+import type { NvimThread } from "./chat/thread.ts";
 import {
   type BufNr,
   type Line,
@@ -63,14 +64,17 @@ import { openTargetUnderCursor } from "./open-target-under-cursor.ts";
 import {
   getActiveProfile,
   type MagentaOptions,
-  type Profile,
   parseOptions,
 } from "./options.ts";
 import { DynamicOptionsLoader } from "./options-loader.ts";
 import type { RootMsg, SidebarMsg } from "./root-msg.ts";
 import { initializeSandbox, type Sandbox } from "./sandbox-manager.ts";
 import { ScriptController } from "./scripts/script-manager.ts";
-import { Sidebar } from "./sidebar.ts";
+import {
+  type ColumnChrome,
+  Sidebar,
+  type SidebarColumnName,
+} from "./sidebar.ts";
 import {
   BINDING_KEYS,
   type BindingCtx,
@@ -367,41 +371,9 @@ export class Magenta {
 
     this.sidebar = new Sidebar(
       this.nvim,
-      () => this.getActiveThreadProfile(),
-      () => {
-        if (!this.chat.state.activeThreadId) {
-          return 0;
-        }
-        const wrapper =
-          this.chat.threadWrappers[this.chat.state.activeThreadId];
-        if (!wrapper || wrapper.state !== "initialized") {
-          return 0;
-        }
-        return wrapper.thread.thread.getLastStopTokenCount();
-      },
-      () => {
-        if (!this.chat.state.activeThreadId) {
-          return "";
-        }
-        const wrapper =
-          this.chat.threadWrappers[this.chat.state.activeThreadId];
-        if (!wrapper || wrapper.state !== "initialized") {
-          return "";
-        }
-        if (wrapper.thread.thread.isBusy) {
-          return "⏳";
-        }
-        return wrapper.thread.thread.lastResult()?.type === "failed"
-          ? "✗"
-          : "✓";
-      },
+      (column) => this.getColumnChrome(column),
       this.bufferManager,
       () => this.getActiveKey(),
-      () =>
-        this.host.isSandboxBypassed(
-          this.chat.state.activeThreadId,
-          this.session,
-        ),
     );
   }
 
@@ -454,14 +426,29 @@ export class Magenta {
     return this.optionsLoader.getOptions();
   }
 
-  getActiveThreadProfile(): Profile {
-    if (this.chat.state.activeThreadId) {
-      const wrapper = this.chat.threadWrappers[this.chat.state.activeThreadId];
-      if (wrapper && wrapper.state === "initialized") {
-        return wrapper.thread.context.profile;
-      }
-    }
-    return this.getActiveProfile();
+  private columnThreadId(_column: SidebarColumnName): ThreadId | undefined {
+    return this.chat.state.state === "thread-selected"
+      ? this.chat.state.activeThreadId
+      : undefined;
+  }
+
+  private getColumnChrome(column: SidebarColumnName): ColumnChrome {
+    const threadId = this.columnThreadId(column);
+    const wrapper = threadId ? this.chat.threadWrappers[threadId] : undefined;
+    const thread =
+      wrapper && wrapper.state === "initialized" ? wrapper.thread : undefined;
+    return {
+      profile: thread ? thread.context.profile : this.getActiveProfile(),
+      tokenCount: thread ? thread.thread.getLastStopTokenCount() : 0,
+      statusIcon: !thread
+        ? ""
+        : thread.thread.isBusy
+          ? "⏳"
+          : thread.thread.lastResult()?.type === "failed"
+            ? "✗"
+            : "✓",
+      sandboxBypassed: this.host.isSandboxBypassed(threadId, this.session),
+    };
   }
 
   getActiveProfile() {
@@ -840,7 +827,52 @@ export class Magenta {
     }
   }
 
-  async command(input: string): Promise<void> {
+  /** The thread owning a magenta display/input buffer, if any. */
+  private bufferThreadId(bufnr: BufNr): ThreadId | undefined {
+    const key = this.bufferManager.keyForBuffer(bufnr);
+    return key?.kind === "thread" ? key.threadId : undefined;
+  }
+
+  /** Thread for commands from outside magenta; see `Chat.externalTarget`. */
+  private externalTargetThread(): NvimThread | undefined {
+    const id = this.chat.externalTarget(this.sidebar.isVisible());
+    if (!id) {
+      notifyErr(this.nvim, "command", new Error("No magenta thread to target"));
+      return undefined;
+    }
+    return this.chat.getThread(id);
+  }
+
+  /** Buffer-scoped when invoked from a thread buffer, external otherwise. */
+  private commandTargetThread(bufnr: BufNr): NvimThread | undefined {
+    const id = this.bufferThreadId(bufnr);
+    return id ? this.chat.getThread(id) : this.externalTargetThread();
+  }
+
+  /** Make sure `threadId` is what the sidebar shows, opening it if needed. */
+  private async revealThread(threadId: ThreadId): Promise<void> {
+    if (
+      !(
+        this.chat.state.state === "thread-selected" &&
+        this.chat.state.activeThreadId === threadId
+      )
+    ) {
+      this.dispatch({
+        type: "chat-msg",
+        msg: { type: "set-active-thread", id: threadId },
+      });
+      await this.syncActiveView();
+    }
+    if (!this.sidebar.isVisible()) {
+      await this.command("toggle");
+    }
+  }
+
+  /** `bufnr` is the buffer the command was invoked from (lua always sends
+   * it). Programmatic callers that omit it act as if invoked from the
+   * sidebar's input buffer. */
+  async command(input: string, bufnr?: BufNr): Promise<void> {
+    const invokingBuf = bufnr ?? this.activeBuffers.inputBuffer.id;
     const [command, ...rest] = input.trim().split(/\s+/);
     this.nvim.logger.debug(`Received command ${command}`);
     switch (command) {
@@ -868,7 +900,8 @@ export class Magenta {
           await this.command("toggle");
         }
 
-        const thread = this.chat.getActiveThread();
+        const thread = this.externalTargetThread();
+        if (!thread) break;
 
         const parts = input.trim().match(/[^\s']+|'([^']*)'|\S+/g) || [];
         const paths = parts
@@ -909,8 +942,11 @@ export class Magenta {
       }
 
       case "send": {
+        const key = this.bufferManager.lookupBuffer(invokingBuf);
+        if (!(key?.role === "input" && key.key.kind === "thread")) break;
+        const threadId = key.key.threadId;
         const text = await this.sidebar.getMessage(
-          this.activeBuffers.inputBuffer,
+          new NvimBuffer(invokingBuf, this.nvim),
         );
         this.nvim.logger.debug(`current message: ${text}`);
         if (!text) {
@@ -918,20 +954,22 @@ export class Magenta {
           // submission is still in the log, so there is nothing to retype.
           this.dispatch({
             type: "thread-msg",
-            id: this.chat.getActiveThread().id,
+            id: threadId,
             msg: { type: "retry" },
           });
           return;
         }
 
-        await this.preprocessAndSend(text);
+        await this.preprocessAndSend(threadId, text);
         break;
       }
 
       case "abort": {
+        const thread = this.commandTargetThread(invokingBuf);
+        if (!thread) break;
         this.dispatch({
           type: "thread-msg",
-          id: this.chat.getActiveThread().id,
+          id: thread.id,
           msg: {
             type: "abort",
           },
@@ -964,10 +1002,8 @@ export class Magenta {
       }
 
       case "reflections": {
-        const threadId = this.chat.state.activeThreadId;
-        if (this.chat.state.state === "thread-selected" && threadId) {
-          await this.showReflectionsOverview(threadId);
-        }
+        const threadId = this.bufferThreadId(invokingBuf);
+        if (threadId) await this.showReflectionsOverview(threadId);
         break;
       }
 
@@ -1003,7 +1039,8 @@ export class Magenta {
       }
 
       case "sandbox-bypass": {
-        const activeKey = this.getActiveKey();
+        const activeKey =
+          this.bufferManager.keyForBuffer(invokingBuf) ?? this.getActiveKey();
         if (activeKey.kind === "overview") {
           // In the overview, toggle whatever thread or script is under the
           // cursor by routing through the "t" binding.
@@ -1051,16 +1088,7 @@ ${lines.join("\n")}
 `;
         }
 
-        if (!this.sidebar.isVisible()) {
-          await this.command("toggle");
-        }
-
-        await this.activeBuffers.inputBuffer.setLines({
-          start: -1 as Row0Indexed,
-          end: -1 as Row0Indexed,
-          lines: content.split("\n") as Line[],
-        });
-
+        await this.pasteIntoExternalTarget(content);
         break;
       }
 
@@ -1139,6 +1167,17 @@ ${lines.join("\n")}
    * and non-magenta buffers don't take over magenta windows.
    */
   async onBufEnter(bufNr: BufNr, winId: WindowId): Promise<void> {
+    const enteredThreadId = this.bufferThreadId(bufNr);
+    // nvim_win_set_buf on a non-current window also fires BufEnter (the
+    // window is made current temporarily), so confirm the cursor is really
+    // there before recording it.
+    if (enteredThreadId) {
+      getCurrentBuffer(this.nvim)
+        .then((buf) => {
+          if (buf.id === bufNr) this.chat.lastCursorThreadId = enteredThreadId;
+        })
+        .catch((err: Error) => this.nvim.logger.error(err));
+    }
     if (this.handlingBufEnter) return;
     if (this.sidebar.state.state !== "visible") return;
 
@@ -1356,7 +1395,7 @@ ${lines.join("\n")}
       );
       return;
     }
-    await this.pasteIntoActiveInputBuffer(formatFileRef(result.tmpPath));
+    await this.pasteIntoExternalTarget(formatFileRef(result.tmpPath));
   }
 
   async onClipboardTextPaste(
@@ -1364,15 +1403,14 @@ ${lines.join("\n")}
     fromDisplay?: boolean,
   ): Promise<void> {
     const content = fromDisplay ? formatAsQuote(text) : text;
-    await this.pasteIntoActiveInputBuffer(content);
+    await this.pasteIntoExternalTarget(content);
   }
 
-  // Open the sidebar if it isn't visible, then append the given content to
-  // the active thread's input buffer. Matches the paste-selection flow.
-  private async pasteIntoActiveInputBuffer(content: string): Promise<void> {
-    if (!this.sidebar.isVisible()) {
-      await this.command("toggle");
-    }
+  /** Show the external target thread, then append `content` to its input. */
+  private async pasteIntoExternalTarget(content: string): Promise<void> {
+    const thread = this.externalTargetThread();
+    if (!thread) return;
+    await this.revealThread(thread.id);
     await this.activeBuffers.inputBuffer.setLines({
       start: -1 as Row0Indexed,
       end: -1 as Row0Indexed,
@@ -1423,7 +1461,10 @@ ${lines.join("\n")}
     const lsp = new Lsp(nvim);
     nvim.onNotification(MAGENTA_COMMAND, async (args: unknown[]) => {
       try {
-        await getMagenta().command(args[0] as string);
+        await getMagenta().command(
+          args[0] as string,
+          typeof args[1] === "number" ? (args[1] as BufNr) : undefined,
+        );
       } catch (err) {
         nvim.logger.error(
           err instanceof Error
@@ -1675,12 +1716,11 @@ ${lines.join("\n")}
 
   /** Parse *when* the user's text should go out and hand it to the thread,
    * which resolves the rest of it — `@compact` included — at delivery. */
-  private preprocessAndSend(text: string): Promise<void> {
-    const thread = this.chat.getActiveThread();
+  private preprocessAndSend(threadId: ThreadId, text: string): Promise<void> {
     const submission = parseDelivery(text);
     this.dispatch({
       type: "thread-msg",
-      id: thread.id,
+      id: threadId,
       msg: { type: "submit-message", submission },
     });
     // The submission's own work (resolving commands, aborting an in-flight

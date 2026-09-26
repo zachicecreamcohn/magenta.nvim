@@ -3,13 +3,14 @@ import type { ThreadId, ToolName, ToolRequestId } from "@magenta/server";
 import { flushArchive, threadConversationLogPath } from "@magenta/server";
 import { v7 as uuidv7 } from "uuid";
 import { expect, it } from "vitest";
+import { leftThread } from "./test/left-thread.ts";
 import { withDriver } from "./test/preamble.ts";
 import { pollUntil } from "./utils/async.ts";
 
 it("thread display and input buffers are listed", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
-    const threadId = driver.magenta.chat.getActiveThread().id;
+    const threadId = leftThread(driver.magenta.chat).id;
     const buffers = driver.magenta.bufferManager.getThreadBuffers(threadId)!;
     expect(buffers).toBeDefined();
 
@@ -23,7 +24,7 @@ it("thread display and input buffers are listed", async () => {
 it("setting a thread title renames both buffers", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
-    const thread = driver.magenta.chat.getActiveThread();
+    const thread = leftThread(driver.magenta.chat);
     const threadId = thread.id;
     const buffers = driver.magenta.bufferManager.getThreadBuffers(threadId)!;
 
@@ -56,7 +57,7 @@ it("setting a thread title renames both buffers", async () => {
 it(":bd of a thread display buffer removes the thread", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
-    const threadId = driver.magenta.chat.getActiveThread().id;
+    const threadId = leftThread(driver.magenta.chat).id;
     const buffers = driver.magenta.bufferManager.getThreadBuffers(threadId)!;
 
     await driver.command(`bd! ${buffers.displayBuffer.id}`);
@@ -76,7 +77,7 @@ it(":bd of a thread display buffer removes the thread", async () => {
 it(":bd of a thread input buffer removes the thread", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
-    const threadId = driver.magenta.chat.getActiveThread().id;
+    const threadId = leftThread(driver.magenta.chat).id;
     const buffers = driver.magenta.bufferManager.getThreadBuffers(threadId)!;
 
     await driver.command(`bd! ${buffers.inputBuffer.id}`);
@@ -93,7 +94,7 @@ it(":bd of a thread input buffer removes the thread", async () => {
 it("wiping an overview buffer does not remove threads and recovers", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
-    const threadId: ThreadId = driver.magenta.chat.getActiveThread().id;
+    const threadId: ThreadId = leftThread(driver.magenta.chat).id;
     const overview = driver.magenta.bufferManager.getOverviewBuffers();
     const oldDisplayId = overview.displayBuffer.id;
 
@@ -212,7 +213,7 @@ it("archived-thread displays are stable, distinct, listed buffers", async () => 
 it("wiping archive UI buffers preserves live threads and archive files", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
-    const liveThreadId = driver.magenta.chat.getActiveThread().id;
+    const liveThreadId = leftThread(driver.magenta.chat).id;
     const archivedThreadId = uuidv7() as ThreadId;
     const logPath = threadConversationLogPath(archivedThreadId);
     await fs.mkdir(logPath.replace(/\/conversation\.jsonl$/, ""), {
@@ -292,7 +293,7 @@ it.each([
 ] as const)("automatic title: %s result is isolated from submission and lifecycle", async (outcome) => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
-    const wrapper = driver.magenta.chat.getActiveThread();
+    const wrapper = leftThread(driver.magenta.chat);
     const thread = wrapper.thread;
     await driver.inputMagentaText("Explain this project");
     await driver.send();

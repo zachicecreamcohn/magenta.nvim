@@ -6,6 +6,7 @@ import lodash from "lodash";
 import { expect, it } from "vitest";
 import { $, within } from "zx";
 import { getcwd } from "../nvim/nvim.ts";
+import { leftThread } from "../test/left-thread.ts";
 import { withDriver } from "../test/preamble.ts";
 import { pollUntil } from "../utils/async.ts";
 import type { HomeDir, UnresolvedFilePath } from "../utils/files.ts";
@@ -126,7 +127,7 @@ it("renders a long pending message trimmed with expand/collapse toggle", async (
     await driver.inputMagentaText(`@async ${longText}`);
     await driver.send();
 
-    const thread = driver.magenta.chat.getActiveThread();
+    const thread = leftThread(driver.magenta.chat);
     expect(thread.thread.queued.async).toHaveLength(1);
 
     await driver.assertDisplayBufferContains("✉️ queued:");
@@ -162,7 +163,7 @@ it("clears pending expand state when the queue drains", async () => {
     await driver.inputMagentaText(`@async ${longText}`);
     await driver.send();
 
-    const thread = driver.magenta.chat.getActiveThread();
+    const thread = leftThread(driver.magenta.chat);
     expect(thread.thread.queued.async).toHaveLength(1);
 
     // Expand the queued message so index 0 is marked expanded.
@@ -253,7 +254,7 @@ it("processes @diag keyword to include diagnostics in message", {
     await driver.assertDisplayBufferContains("test.ts");
 
     // Check the thread message structure
-    const thread = driver.magenta.chat.getActiveThread();
+    const thread = leftThread(driver.magenta.chat);
     const messages = thread.thread.getProviderMessages();
 
     // Should have user message and assistant response
@@ -314,7 +315,7 @@ it("processes @qf keyword to include quickfix list in message", {
     await driver.assertDisplayBufferContains("test2.js:25:12");
 
     // Check the thread message structure
-    const thread = driver.magenta.chat.getActiveThread();
+    const thread = leftThread(driver.magenta.chat);
     const messages = thread.thread.getProviderMessages();
 
     // Should have user message and assistant response
@@ -369,7 +370,7 @@ it("handles empty quickfix list with @qf command", {
     await driver.assertDisplayBufferContains("Current quickfix list:");
 
     // Check the thread message structure
-    const thread = driver.magenta.chat.getActiveThread();
+    const thread = leftThread(driver.magenta.chat);
     const messages = thread.thread.getProviderMessages();
 
     // Should have user message and assistant response
@@ -415,7 +416,7 @@ it("processes @buf keyword to include buffers list in message", {
     await driver.assertDisplayBufferContains("active poem2.txt");
 
     // Check the thread message structure
-    const thread = driver.magenta.chat.getActiveThread();
+    const thread = leftThread(driver.magenta.chat);
     const messages = thread.thread.getProviderMessages();
 
     // Should have user message and assistant response
@@ -578,7 +579,7 @@ it("handles @file command with non-existent file", {
     await driver.assertDisplayBufferContains("nonexistent.txt");
 
     // Check the thread message structure
-    const thread = driver.magenta.chat.getActiveThread();
+    const thread = leftThread(driver.magenta.chat);
     const messages = thread.thread.getProviderMessages();
 
     // Should have user message and assistant response
@@ -1264,7 +1265,7 @@ it("disposing the view leaves the thread and its in-flight request alone", async
     await driver.inputMagentaText("hello");
     await driver.send();
     const stream = await driver.mockAnthropic.awaitPendingStream();
-    const wrapper = driver.magenta.chat.getActiveThread();
+    const wrapper = leftThread(driver.magenta.chat);
     wrapper.dispose();
     expect(wrapper.thread.isDestroyed).toBe(false);
     expect(stream.aborted).toBe(false);

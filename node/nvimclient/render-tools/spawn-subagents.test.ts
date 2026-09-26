@@ -5,6 +5,7 @@ import type { ToolName, ToolRequestId } from "@magenta/server";
 import { describe, expect, it } from "vitest";
 import { LOGO } from "../chat/thread-view.ts";
 import { getAllWindows } from "../nvim/nvim.ts";
+import { leftThread } from "../test/left-thread.ts";
 import { withDriver } from "../test/preamble.ts";
 import { pollUntil } from "../utils/async.ts";
 
@@ -799,9 +800,7 @@ describe("node/nvimclient/render-tools/spawn-subagents.test.ts", () => {
       );
 
       // Verify we navigated to the subagent thread
-      await pollUntil(
-        () => driver.magenta.chat.getActiveThread().id === thread2,
-      );
+      await pollUntil(() => leftThread(driver.magenta.chat).id === thread2);
 
       // We should see the subagent thread content
       await driver.assertDisplayBufferContains(
@@ -1083,9 +1082,7 @@ describe("node/nvimclient/render-tools/spawn-subagents.test.ts", () => {
           type: "select-thread-effect",
           id: childThreadId,
         });
-        await pollUntil(
-          () => driver.magenta.chat.getActiveThread().id === childThreadId,
-        );
+        await pollUntil(() => driver.assertVisibleInputThread(childThreadId));
         await driver.inputMagentaText("Continue the task");
         await driver.send();
 
@@ -1203,9 +1200,7 @@ describe("node/nvimclient/render-tools/spawn-subagents.test.ts", () => {
             type: "select-thread-effect",
             id: childThreadId,
           });
-          await pollUntil(
-            () => driver.magenta.chat.getActiveThread().id === childThreadId,
-          );
+          await pollUntil(() => driver.assertVisibleInputThread(childThreadId));
           await driver.inputMagentaText("Continue the element");
           await driver.send();
 
