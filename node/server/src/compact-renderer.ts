@@ -6,7 +6,7 @@ import type {
 } from "./providers/provider-types.ts";
 import type { ToolName, ToolRequestId } from "./tool-types.ts";
 
-type ToolInfoMap = Map<ToolRequestId, ToolName>;
+export type ToolInfoMap = Map<ToolRequestId, ToolName>;
 
 export type RenderResult = {
   markdown: string;
@@ -22,14 +22,7 @@ export type RenderResult = {
 export function renderThreadToMarkdown(
   messages: ReadonlyArray<ProviderMessage>,
 ): RenderResult {
-  const toolInfoMap: ToolInfoMap = new Map();
-  for (const message of messages) {
-    for (const block of message.content) {
-      if (block.type === "tool_use" && block.request.status === "ok") {
-        toolInfoMap.set(block.request.value.id, block.request.value.toolName);
-      }
-    }
-  }
+  const toolInfoMap = buildToolInfoMap(messages);
 
   const parts: string[] = [];
   const messageBoundaries: number[] = [];
@@ -50,6 +43,20 @@ export function renderThreadToMarkdown(
   }
 
   return { markdown: parts.join("\n"), messageBoundaries };
+}
+
+export function buildToolInfoMap(
+  messages: ReadonlyArray<ProviderMessage>,
+): ToolInfoMap {
+  const toolInfoMap: ToolInfoMap = new Map();
+  for (const message of messages) {
+    for (const block of message.content) {
+      if (block.type === "tool_use" && block.request.status === "ok") {
+        toolInfoMap.set(block.request.value.id, block.request.value.toolName);
+      }
+    }
+  }
+  return toolInfoMap;
 }
 
 export const CHARS_PER_TOKEN = 4;
@@ -133,7 +140,7 @@ function splitOversizedText(
   }
 }
 
-function renderContentBlock(
+export function renderContentBlock(
   block: ProviderMessageContent,
   toolInfoMap: ToolInfoMap,
 ): string {
@@ -148,6 +155,9 @@ function renderContentBlock(
     case "fork_notification":
     case "comment_update":
       return "";
+
+    case "thread_context":
+      return `${block.text}\n`;
 
     case "context_update": {
       const files = extractFilePathsFromContextUpdate(block.text);
@@ -241,7 +251,7 @@ function renderToolResult(
 }
 /** Extract file paths from the <file_paths> section of a context_update.
  * Each line in the section is formatted as "path (metadata)". */
-function extractFilePathsFromContextUpdate(text: string): string[] {
+export function extractFilePathsFromContextUpdate(text: string): string[] {
   const filePathsMatch = text.match(/<file_paths>([\s\S]*?)<\/file_paths>/);
   if (!filePathsMatch) {
     return [];

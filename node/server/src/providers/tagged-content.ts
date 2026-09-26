@@ -16,6 +16,7 @@ const TAGGED_CONTENT: ReadonlyArray<
   ["<context_update>", "context_update"],
   ["<comment_update>", "comment_update"],
   ["<fork-notification>", "fork_notification"],
+  ["<thread-context>", "thread_context"],
 ];
 
 export function classifyTextContent(

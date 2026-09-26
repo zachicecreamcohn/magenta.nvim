@@ -21,6 +21,7 @@ import {
   CHAT_STATIC_TOOL_NAMES,
   COMPACT_STATIC_TOOL_NAMES,
   DOCKER_ROOT_STATIC_TOOL_NAMES,
+  REFLECT_STATIC_TOOL_NAMES,
   type StaticToolName,
   SUBAGENT_STATIC_TOOL_NAMES,
   TOOL_REQUIRED_CAPABILITIES,
@@ -112,6 +113,9 @@ export function getToolSpecs(
     }
     case "root":
       staticToolNames = CHAT_STATIC_TOOL_NAMES;
+      break;
+    case "reflect":
+      staticToolNames = REFLECT_STATIC_TOOL_NAMES;
       break;
     default:
       assertUnreachable(threadType);

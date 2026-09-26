@@ -8,6 +8,7 @@ import type {
   ThreadManager,
 } from "./capabilities/thread-manager.ts";
 import type {
+  ReflectAnchor,
   ScriptInvocationId,
   SubagentConfig,
   ThreadId,
@@ -22,6 +23,7 @@ import type {
   NativeMessageIdx,
   Provider,
 } from "./providers/provider-types.ts";
+import { buildReflectSeed } from "./reflect/seed.ts";
 import type { EnvironmentConfig, Thread, ThreadCallbacks } from "./thread.ts";
 import { ABORTED, type Aborted, type ThreadOutcome } from "./thread-api.ts";
 import {
@@ -66,6 +68,14 @@ export type ThreadPreparation = {
 } & (
   | { type: "fresh" }
   | { type: "fork"; source: Thread; nativeMessageIdx: NativeMessageIdx }
+  /** A fresh thread whose native log starts with `seed`; the source is
+   * recorded as its origin, not cloned. */
+  | {
+      type: "reflect";
+      source: Thread;
+      anchor: ReflectAnchor;
+      seed: AgentInput[];
+    }
 );
 
 export type PreparedThread = {
@@ -381,7 +391,13 @@ The title must be a single line (no newlines) and a few words long (ideally arou
               sourceThreadId: request.source.id,
               nativeMessageIdx: request.nativeMessageIdx,
             }
-          : undefined,
+          : request.type === "reflect"
+            ? {
+                type: "reflect",
+                sourceThreadId: request.source.id,
+                anchor: request.anchor,
+              }
+            : undefined,
       ...(options.scriptInvocationId
         ? { scriptInvocationId: options.scriptInvocationId }
         : {}),
@@ -550,6 +566,18 @@ The title must be a single line (no newlines) and a few words long (ideally arou
       autoCompactPrompt:
         options.autoCompactPrompt ?? prepared.autoCompactPrompt,
     };
+    if (request.type === "reflect") {
+      return {
+        type: "fresh",
+        threadType: "reflect",
+        ...archiveOptions,
+        policy,
+        seed: request.seed,
+      };
+    }
+    if (options.threadType === "reflect") {
+      throw new Error("Reflect threads are created with Session.reflectThread");
+    }
     return {
       type: "fresh",
       threadType: options.threadType,
@@ -587,6 +615,40 @@ The title must be a single line (no newlines) and a few words long (ideally arou
         options: { ...options, threadId: uuidv7() as ThreadId },
         source: source.thread,
         nativeMessageIdx: index,
+      }),
+    );
+  }
+
+  /** Create a reflect thread on a passage of `sourceThreadId`. The seed is
+   * rendered now and written into the new thread's log; nothing is sent until
+   * the user submits. */
+  reflectThread(
+    sourceThreadId: ThreadId,
+    anchor: ReflectAnchor,
+  ): Promise<ThreadId | Aborted> {
+    const source = this.records.get(sourceThreadId);
+    if (source?.state !== "initialized") {
+      throw new Error(`Thread ${sourceThreadId} not available for reflection`);
+    }
+    const history = source.thread.getProviderMessages();
+    if (anchor.messageIdx < 0 || anchor.messageIdx >= history.length) {
+      throw new Error(`Reflect anchor message ${anchor.messageIdx} not found`);
+    }
+    const seed = buildReflectSeed({ history, anchor });
+    return this.track(
+      this.create({
+        type: "reflect",
+        options: {
+          threadId: uuidv7() as ThreadId,
+          profile: source.options.profile,
+          threadType: "reflect",
+          ...(source.options.environmentConfig
+            ? { environmentConfig: source.options.environmentConfig }
+            : {}),
+        },
+        source: source.thread,
+        anchor,
+        seed,
       }),
     );
   }
@@ -673,6 +735,10 @@ The title must be a single line (no newlines) and a few words long (ideally arou
   deleteThread(id: ThreadId): void {
     for (const child of this.buildChildrenMap().get(id) ?? []) {
       this.deleteThread(child);
+    }
+    // Reflections explain this thread; they are meaningless without it.
+    for (const { threadId } of this.listDerived(id, "reflect")) {
+      this.deleteThread(threadId);
     }
     const record = this.records.get(id);
     if (!record) return;

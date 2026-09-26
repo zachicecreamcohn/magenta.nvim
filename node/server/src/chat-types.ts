@@ -17,13 +17,33 @@ export type ScriptInvocationId = string & { __scriptInvocationId: true };
 
 export type MessageIdx = number & { __messageIdx: true };
 
-export type ThreadType = "subagent" | "compact" | "root" | "docker_root";
-/** How a thread was derived from another one it is not a subagent of. */
-export type ThreadOrigin = {
-  type: "fork";
-  sourceThreadId: ThreadId;
-  nativeMessageIdx: NativeMessageIdx;
+export type ThreadType =
+  | "subagent"
+  | "compact"
+  | "root"
+  | "docker_root"
+  | "reflect";
+
+/** Text as it appeared in a display buffer (decoration, placeholders and
+ * summaries included). Never compare it against message content. */
+export type DisplayBufferText = string & { __displayBufferText: true };
+
+export type ReflectAnchor = {
+  /** Index into the source's ProviderMessage[]. */
+  messageIdx: number;
+  /** Content block within that message. */
+  contentIdx: number;
+  reflectionText: DisplayBufferText;
 };
+
+/** How a thread was derived from another one it is not a subagent of. */
+export type ThreadOrigin =
+  | {
+      type: "fork";
+      sourceThreadId: ThreadId;
+      nativeMessageIdx: NativeMessageIdx;
+    }
+  | { type: "reflect"; sourceThreadId: ThreadId; anchor: ReflectAnchor };
 
 export type SubagentConfig = {
   agentName?: string | undefined;

@@ -357,6 +357,12 @@ Status: DONE. `ThreadOrigin` (fork variant only for now) in `chat-types.ts`; `Se
 
 ## Server: reflect creation
 
+Status: DONE. `ThreadType` `"reflect"`, `ReflectAnchor`, `DisplayBufferText` and the reflect `ThreadOrigin` variant in `chat-types.ts`; `thread_context` tagged content; `REFLECT_STATIC_TOOL_NAMES` (`get_files`, `hover`, `find_references`); `reflect/seed.ts` (`buildReflectSeed`, `renderReflectHistory`) reusing `buildToolInfoMap`/`renderContentBlock`/`extractFilePathsFromContextUpdate` exported from `compact-renderer.ts`; `Session.reflectThread`; deleting a thread deletes its reflect children. Tests: `reflect/seed.test.ts`, `session.test.ts` "creates a reflect thread seeded from the source without sending". Deviations:
+- The reflect system prompt is the `REFLECT_SYSTEM_PROMPT` constant in `providers/system-prompt.ts`, not a `.md` file (no md-loading path for built-in prompts). Reflect threads also get a short standing system reminder.
+- Seeding is a `ThreadInitialization` `{ type: "fresh"; threadType: "reflect"; seed }` variant (policy is still needed for auto-compaction); `Thread`'s constructor takes `{ type: "seed" }` and appends it to the fresh core's manager. `ThreadPreparation` gains a `reflect` variant that hosts treat as fresh.
+- The selection block is exactly `The user selected:\n> …`; the note that the quote is display text lives in the system prompt.
+- Read-only is enforced by the tool list (no edl/bash/subagents/nvim_lua); there is no separate "mocked edit call rejected" test, and the openai-side `thread_context` classification relies on the shared `classifyTextContent` rather than a dedicated test.
+
 - Goal: `Session.reflectThread` creates a fresh `"reflect"` thread with the reflect system prompt and read-only tools, and the seed appended to its native log, without sending anything. It records the thread's origin. `thread_context` round-trips as tagged content.
 - Tests:
   - `buildReflectSeed` unit tests: the seed contains messages ≤ k and no text from message k+1. `get_files` contents are absent but their paths are present. A long bash result is truncated with an omission marker. Tool uses render as one line. Assistant text is intact, and the selection is a separate second block, `The user selected:` followed by `> `-prefixed lines, outside `<thread-context>`.

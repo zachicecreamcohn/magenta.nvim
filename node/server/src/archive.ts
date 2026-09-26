@@ -13,6 +13,7 @@ const THREAD_TYPES: ReadonlySet<ThreadType> = new Set([
   "compact",
   "root",
   "docker_root",
+  "reflect",
 ]);
 
 function isThreadType(value: unknown): value is ThreadType {

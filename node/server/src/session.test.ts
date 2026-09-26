@@ -1,7 +1,8 @@
 import { afterEach, expect, it, vi } from "vitest";
-import type { ThreadId } from "./chat-types.ts";
+import type { DisplayBufferText, ThreadId } from "./chat-types.ts";
 import type { ProviderProfile } from "./provider-options.ts";
 import type { NativeMessageIdx } from "./providers/provider-types.ts";
+import { REFLECT_SYSTEM_PROMPT } from "./providers/system-prompt.ts";
 import { pendingMessage, renderPending } from "./submission/index.ts";
 import {
   createHarness,
@@ -555,4 +556,88 @@ it("aborts a preparation handle that arrives after its creation was deleted", as
   });
   expect(await creation).toBe(ABORTED);
   expect(abort).toHaveBeenCalledTimes(1);
+});
+
+it("creates a reflect thread seeded from the source without sending", async () => {
+  const { session, mockClient } = fixture();
+  const id = await created(session.createRootThread());
+  const record = session.getThread(id);
+  if (record?.state !== "initialized") throw new Error("expected source");
+  const first = record.thread.submit({
+    type: "resolved",
+    messages: [{ type: "text", text: "please explain recursion" }],
+  });
+  const stream = await mockClient.awaitStream();
+  stream.streamText("recursion is when a function calls itself");
+  stream.finishResponse("end_turn");
+  await first;
+  const streamsBefore = mockClient.streams.length;
+  const anchor = {
+    messageIdx: 1,
+    contentIdx: 0,
+    reflectionText: "calls itself" as DisplayBufferText,
+  };
+  const reflectId = await created(session.reflectThread(id, anchor));
+  expect(session.getOrigin(reflectId)).toEqual({
+    type: "reflect",
+    sourceThreadId: id,
+    anchor,
+  });
+  expect(session.listDerived(id, "reflect").map((d) => d.threadId)).toEqual([
+    reflectId,
+  ]);
+  const reflect = session.getThread(reflectId);
+  if (reflect?.state !== "initialized") throw new Error("expected reflect");
+  expect(mockClient.streams.length).toBe(streamsBefore);
+  const seeded = reflect.thread.getProviderMessages();
+  expect(seeded).toHaveLength(1);
+  expect(seeded[0].role).toBe("user");
+  expect(seeded[0].content.map((c) => c.type)).toEqual([
+    "thread_context",
+    "text",
+  ]);
+  expect(reflect.thread.threadType).toBe("reflect");
+  const toolNames = reflect.thread.toolSpecs.map((s) => s.name);
+  expect(toolNames).toContain("get_files");
+  for (const mutating of [
+    "edl",
+    "bash_command",
+    "spawn_subagents",
+    "nvim_lua",
+  ]) {
+    expect(toolNames).not.toContain(mutating);
+  }
+
+  const answer = reflect.thread.submit({
+    type: "resolved",
+    messages: [{ type: "text", text: "why?" }],
+  });
+  const reflectStream = await awaitNextStream(mockClient, stream);
+  expect(reflectStream.systemPrompt).toContain(REFLECT_SYSTEM_PROMPT);
+  const userMessages = reflectStream.messages.filter((m) => m.role === "user");
+  expect(userMessages).toHaveLength(1);
+  const texts = (
+    userMessages[0].content as Array<{ type: string; text?: string }>
+  )
+    .filter((b) => b.type === "text")
+    .map((b) => b.text ?? "");
+  const contextIdx = texts.findIndex((t) => t.startsWith("<thread-context>"));
+  const selectionIdx = texts.findIndex((t) =>
+    t.startsWith("The user selected:"),
+  );
+  const questionIdx = texts.indexOf("why?");
+  expect(contextIdx).toBeGreaterThanOrEqual(0);
+  expect(selectionIdx).toBeGreaterThan(contextIdx);
+  expect(questionIdx).toBeGreaterThan(selectionIdx);
+  expect(texts[contextIdx]).toContain("please explain recursion");
+  expect(texts[selectionIdx]).toBe("The user selected:\n> calls itself");
+  reflectStream.streamText("because");
+  reflectStream.finishResponse("end_turn");
+  await answer;
+  expect(reflect.thread.getProviderMessages()[0].content[0].type).toBe(
+    "thread_context",
+  );
+
+  session.deleteThread(id);
+  expect(session.getThread(reflectId)).toBeUndefined();
 });

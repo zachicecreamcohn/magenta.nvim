@@ -47,8 +47,10 @@ export type {
   ThreadManager,
 } from "./capabilities/thread-manager.ts";
 export {
+  type DisplayBufferText,
   isThreadId,
   type MessageIdx,
+  type ReflectAnchor,
   type Role,
   type ScriptInvocationId,
   type SubagentConfig,
@@ -211,6 +213,7 @@ export {
   buildSystemReminder,
   type ReminderKind,
 } from "./providers/system-reminders.ts";
+export { buildReflectSeed, renderReflectHistory } from "./reflect/seed.ts";
 export type {
   JSONSchema,
   MagentaToScript,

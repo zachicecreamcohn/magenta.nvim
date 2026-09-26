@@ -33,6 +33,13 @@ export const DOCKER_ROOT_STATIC_TOOL_NAMES: StaticToolName[] = [
   ...CHAT_STATIC_TOOL_NAMES,
   "yield_to_parent",
 ];
+/** Reflect threads explain the parent's work; they must not mutate the
+ * workspace, so only read-only tools. */
+export const REFLECT_STATIC_TOOL_NAMES: StaticToolName[] = [
+  "get_files",
+  "hover",
+  "find_references",
+];
 export const SUBAGENT_STATIC_TOOL_NAMES: StaticToolName[] = [
   "get_files",
   "hover",

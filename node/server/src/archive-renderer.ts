@@ -93,6 +93,9 @@ function renderContentBlock(
     case "fork_notification":
       return `## fork notification\n${block.text}\n`;
 
+    case "thread_context":
+      return `## thread context\n${block.text}\n`;
+
     case "context_update":
       return `## context update\n${block.text}\n`;
     case "comment_update":

@@ -258,7 +258,10 @@ export class Thread implements ThreadCoreView {
     private readonly context: ThreadContext,
     public readonly callbacks: ThreadCallbacks,
     public readonly archiveOptions: ThreadArchiveOptions = {},
-    fork?: { source: Thread; nativeMessageIdx: NativeMessageIdx },
+    initialization?:
+      | { type: "fork"; source: Thread; nativeMessageIdx: NativeMessageIdx }
+      /** Written into the fresh native log as a user message, not sent. */
+      | { type: "seed"; messages: AgentInput[] },
     // Tool request IDs identify immutable results, shared across resets and forks.
     private readonly resultArchive = new Map<
       ToolRequestId,
@@ -272,12 +275,16 @@ export class Thread implements ThreadCoreView {
         isAborted: () => this.liveSubmission?.aborted ?? false,
       },
     );
-    this.core = fork
-      ? this.createForkedCore({
-          source: fork.source.core,
-          nativeMessageIdx: fork.nativeMessageIdx,
-        })
-      : this.createFreshCore();
+    this.core =
+      initialization?.type === "fork"
+        ? this.createForkedCore({
+            source: initialization.source.core,
+            nativeMessageIdx: initialization.nativeMessageIdx,
+          })
+        : this.createFreshCore();
+    if (initialization?.type === "seed") {
+      this.core.manager.appendUserMessage(initialization.messages);
+    }
   }
 
   /** The thread's own contribution to a request: the queued user content. It
@@ -425,7 +432,7 @@ export class Thread implements ThreadCoreView {
           nativeMessageIdx,
         },
       },
-      { source: sourceThread, nativeMessageIdx },
+      { type: "fork", source: sourceThread, nativeMessageIdx },
       sourceThread.resultArchive,
     );
     return cloned;

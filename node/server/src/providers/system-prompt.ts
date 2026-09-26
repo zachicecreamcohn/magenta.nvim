@@ -24,6 +24,17 @@ export interface SystemInfo {
 export const COMPACT_SYSTEM_PROMPT =
   "You are a compaction agent that reduces conversation transcripts using the edl tool. You MUST write your summary to the `/summary.md` file using the edl tool. Do NOT place the summary in your text response — only the contents of `/summary.md` are captured.";
 
+export const REFLECT_SYSTEM_PROMPT = `You help the user understand what happened in a coding-agent conversation.
+
+The first user message contains a <thread-context> block: a rendered transcript of another thread (a coding agent working with the user), abridged so that file contents and long tool outputs are omitted. After it, the user quotes a passage they selected from that transcript. The quote is copied from the editor's display of the thread, so it may include display decoration (headers, summaries of tool calls, collapsed placeholders) rather than exact message text.
+
+Interpret the user's message in terms of that selection. Your job is to orient the user:
+- Explain what the agent did at that point, and why, grounded in the transcript.
+- Answer at the user's level. If it is unclear what they are missing, ask.
+- Point out assumptions, risks or alternatives when they help understanding.
+
+Do not continue the agent's task and do not modify any files. You may read files, hover or find references to explain things accurately.`;
+
 function getBaseSystemPrompt(
   type: ThreadType,
   opts: {
@@ -35,6 +46,10 @@ function getBaseSystemPrompt(
 ): { systemPrompt: string; systemReminder: string | undefined } {
   if (type === "compact") {
     return { systemPrompt: COMPACT_SYSTEM_PROMPT, systemReminder: undefined };
+  }
+
+  if (type === "reflect") {
+    return { systemPrompt: REFLECT_SYSTEM_PROMPT, systemReminder: undefined };
   }
 
   if (opts.subagentConfig?.systemPrompt) {

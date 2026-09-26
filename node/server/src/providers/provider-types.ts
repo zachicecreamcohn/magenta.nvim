@@ -111,6 +111,11 @@ export type ProviderCommentUpdateContent = {
   nativeMessageIdx: NativeMessageIdx;
 };
 
+export type ProviderThreadContextContent = {
+  type: "thread_context";
+  text: string;
+  nativeMessageIdx: NativeMessageIdx;
+};
 export type ProviderForkNotificationContent = {
   type: "fork_notification";
   text: string;
@@ -210,7 +215,8 @@ export type ProviderMessageContent =
   | ProviderSystemInfoContent
   | ProviderContextUpdateContent
   | ProviderCommentUpdateContent
-  | ProviderForkNotificationContent;
+  | ProviderForkNotificationContent
+  | ProviderThreadContextContent;
 
 export interface Provider {
   forceToolUse(options: {

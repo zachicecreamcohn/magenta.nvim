@@ -59,6 +59,14 @@ export type ThreadInitialization =
       archiveOptions?: ThreadArchiveOptions;
     }
   | {
+      type: "fresh";
+      threadType: "reflect";
+      policy: ChatThreadPolicy;
+      /** Appended to the fresh native log as the first user message. */
+      seed: AgentInput[];
+      archiveOptions?: ThreadArchiveOptions;
+    }
+  | {
       type: "fork";
       sourceThread: Thread;
       nativeMessageIdx: NativeMessageIdx;
@@ -142,6 +150,9 @@ export function assembleThread(args: {
                 dependencies,
                 threadCallbacks,
                 initialization.archiveOptions ?? {},
+                "seed" in initialization
+                  ? { type: "seed", messages: initialization.seed }
+                  : undefined,
               );
         // Construction invokes no callbacks and resolves no submissions, so
         // the scheduler is attached before it can be consulted.
