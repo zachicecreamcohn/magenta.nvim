@@ -111,4 +111,46 @@ describe("withHighlights", () => {
       expect(hits).toBe(1);
     });
   });
+  it("keeps fallback highlights' bindings inactive", async () => {
+    await withNvimClient(async (nvim) => {
+      const { mounted } = await mount(nvim, view, {
+        before: "top",
+        body: "hello world",
+        highlights: [hl("a", "missing", () => {})],
+      });
+      const root = mounted._getMountedNode();
+      expect(getHighlightPos(root, "a")).toEqual({
+        startPos: { row: 1, col: 11 },
+        endPos: { row: 1, col: 11 },
+      });
+      for (const col of [10, 11]) {
+        expect(getBinding(root, pos(1, col), "n", "r")).toBeUndefined();
+      }
+    });
+  });
+  it("tracks a node starting mid-line when its prefix changes", async () => {
+    await withNvimClient(async (nvim) => {
+      const inline = (p: Props) =>
+        d`${p.before}${withHighlights(d`${p.body}`, p.highlights)}\ntail`;
+      const { buffer, mounted } = await mount(nvim, inline, {
+        before: "ab",
+        body: "x world",
+        highlights: [hl("a", "world", () => {})],
+      });
+      await mounted.render({
+        before: "abcdef",
+        body: "x world",
+        highlights: [hl("a", "world", () => {})],
+      });
+      const root = mounted._getMountedNode();
+      expect(getHighlightPos(root, "a")).toEqual({
+        startPos: { row: 0, col: 8 },
+        endPos: { row: 0, col: 13 },
+      });
+      const [m] = await buffer.getExtmarks(MAGENTA_REFLECT_NAMESPACE);
+      expect(m.startPos).toEqual({ row: 0, col: 8 });
+      expect(getBinding(root, pos(0, 9), "n", "r")).toBeDefined();
+      expect(getBinding(root, pos(0, 4), "n", "r")).toBeUndefined();
+    });
+  });
 });

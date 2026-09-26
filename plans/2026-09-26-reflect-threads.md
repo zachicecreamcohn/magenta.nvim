@@ -400,6 +400,7 @@ Status: DONE. `NodeHighlight`/`withHighlights` in `tea/view.ts`; placement, `fin
 - No right pane yet: `MagentaReflectActive` is defined but unused, and normal `r` on a highlight dispatches `select-thread-effect` for the child (replaces `show-reflection` until the pane-state stage). Normal `r` off a highlight still does nothing (overview stage).
 - The parent's labels refresh only when the parent re-renders.
 - Not covered by tests: fallback toggling in tier C, resize stability.
+- Review follow-up: `PlacedHighlight` is a union (`matched` with start/end, `fallback` with an anchor) that carries its `spec`, so bindings iterate `highlightState.placed` and only matched extents can bind; `HighlightState.signature` is a branded `HighlightSignature`; lua `jumpToReflection`. Tests added for inactive fallback bindings and for a mid-line node whose prefix changes. Not done (nits): branded highlight ids, removing the index/text casts in `thread-view.ts`/`mountedText`.
 
 - Goal: reflected passages render highlighted with a virt-line label. Normal `r` on a highlight shows the child, `<CR>` is unchanged, and `]r`/`[r` jump. `withHighlights`/`getHighlightPos` work.
 - Tests:

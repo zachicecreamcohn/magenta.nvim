@@ -303,7 +303,7 @@ end
 
 -- Reflection highlights (and their fallback markers) live in their own
 -- namespace, placed by node's TEA highlight pass.
-local function jump_to_reflection(direction)
+local function jumpToReflection(direction)
   local ns = vim.api.nvim_create_namespace("magenta-reflect")
   local cursor = vim.api.nvim_win_get_cursor(0)
   local row, col = cursor[1] - 1, cursor[2]
@@ -330,8 +330,8 @@ local function jump_to_reflection(direction)
   end
 end
 local message_jump_keymaps = {
-  ["]r"] = function() jump_to_reflection("next") end,
-  ["[r"] = function() jump_to_reflection("prev") end,
+  ["]r"] = function() jumpToReflection("next") end,
+  ["[r"] = function() jumpToReflection("prev") end,
   ["]m"] = function() jump_to_header("next", "any") end,
   ["[m"] = function() jump_to_header("prev", "any") end,
   ["]u"] = function() jump_to_header("next", "user") end,

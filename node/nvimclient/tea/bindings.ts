@@ -109,13 +109,10 @@ function getHighlightBinding(
   mode: "n" | "v",
   key: BindingKey,
 ): ((ctx?: BindingCtx) => void) | undefined {
-  if (mode !== "n" || !mountedNode.highlightState || !mountedNode.highlights) {
-    return undefined;
-  }
-  for (const h of mountedNode.highlights) {
-    const binding = h.bindings?.[key];
-    const placed = mountedNode.highlightState.placed.get(h.id);
-    if (!binding || !placed?.matched) continue;
+  if (mode !== "n" || !mountedNode.highlightState) return undefined;
+  for (const placed of mountedNode.highlightState.placed.values()) {
+    const binding = placed.spec.bindings?.[key];
+    if (!binding || placed.type !== "matched") continue;
     const extent = placedPos(mountedNode, placed);
     if (
       comparePos(cursor, extent.startPos) !== "lt" &&

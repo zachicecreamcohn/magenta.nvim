@@ -3,6 +3,7 @@ import { MAGENTA_REFLECT_NAMESPACE } from "../nvim/buffer.ts";
 import type { ByteIdx, Position0Indexed } from "../nvim/window.ts";
 import { calculatePosition } from "./util.ts";
 import type {
+  HighlightSignature,
   HighlightState,
   MountedVDOM,
   MountPoint,
@@ -40,11 +41,11 @@ function mountedText(node: MountedVDOM): DisplayBufferText {
 function signatureOf(
   text: string,
   highlights: NodeHighlight[] | undefined,
-): string {
+): HighlightSignature {
   return JSON.stringify([
     text,
     (highlights ?? []).map((h) => [h.id, h.text, h.extmarkOptions, h.fallback]),
-  ]);
+  ]) as HighlightSignature;
 }
 
 function toRelative(
@@ -114,7 +115,7 @@ async function placeHighlights(
   node: MountedVDOM,
   text: DisplayBufferText,
   highlights: NodeHighlight[],
-  signature: string,
+  signature: HighlightSignature,
   mount: MountPoint,
 ): Promise<HighlightState> {
   const buf = Buffer.from(text, "utf8");
@@ -142,12 +143,23 @@ async function placeHighlights(
       options: match ? h.extmarkOptions : h.fallback,
       namespace: MAGENTA_REFLECT_NAMESPACE,
     });
-    placed.set(h.id, {
-      extmarkId,
-      matched: !!match,
-      start: toRelative(node.startPos, startPos),
-      end: toRelative(node.startPos, endPos),
-    });
+    placed.set(
+      h.id,
+      match
+        ? {
+            type: "matched",
+            spec: h,
+            extmarkId,
+            start: toRelative(node.startPos, startPos),
+            end: toRelative(node.startPos, endPos),
+          }
+        : {
+            type: "fallback",
+            spec: h,
+            extmarkId,
+            anchor: toRelative(node.startPos, startPos),
+          },
+    );
   }
   return { signature, placed };
 }
@@ -156,6 +168,10 @@ export function placedPos(
   node: MountedVDOM,
   placed: PlacedHighlight,
 ): { startPos: Position0Indexed; endPos: Position0Indexed } {
+  if (placed.type === "fallback") {
+    const anchor = toAbsolute(node.startPos, placed.anchor);
+    return { startPos: anchor, endPos: anchor };
+  }
   return {
     startPos: toAbsolute(node.startPos, placed.start),
     endPos: toAbsolute(node.startPos, placed.end),

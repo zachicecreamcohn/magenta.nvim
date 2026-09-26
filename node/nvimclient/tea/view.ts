@@ -35,15 +35,24 @@ export type NodeHighlight = {
 
 /** Where a highlight's mark sits, relative to its node's startPos so that it
  * follows the node as earlier content shifts. */
-export type PlacedHighlight = {
-  extmarkId: ExtmarkId;
-  matched: boolean;
-  start: RelativePos;
-  end: RelativePos;
-};
+export type PlacedHighlight =
+  | {
+      type: "matched";
+      spec: NodeHighlight;
+      extmarkId: ExtmarkId;
+      start: RelativePos;
+      end: RelativePos;
+    }
+  | {
+      type: "fallback";
+      spec: NodeHighlight;
+      extmarkId: ExtmarkId;
+      anchor: RelativePos;
+    };
 export type RelativePos = { rowDelta: number; col: ByteIdx };
+export type HighlightSignature = string & { __highlightSignature: true };
 export type HighlightState = {
-  signature: string;
+  signature: HighlightSignature;
   placed: Map<string, PlacedHighlight>;
 };
 
