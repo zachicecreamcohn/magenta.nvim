@@ -210,6 +210,12 @@ it("parent shows 'forked to' (not in agent messages) and <CR> navigates to child
     });
 
     await driver.assertDisplayBufferContains("forked to thread");
+    const text = await driver.getDisplayBufferText();
+    const forkPos = text.indexOf("forked to thread");
+    // The fork was taken after the assistant reply, so its indicator must
+    // follow both messages rather than attach to an earlier one.
+    expect(text.indexOf("hello")).toBeLessThan(forkPos);
+    expect(text.lastIndexOf("hi")).toBeLessThan(forkPos);
 
     await driver.pressOnDisplayMessage("forked to thread", "<CR>");
 

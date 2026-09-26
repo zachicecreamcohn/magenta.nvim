@@ -348,7 +348,7 @@ export function findInDisplayBufferText(lines: DisplayBufferText[], needle: Disp
 
 ## Server-side thread origins
 
-Status: DONE. `ThreadOrigin` (fork variant only for now) in `chat-types.ts`; `Session.create` records it from the fork request; `getOrigin`/`listDerived` added. `forkedTo`/`forkedFrom` view state deleted; `thread-view.ts` reads Session. Deviation: Session has no save/load path for metadata, so persistence is not tested (nothing to persist to yet). Tests: `session.test.ts` "records fork origins on the server", `fork-thread.test.ts` updated.
+Status: DONE. `ThreadOrigin` (fork variant only for now) in `chat-types.ts`; `Session.create` records it from the fork request; `getOrigin`/`listDerived` added. `forkedTo`/`forkedFrom` view state deleted; `thread-view.ts` reads Session. Deviation: Session has no save/load path for metadata, so persistence is not tested (nothing to persist to yet). Tests: `session.test.ts` "records fork origins on the server", `fork-thread.test.ts` updated. Review follow-up: `listDerived` is generic and narrows `origin` to the requested variant; `SessionThread.origin` is `ThreadOrigin | undefined` (set explicitly at construction); tests cover creation order, per-source filtering, grandchild origin, subagents having no origin, and the fork indicator's position after the forked messages.
 
 - Goal: `SessionThread.origin` records forks, and `getOrigin`/`listDerived` replace `NvimThread.state.forkedTo` and `MessageViewState.forkedFrom`, which are deleted. Fork seam rendering is unchanged for the user.
 - Tests:

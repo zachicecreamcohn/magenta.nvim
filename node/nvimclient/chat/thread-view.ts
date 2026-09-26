@@ -603,16 +603,10 @@ ${contextFilesView(thread.thread.contextFiles, contextViewCtx(thread), {
     );
 
   const session = thread.context.chat.session;
-  const forkedTo = session.listDerived(thread.id, "fork").flatMap((d) =>
-    d.origin.type === "fork"
-      ? [
-          {
-            childThreadId: d.threadId,
-            atMessageIdx: d.origin.nativeMessageIdx,
-          },
-        ]
-      : [],
-  );
+  const forkedTo = session.listDerived(thread.id, "fork").map((d) => ({
+    childThreadId: d.threadId,
+    atMessageIdx: d.origin.nativeMessageIdx,
+  }));
   const forkedToAtIdx = (messageIdx: number) => {
     const forks = forkedTo.filter((fork) => fork.atMessageIdx === messageIdx);
     return forks.length > 0

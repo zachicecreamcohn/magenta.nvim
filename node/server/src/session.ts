@@ -100,7 +100,7 @@ export type SessionThread = {
   scriptInvocationId?: ScriptInvocationId;
   /** Set once at creation for forks; separate from `parentThreadId`, since a
    * fork is not a subagent child. */
-  origin?: ThreadOrigin;
+  origin: ThreadOrigin | undefined;
   lastActivityTime: number;
   /** Retained so child profile/environment derivation and forking read session
    * state rather than a view wrapper. */
@@ -182,14 +182,20 @@ export class Session extends Emitter<SessionEvents> implements ThreadManager {
   }
 
   /** Threads derived from `id` by `type`, in creation order. */
-  listDerived(
+  listDerived<T extends ThreadOrigin["type"]>(
     id: ThreadId,
-    type: ThreadOrigin["type"],
-  ): Array<{ threadId: ThreadId; origin: ThreadOrigin }> {
-    const derived: Array<{ threadId: ThreadId; origin: ThreadOrigin }> = [];
+    type: T,
+  ): Array<{ threadId: ThreadId; origin: Extract<ThreadOrigin, { type: T }> }> {
+    const derived: Array<{
+      threadId: ThreadId;
+      origin: Extract<ThreadOrigin, { type: T }>;
+    }> = [];
+    const isType = (
+      o: ThreadOrigin | undefined,
+    ): o is Extract<ThreadOrigin, { type: T }> => o?.type === type;
     for (const record of this.records.values()) {
       const origin = record.origin;
-      if (origin?.type === type && origin.sourceThreadId === id) {
+      if (isType(origin) && origin.sourceThreadId === id) {
         derived.push({ threadId: record.id, origin });
       }
     }
@@ -368,15 +374,14 @@ The title must be a single line (no newlines) and a few words long (ideally arou
       id,
       state: "pending",
       parentThreadId: options.parent,
-      ...(request.type === "fork"
-        ? {
-            origin: {
+      origin:
+        request.type === "fork"
+          ? {
               type: "fork",
               sourceThreadId: request.source.id,
               nativeMessageIdx: request.nativeMessageIdx,
-            },
-          }
-        : {}),
+            }
+          : undefined,
       ...(options.scriptInvocationId
         ? { scriptInvocationId: options.scriptInvocationId }
         : {}),

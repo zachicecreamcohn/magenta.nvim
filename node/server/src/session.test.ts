@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import type { ThreadId } from "./chat-types.ts";
 import type { ProviderProfile } from "./provider-options.ts";
+import type { NativeMessageIdx } from "./providers/provider-types.ts";
 import { pendingMessage, renderPending } from "./submission/index.ts";
 import {
   createHarness,
@@ -85,6 +86,19 @@ it("records fork origins on the server", async () => {
     forkId,
   ]);
   expect(session.listDerived(forkId, "fork")).toEqual([]);
+
+  const secondForkId = await created(
+    session.forkThread(id, 0 as NativeMessageIdx),
+  );
+  const grandchildId = await created(session.forkThread(forkId, idx));
+  expect(session.listDerived(id, "fork").map((d) => d.threadId)).toEqual([
+    forkId,
+    secondForkId,
+  ]);
+  expect(session.listDerived(forkId, "fork").map((d) => d.threadId)).toEqual([
+    grandchildId,
+  ]);
+  expect(session.getOrigin(grandchildId)?.sourceThreadId).toBe(forkId);
 });
 
 it("derives a child's profile and environment from the parent record", async () => {
@@ -108,6 +122,8 @@ it("derives a child's profile and environment from the parent record", async () 
   );
   const child = session.getThread(childId);
   if (child?.state !== "initialized") throw new Error("expected child");
+  expect(session.getOrigin(childId)).toBeUndefined();
+  expect(session.listDerived(parentId, "fork")).toEqual([]);
   expect(child.parentThreadId).toBe(parentId);
   // The fast-model child inherits the parent's profile with the fast model.
   expect(child.options.profile.model).toBe("fast-model");
