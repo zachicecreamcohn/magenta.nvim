@@ -19,7 +19,7 @@ async function setupThread(driver: Driver) {
   await driver.assertDisplayBufferContains("Second line here.");
   // Let trailing renders (e.g. the title) settle so row lookups stay valid.
   await driver.wait(200);
-  return driver.magenta.chat.shownThreadId!;
+  return driver.magenta.chat.leftThreadId!;
 }
 
 /** Puts the cursor on `text` in the display window and runs `keys` through
@@ -49,11 +49,11 @@ it("visual r creates an unsent reflect thread anchored on the selection", async 
     await visualOn(driver, "calls itself", "vlllllllllllr");
 
     await pollUntil(() => {
-      if (driver.magenta.chat.shownThreadId === sourceId) {
+      if (driver.magenta.chat.rightThreadId === undefined) {
         throw new Error("still on source");
       }
     });
-    const reflectId = driver.magenta.chat.shownThreadId!;
+    const reflectId = driver.magenta.chat.rightThreadId!;
     const origin = driver.magenta.chat.session.getOrigin(reflectId);
     expect(origin).toEqual({
       type: "reflect",
@@ -62,14 +62,22 @@ it("visual r creates an unsent reflect thread anchored on the selection", async 
     });
     expect(driver.mockAnthropic.mockClient.streams.length).toBe(requestsBefore);
 
-    const currentWin = await getCurrentWindow(driver.nvim);
-    expect(currentWin.id).toBe(driver.getVisibleState().inputWindow.id);
+    await pollUntil(async () => {
+      const currentWin = await getCurrentWindow(driver.nvim);
+      const rightInput = driver.magenta.sidebar.getRightWindows()?.inputWindow;
+      if (!rightInput || currentWin.id !== rightInput.id) {
+        throw new Error("cursor not in the right input");
+      }
+    });
     await pollUntil(async () => {
       const mode = (await driver.nvim.call("nvim_get_mode", [])) as {
         mode: string;
       };
       if (mode.mode !== "i") throw new Error(`mode ${mode.mode}`);
     });
+    await driver.nvim.call("nvim_command", ["stopinsert"]);
+    // Descend so the reflection is in the left column the driver reads.
+    await driver.magenta.showReflectionsOverview(reflectId);
 
     await driver.assertDisplayBufferContains(
       "[thread context]\n\nThe user selected:\n> calls itself",
@@ -93,7 +101,7 @@ it("rejects duplicate reflections and selections spanning blocks", async () => {
 
     await visualOn(driver, "calls itself", "vlllllllllllr");
     await pollUntil(() => {
-      if (driver.magenta.chat.shownThreadId === sourceId) {
+      if (driver.magenta.chat.rightThreadId === undefined) {
         throw new Error("reflection not shown yet");
       }
     });
@@ -105,12 +113,12 @@ it("rejects duplicate reflections and selections spanning blocks", async () => {
     await visualOn(driver, "calls itself", "vlllllllllllr");
     await driver.wait(300);
     expect(session.listDerived(sourceId, "reflect")).toHaveLength(1);
-    expect(driver.magenta.chat.shownThreadId).toBe(sourceId);
+    expect(driver.magenta.chat.rightThreadId).toBeUndefined();
     // Spans the user message and the assistant reply.
     await visualOn(driver, "Why?", "Vjjjjr");
     await driver.wait(300);
     expect(session.listDerived(sourceId, "reflect")).toHaveLength(1);
-    expect(driver.magenta.chat.shownThreadId).toBe(sourceId);
+    expect(driver.magenta.chat.rightThreadId).toBeUndefined();
   });
 });
 
@@ -119,7 +127,7 @@ it("linewise V inside one block reflects on the full line", async () => {
     const sourceId = await setupThread(driver);
     await visualOn(driver, "Second line here.", "Vr");
     await pollUntil(() => {
-      if (driver.magenta.chat.shownThreadId === sourceId) {
+      if (driver.magenta.chat.rightThreadId === undefined) {
         throw new Error("still on source");
       }
     });
@@ -136,7 +144,7 @@ it("highlights reflections, jumps with ]r/[r, and r on a highlight shows it", as
     await visualOn(driver, "calls itself", "vlllllllllllr");
     const backToSource = async () => {
       await pollUntil(() => {
-        if (driver.magenta.chat.shownThreadId === sourceId) {
+        if (driver.magenta.chat.rightThreadId === undefined) {
           throw new Error("reflection not shown yet");
         }
       });
@@ -187,11 +195,11 @@ it("highlights reflections, jumps with ]r/[r, and r on a highlight shows it", as
     // normal r on the highlight shows that reflection
     await driver.nvim.call("nvim_command", ["normal r"]);
     await pollUntil(() => {
-      if (driver.magenta.chat.shownThreadId === sourceId) {
+      if (driver.magenta.chat.rightThreadId === undefined) {
         throw new Error("still on source");
       }
     });
-    const shown = driver.magenta.chat.shownThreadId!;
+    const shown = driver.magenta.chat.rightThreadId!;
     expect(driver.magenta.chat.session.getOrigin(shown)).toMatchObject({
       type: "reflect",
       anchor: { reflectionText: "calls itself" },

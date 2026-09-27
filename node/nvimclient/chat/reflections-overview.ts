@@ -1,7 +1,7 @@
 import type { Session, ThreadId, ThreadOrigin } from "@magenta/server";
 import { NvimBuffer } from "../nvim/buffer.ts";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
-import { NvimWindow, type Row0Indexed, type WindowId } from "../nvim/window.ts";
+import type { Row0Indexed } from "../nvim/window.ts";
 import * as TEA from "../tea/tea.ts";
 import { d, pos, type VDOMNode, withBindings } from "../tea/view.ts";
 
@@ -38,10 +38,12 @@ export function renderReflectionsOverview({
   entries,
   label,
   onOpen,
+  onDelete,
 }: {
   entries: ReflectionEntry[];
   label: (childId: ThreadId) => string;
   onOpen: (childId: ThreadId) => void;
+  onDelete: (childId: ThreadId) => void;
 }): VDOMNode {
   const header = d`# Reflections\n\n`;
   if (entries.length === 0) {
@@ -50,7 +52,10 @@ export function renderReflectionsOverview({
   return d`${header}${entries.map(({ threadId, origin }) =>
     withBindings(
       d`> ${truncate(origin.anchor.reflectionText, 60)} — ${truncate(label(threadId), 40)}\n`,
-      { "<CR>": () => onOpen(threadId) },
+      {
+        "<CR>": () => onOpen(threadId),
+        dd: () => onDelete(threadId),
+      },
     ),
   )}`;
 }
@@ -64,9 +69,8 @@ export function entryAtLine(
   return idx >= 0 ? entries[idx] : undefined;
 }
 
-/** A read-only reflection overview for one thread, shown in a window split to
- * the right of the sidebar's display window. Until the pane-state and
- * two-column stages land, this window is managed here rather than by Sidebar. */
+/** A read-only reflection overview for one thread: its buffer and TEA app.
+ * The sidebar shows the buffer in the right column's display window. */
 export class ReflectionsOverview {
   /** The entry under the overview's cursor, drawn with `MagentaReflectActive`
    * in the source thread. Lives here so it can't outlive the overview. */
@@ -76,7 +80,6 @@ export class ReflectionsOverview {
     readonly threadId: ThreadId,
     private session: Pick<Session, "listDerived">,
     readonly buffer: NvimBuffer,
-    readonly window: NvimWindow,
     private app: TEA.App<undefined>,
     readonly mountedApp: TEA.MountedApp,
   ) {}
@@ -84,21 +87,21 @@ export class ReflectionsOverview {
   static async open({
     nvim,
     threadId,
-    besideWindow,
     session,
     label,
     onOpen,
+    onDelete,
   }: {
     nvim: Nvim;
     threadId: ThreadId;
-    besideWindow: NvimWindow;
     session: Session;
     label: (childId: ThreadId) => string;
     onOpen: (childId: ThreadId) => void;
+    onDelete: (childId: ThreadId) => void;
   }): Promise<ReflectionsOverview> {
     const buffer = await NvimBuffer.create(false, true, nvim);
     await buffer.setName(`[Magenta Reflections ${threadId.replace(/-/g, "")}]`);
-    await buffer.setOption("bufhidden", "wipe");
+    await buffer.setOption("bufhidden", "hide");
     await buffer.setOption("buftype", "nofile");
     await buffer.setOption("swapfile", false);
     await buffer.setDisplayKeymaps();
@@ -106,16 +109,6 @@ export class ReflectionsOverview {
       `require("magenta.keymaps").set_reflections_buffer_keymaps(...)`,
       [buffer.id],
     ]);
-    const width = await nvim.call("nvim_win_get_width", [besideWindow.id]);
-    const winId = (await nvim.call("nvim_open_win", [
-      buffer.id,
-      true,
-      { split: "right", win: besideWindow.id, width },
-    ])) as WindowId;
-    const window = new NvimWindow(winId, nvim);
-    await window.setOption("winfixwidth", true);
-    await window.setOption("wrap", false);
-
     const app = TEA.createApp<undefined>({
       nvim,
       initialModel: undefined,
@@ -124,6 +117,7 @@ export class ReflectionsOverview {
           entries: orderedReflections(session, threadId),
           label,
           onOpen,
+          onDelete,
         }),
     });
     const mountedApp = await app.mount({
@@ -132,14 +126,7 @@ export class ReflectionsOverview {
       startPos: pos(0 as Row0Indexed, 0),
       endPos: pos(-1 as Row0Indexed, -1),
     });
-    return new ReflectionsOverview(
-      threadId,
-      session,
-      buffer,
-      window,
-      app,
-      mountedApp,
-    );
+    return new ReflectionsOverview(threadId, session, buffer, app, mountedApp);
   }
 
   render(): void {
@@ -150,14 +137,11 @@ export class ReflectionsOverview {
     return entryAtLine(orderedReflections(this.session, this.threadId), line);
   }
 
-  async close(nvim: Nvim): Promise<void> {
+  async close(): Promise<void> {
     this.mountedApp.unmount();
     this.app.destroy();
-    if (await this.window.valid()) {
-      await nvim.call("nvim_win_close", [this.window.id, true]);
-    }
     await this.buffer.delete({ force: true }).catch(() => {
-      // bufhidden=wipe may already have removed it.
+      // Already deleted, e.g. by `:bd`.
     });
   }
 }

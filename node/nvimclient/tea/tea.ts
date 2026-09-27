@@ -99,6 +99,8 @@ export function createApp<Model>({
       }
 
       if (root) {
+        // Unmounting mid-render clears `root`; finish against the one we had.
+        const mountedRoot = root;
         renderPromise = (async () => {
           try {
             const bufId = mountPoint?.buffer.id;
@@ -110,7 +112,7 @@ export function createApp<Model>({
                 savedViews = undefined;
               }
             }
-            await root.render({ currentState });
+            await mountedRoot.render({ currentState });
             renderVersion++;
             if (bufId != null && savedViews) {
               try {

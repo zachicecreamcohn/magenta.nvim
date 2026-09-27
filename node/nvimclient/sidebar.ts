@@ -45,7 +45,18 @@ function resolveResponsivePosition(
   }
 }
 
-export type SidebarColumnName = "left";
+export type SidebarColumnName = "left" | "right";
+
+/** Right-column windows. The input window only exists while it shows a thread. */
+type RightColumn = {
+  displayWindow: NvimWindow;
+  inputWindow?: NvimWindow | undefined;
+};
+
+/** What the right column should show; `sync` reconciles windows to it. */
+export type RightColumnTarget =
+  | { displayBuffer: NvimBuffer; inputBuffer?: NvimBuffer }
+  | undefined;
 
 export type ColumnStatus = "none" | "busy" | "failed" | "ok";
 const STATUS_ICONS: Record<ColumnStatus, string> = {
@@ -140,7 +151,10 @@ export class Sidebar {
         displayWindow: NvimWindow;
         displayWidth: number;
         inputWindow: NvimWindow;
+        right?: RightColumn | undefined;
       };
+
+  private resolvedPosition: SidebarPositions | undefined;
 
   constructor(
     private nvim: Nvim,
@@ -157,9 +171,9 @@ export class Sidebar {
     return "Magenta Chat";
   }
 
-  private getInputWindowTitle(): string {
+  private getInputWindowTitle(column: SidebarColumnName): string {
     const { profile, tokenCount, status, sandboxBypassed } =
-      this.getColumnChrome("left");
+      this.getColumnChrome(column);
     const thinkingStatus = profile.thinking?.enabled
       ? profile.thinking.effort
         ? ` thinking:${profile.thinking.effort}`
@@ -176,7 +190,21 @@ export class Sidebar {
     return `${baseTitle} ${statusText}[${formatTokenCount(tokenCount)}]${bypassIndicator}`;
   }
 
-  async onWinClosed() {
+  /** Returns true when a right-column window was closed out from under us, so
+   * the caller can clear the right pane. */
+  async onWinClosed(): Promise<{ rightClosed: boolean }> {
+    let rightClosed = false;
+    if (this.state.state === "visible" && this.state.right) {
+      const { displayWindow, inputWindow } = this.state.right;
+      const [d, i] = await Promise.all([
+        displayWindow.valid(),
+        inputWindow ? inputWindow.valid() : Promise.resolve(true),
+      ]);
+      if (!(d && i)) {
+        rightClosed = true;
+        await this.closeRight();
+      }
+    }
     if (this.state.state === "visible") {
       const [displayWindowValid, inputWindowValid] = await Promise.all([
         this.state.displayWindow.valid(),
@@ -187,6 +215,127 @@ export class Sidebar {
         await this.hide();
       }
     }
+    return { rightClosed };
+  }
+
+  /** Reconciles the right column's windows to `target`. Only left/right
+   * sidebar positions support a second column. */
+  async syncRight(target: RightColumnTarget): Promise<void> {
+    if (this.state.state !== "visible") return;
+    if (
+      !target ||
+      !(this.resolvedPosition === "left" || this.resolvedPosition === "right")
+    ) {
+      await this.closeRight();
+      return;
+    }
+    const left = this.state;
+    let right = left.right;
+    if (right && !(await right.displayWindow.valid())) {
+      await this.closeRight();
+      right = undefined;
+    }
+    if (!right) {
+      const columnWidth = (await this.nvim.call("nvim_win_get_width", [
+        left.displayWindow.id,
+      ])) as number;
+      const winId = (await this.nvim.call("nvim_open_win", [
+        target.displayBuffer.id,
+        false,
+        {
+          split: "right",
+          win: left.displayWindow.id,
+          width: columnWidth,
+        },
+      ])) as WindowId;
+      const displayWindow = new NvimWindow(winId, this.nvim);
+      await this.initWindow(displayWindow);
+      await displayWindow.setVar("magenta_display_window", true);
+      await displayWindow.setOption("winbar", this.getDisplayWindowTitle());
+      await displayWindow.setOption("winfixwidth", true);
+      await this.nvim.call("nvim_win_set_width", [
+        left.displayWindow.id,
+        columnWidth,
+      ]);
+      await left.displayWindow.setOption("winfixwidth", true);
+      right = { displayWindow };
+      left.right = right;
+    } else {
+      await right.displayWindow.setBuffer(target.displayBuffer);
+    }
+    if (target.inputBuffer) {
+      if (right.inputWindow && (await right.inputWindow.valid())) {
+        await right.inputWindow.setBuffer(target.inputBuffer);
+      } else {
+        const inputHeight = (await this.nvim.call("nvim_win_get_height", [
+          left.inputWindow.id,
+        ])) as number;
+        const winId = (await this.nvim.call("nvim_open_win", [
+          target.inputBuffer.id,
+          false,
+          { split: "below", win: right.displayWindow.id, height: inputHeight },
+        ])) as WindowId;
+        const inputWindow = new NvimWindow(winId, this.nvim);
+        await this.initWindow(inputWindow);
+        await inputWindow.setOption("winfixheight", true);
+        right.inputWindow = inputWindow;
+      }
+      await right.inputWindow.setOption(
+        "winbar",
+        this.getInputWindowTitle("right"),
+      );
+    } else if (right.inputWindow) {
+      const inputWindow = right.inputWindow;
+      right.inputWindow = undefined;
+      await inputWindow.close().catch(() => undefined);
+    }
+  }
+
+  private async initWindow(win: NvimWindow) {
+    for (const [key, value] of Object.entries({
+      wrap: true,
+      linebreak: true,
+      cursorline: true,
+    })) {
+      await win.setOption(key, value);
+    }
+    await win.setVar("magenta", true);
+  }
+
+  private async closeRight(): Promise<void> {
+    if (this.state.state !== "visible" || !this.state.right) return;
+    const { displayWindow, inputWindow } = this.state.right;
+    this.state.right = undefined;
+    for (const win of [displayWindow, inputWindow]) {
+      if (win && (await win.valid())) {
+        await win.close().catch(() => undefined);
+      }
+    }
+    if (await this.state.displayWindow.valid()) {
+      await this.state.displayWindow.setOption("winfixwidth", false);
+    }
+  }
+
+  /** The right column's windows, if it is open. */
+  getRightWindows(): RightColumn | undefined {
+    return this.state.state === "visible" ? this.state.right : undefined;
+  }
+
+  /** Which column a window belongs to, if it is a sidebar window. */
+  columnOfWindow(winId: WindowId): SidebarColumnName | undefined {
+    if (this.state.state !== "visible") return undefined;
+    if (
+      winId === this.state.displayWindow.id ||
+      winId === this.state.inputWindow.id
+    )
+      return "left";
+    const right = this.state.right;
+    if (
+      right &&
+      (winId === right.displayWindow.id || winId === right.inputWindow?.id)
+    )
+      return "right";
+    return undefined;
   }
 
   async toggle(
@@ -250,6 +399,7 @@ export class Sidebar {
       ])) as WindowId;
     }
     const displayWindow = new NvimWindow(displayWindowId, this.nvim);
+    this.resolvedPosition = resolvedPosition;
 
     const inputWindowId = (await this.nvim.call("nvim_open_win", [
       inputBuffer.id,
@@ -278,7 +428,7 @@ export class Sidebar {
     // set vars so we can identify this as the magenta display window
     await displayWindow.setVar("magenta", true);
     await displayWindow.setVar("magenta_display_window", true);
-    await inputWindow.setOption("winbar", this.getInputWindowTitle());
+    await inputWindow.setOption("winbar", this.getInputWindowTitle("left"));
     // set var so we can avoid closing this window when displaying a diff
     await inputWindow.setVar("magenta", true);
     await inputWindow.setOption("winfixheight", true);
@@ -306,13 +456,20 @@ export class Sidebar {
       }
       await this.state.inputWindow.setOption(
         "winbar",
-        this.getInputWindowTitle(),
+        this.getInputWindowTitle("left"),
       );
+      const rightInput = this.state.right?.inputWindow;
+      if (rightInput && (await rightInput.valid())) {
+        await rightInput
+          .setOption("winbar", this.getInputWindowTitle("right"))
+          .catch(() => undefined);
+      }
     }
   }
 
   async hide() {
     if (this.state.state === "visible") {
+      await this.closeRight();
       const { displayWindow, inputWindow } = this.state;
 
       // Check if the only windows open are magenta windows

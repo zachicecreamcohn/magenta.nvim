@@ -68,6 +68,7 @@ local defaults = {
   sidebarKeymaps = {
     normal = {
       ["<CR>"] = ":Magenta send<CR>",
+      ["-"] = ":Magenta threads-navigate-up<CR>",
     }
   },
   displayKeymaps = {

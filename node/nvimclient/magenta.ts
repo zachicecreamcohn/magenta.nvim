@@ -72,6 +72,7 @@ import { initializeSandbox, type Sandbox } from "./sandbox-manager.ts";
 import { ScriptController } from "./scripts/script-manager.ts";
 import {
   type ColumnChrome,
+  type RightColumnTarget,
   Sidebar,
   type SidebarColumnName,
 } from "./sidebar.ts";
@@ -282,6 +283,11 @@ export class Magenta {
           if (activeMountedApp) {
             activeMountedApp.render();
           }
+          const rightId = this.chat.rightThreadId;
+          if (rightId) {
+            this.bufferManager.getMountedApp(threadKey(rightId))?.render();
+          }
+          this.reflectionsOverview?.render();
         }
 
         this.sidebar.renderInputHeader().catch((e) => {
@@ -426,8 +432,8 @@ export class Magenta {
     return this.optionsLoader.getOptions();
   }
 
-  private columnThreadId(_column: SidebarColumnName): ThreadId | undefined {
-    return this.chat.shownThreadId;
+  private columnThreadId(column: SidebarColumnName): ThreadId | undefined {
+    return column === "left" ? this.chat.leftThreadId : this.chat.rightThreadId;
   }
 
   private getColumnChrome(column: SidebarColumnName): ColumnChrome {
@@ -456,7 +462,7 @@ export class Magenta {
   getActiveKey(): BufferKey {
     switch (this.chat.state.state) {
       case "thread-selected":
-        return threadKey(this.chat.shownThreadId ?? this.chat.state.left);
+        return threadKey(this.chat.state.left);
       case "archive":
         return { kind: "archive" };
       case "archive-thread-selected":
@@ -553,9 +559,9 @@ export class Magenta {
     return threadId;
   }
 
-  /** Creates a reflect thread on `anchor` without sending anything, shows it,
-   * and leaves the cursor in its input buffer in insert mode. Until the two
-   * column layout lands, the reflection replaces the source in the sidebar. */
+  /** Creates a reflect thread on `anchor` without sending anything, shows it
+   * in the right column, and leaves the cursor in its input buffer in insert
+   * mode. */
   async reflectAndSwitch(
     sourceThreadId: ThreadId,
     anchor: ReflectAnchor,
@@ -582,78 +588,103 @@ export class Magenta {
       type: "chat-msg",
       msg: { type: "reflect-created", parent: sourceThreadId, child: threadId },
     });
-    await this.syncActiveView();
     if (!this.sidebar.isVisible()) {
       await this.command("toggle");
+    } else {
+      await this.syncActiveView();
     }
-    if (this.sidebar.state.state === "visible") {
-      await this.nvim.call("nvim_set_current_win", [
-        this.sidebar.state.inputWindow.id,
-      ]);
+    // Two columns only exist for left/right positions; otherwise the
+    // reflection is reachable but not on screen.
+    const input = this.sidebar.getRightWindows()?.inputWindow;
+    if (input) {
+      await this.nvim.call("nvim_set_current_win", [input.id]);
       await this.nvim.call("nvim_command", ["startinsert"]);
+    } else {
+      await notify(
+        this.nvim,
+        "Reflection created; the sidebar position only shows one column.",
+      );
     }
     return threadId;
   }
 
   private reflectionsOverview: ReflectionsOverview | undefined;
 
-  /** Opens the reflection overview for `threadId` beside the sidebar's display
-   * window and focuses it. */
+  /** Shows the reflection overview for `threadId` in the right column and
+   * focuses it. */
   async showReflectionsOverview(threadId: ThreadId): Promise<void> {
-    if (this.sidebar.state.state !== "visible") return;
-    if (this.reflectionsOverview?.threadId === threadId) {
-      if (await this.reflectionsOverview.window.valid()) {
-        await this.nvim.call("nvim_set_current_win", [
-          this.reflectionsOverview.window.id,
-        ]);
-        return;
-      }
-    }
-    await this.closeReflectionsOverview();
     this.dispatch({
       type: "chat-msg",
       msg: { type: "show-reflections-overview", thread: threadId },
     });
-    await this.syncActiveView();
-    if (this.sidebar.state.state !== "visible") return;
+    if (!this.sidebar.isVisible()) {
+      await this.command("toggle");
+    } else {
+      await this.syncActiveView();
+    }
+    const display = this.sidebar.getRightWindows()?.displayWindow;
+    if (display) {
+      await this.nvim.call("nvim_set_current_win", [display.id]);
+    }
+  }
+
+  /** Creates or keeps the overview so it matches the right pane. A replaced
+   * overview is returned as `retired`: close it only once its buffer has left
+   * the right window, since deleting a shown buffer closes the window. */
+  private async syncReflectionsOverview(): Promise<{
+    overview: ReflectionsOverview | undefined;
+    retired: ReflectionsOverview | undefined;
+  }> {
+    const state = this.chat.state;
+    const wanted =
+      state.state === "thread-selected" &&
+      state.right?.type === "reflections-overview"
+        ? state.left
+        : undefined;
+    const current = this.reflectionsOverview;
+    if (current && current.threadId === wanted) {
+      return { overview: current, retired: undefined };
+    }
+    const retired = current;
+    if (retired) {
+      this.reflectionsOverview = undefined;
+      this.bufferManager.getMountedApp(threadKey(retired.threadId))?.render();
+    }
+    if (!wanted) return { overview: undefined, retired };
     this.reflectionsOverview = await ReflectionsOverview.open({
       nvim: this.nvim,
-      threadId,
-      besideWindow: this.sidebar.state.displayWindow,
+      threadId: wanted,
       session: this.chat.session,
       label: (childId) => this.chat.getThreadDisplayName(childId),
       onOpen: (childId) => {
-        this.closeReflectionsOverview()
-          .then(() => {
-            this.dispatch({
-              type: "chat-msg",
-              msg: {
-                type: "show-reflection",
-                parent: threadId,
-                child: childId,
-              },
-            });
-            return this.syncActiveView();
-          })
-          .catch((e: Error) =>
-            this.nvim.logger.error(`Error opening reflection: ${e.message}`),
-          );
+        // Deferred: this runs inside the overview app's key handler, and
+        // syncing disposes that app.
+        setTimeout(() => this.openReflection(wanted, childId), 0);
+      },
+      onDelete: (childId) => {
+        this.chat.session.deleteThread(childId);
+        this.reflectionsOverview?.render();
+        this.bufferManager.getMountedApp(threadKey(wanted))?.render();
       },
     });
+    return { overview: this.reflectionsOverview, retired };
   }
 
-  async closeReflectionsOverview(): Promise<void> {
-    const overview = this.reflectionsOverview;
-    if (!overview) return;
-    this.reflectionsOverview = undefined;
-    if (
-      this.chat.state.state === "thread-selected" &&
-      this.chat.state.right?.type === "reflections-overview"
-    ) {
-      this.dispatch({ type: "chat-msg", msg: { type: "close-right-pane" } });
-    }
-    this.bufferManager.getMountedApp(threadKey(overview.threadId))?.render();
-    await overview.close(this.nvim);
+  private openReflection(parent: ThreadId, childId: ThreadId): void {
+    this.dispatch({
+      type: "chat-msg",
+      msg: { type: "show-reflection", parent, child: childId },
+    });
+    this.syncActiveView()
+      .then(() => this.focusRightInput())
+      .catch((e: Error) =>
+        this.nvim.logger.error(`Error opening reflection: ${e.message}`),
+      );
+  }
+
+  private async focusRightInput(): Promise<void> {
+    const input = this.sidebar.getRightWindows()?.inputWindow;
+    if (input) await this.nvim.call("nvim_set_current_win", [input.id]);
   }
 
   /** Centres the entry's highlight in the sidebar's display window without
@@ -671,6 +702,7 @@ export class Magenta {
       await leftApp?.waitForRender();
     }
     if (!entry || !leftApp || this.sidebar.state.state !== "visible") return;
+    if (!(await this.sidebar.state.displayWindow.valid())) return;
     const highlight = leftApp.getHighlightPos(entry.threadId);
     if (!highlight) return;
     await this.nvim.call("nvim_exec_lua", [
@@ -845,6 +877,32 @@ export class Magenta {
         );
       }
     }
+    await this.syncRightColumn();
+  }
+
+  /** Binds the right column to the right pane, opening or closing it. */
+  private async syncRightColumn(): Promise<void> {
+    const { overview, retired } = await this.syncReflectionsOverview();
+    const rightId = this.chat.rightThreadId;
+    let target: RightColumnTarget;
+    if (overview) {
+      target = { displayBuffer: overview.buffer };
+    } else if (rightId) {
+      const buffers = await this.bufferManager.ensureActiveIsMounted(
+        threadKey(rightId),
+      );
+      target = {
+        displayBuffer: buffers.displayBuffer,
+        inputBuffer: buffers.inputBuffer,
+      };
+    }
+    this.handlingBufEnter = true;
+    try {
+      await this.sidebar.syncRight(target);
+    } finally {
+      this.handlingBufEnter = false;
+    }
+    await retired?.close();
   }
 
   /** The thread owning a magenta display/input buffer, if any. */
@@ -871,7 +929,7 @@ export class Magenta {
 
   /** Make sure `threadId` is what the sidebar shows, opening it if needed. */
   private async revealThread(threadId: ThreadId): Promise<void> {
-    if (!(this.chat.shownThreadId === threadId)) {
+    if (!this.chat.shownThreadIds().includes(threadId)) {
       this.dispatch({
         type: "chat-msg",
         msg: { type: "set-active-thread", id: threadId },
@@ -948,11 +1006,12 @@ export class Magenta {
       }
 
       case "toggle": {
-        await this.closeReflectionsOverview();
-        await this.sidebar.toggle(
+        const shown = await this.sidebar.toggle(
           this.options.sidebarPosition,
           this.options.sidebarPositionOpts,
         );
+        // The right column follows `right`, which survives hiding.
+        if (shown) await this.syncRightColumn();
         break;
       }
 
@@ -1023,10 +1082,6 @@ export class Magenta {
       }
 
       case "threads-navigate-up": {
-        if (this.reflectionsOverview) {
-          await this.closeReflectionsOverview();
-          break;
-        }
         this.dispatch({
           type: "chat-msg",
           msg: { type: "reflect-navigate-up" },
@@ -1132,25 +1187,20 @@ ${lines.join("\n")}
         },
       };
     }
+    getCurrentBuffer(this.nvim)
+      .then((buf) =>
+        this.dispatchKey(this.mountedAppForBuffer(buf.id), key, ctx),
+      )
+      .catch((err: Error) => this.nvim.logger.error(err));
+  }
+
+  /** Keys go to the app of the buffer they were pressed in. */
+  private mountedAppForBuffer(bufNr: BufNr): TEA.MountedApp | undefined {
     const overview = this.reflectionsOverview;
-    if (overview) {
-      getCurrentBuffer(this.nvim)
-        .then((buf) =>
-          this.dispatchKey(
-            buf.id === overview.buffer.id
-              ? overview.mountedApp
-              : this.bufferManager.getMountedApp(this.getActiveKey()),
-            key,
-            ctx,
-          ),
-        )
-        .catch((err: Error) => this.nvim.logger.error(err));
-      return;
-    }
-    this.dispatchKey(
-      this.bufferManager.getMountedApp(this.getActiveKey()),
-      key,
-      ctx,
+    if (overview && overview.buffer.id === bufNr) return overview.mountedApp;
+    const key = this.bufferManager.keyForBuffer(bufNr);
+    return this.bufferManager.getMountedApp(
+      key && key.kind !== "shared-input" ? key : this.getActiveKey(),
     );
   }
 
@@ -1195,6 +1245,12 @@ ${lines.join("\n")}
     }
     if (this.handlingBufEnter) return;
     if (this.sidebar.state.state !== "visible") return;
+    // The right column is bound by syncRightColumn; entering it is not a
+    // selection.
+    if (this.sidebar.columnOfWindow(winId) === "right") return;
+    if (this.reflectionsOverview?.buffer.id === bufNr) return;
+    const enteredRight = this.chat.rightThreadId;
+    if (enteredRight && enteredThreadId === enteredRight) return;
 
     const { displayWindow, inputWindow } = this.sidebar.state;
     const isMagentaWindow =
@@ -1217,6 +1273,11 @@ ${lines.join("\n")}
 
   /** Recover or unregister the view identity associated with a deleted buffer. */
   async onBufDelete(bufNr: BufNr): Promise<void> {
+    if (this.reflectionsOverview?.buffer.id === bufNr) {
+      this.dispatch({ type: "chat-msg", msg: { type: "close-right-pane" } });
+      await this.syncActiveView();
+      return;
+    }
     const bufInfo = this.bufferManager.lookupBuffer(bufNr);
     if (!bufInfo) return;
 
@@ -1252,10 +1313,18 @@ ${lines.join("\n")}
       return;
     }
 
-    this.dispatch({
-      type: "chat-msg",
-      msg: { type: "delete-thread-subtree", id: bufInfo.key.threadId },
-    });
+    // `:bd` closes, it never deletes: drop the buffers (recreated lazily when
+    // the thread is shown again) and exit reflection mode.
+    const threadId = bufInfo.key.threadId;
+    await this.bufferManager.removeThread(threadId);
+    if (this.chat.rightThreadId === threadId) {
+      this.dispatch({ type: "chat-msg", msg: { type: "close-right-pane" } });
+    } else if (this.chat.leftThreadId === threadId) {
+      this.dispatch({ type: "chat-msg", msg: { type: "threads-overview" } });
+    } else {
+      return;
+    }
+    await this.syncActiveView();
   }
 
   /** Any magenta buffer was opened (in any window). Treat as a "select thread" action.
@@ -1434,13 +1503,11 @@ ${lines.join("\n")}
   }
 
   async onWinClosed() {
-    if (
-      this.reflectionsOverview &&
-      !(await this.reflectionsOverview.window.valid())
-    ) {
-      await this.closeReflectionsOverview();
+    const { rightClosed } = await this.sidebar.onWinClosed();
+    if (rightClosed) {
+      this.dispatch({ type: "chat-msg", msg: { type: "close-right-pane" } });
+      await (await this.syncReflectionsOverview()).retired?.close();
     }
-    await this.sidebar.onWinClosed();
   }
 
   destroy() {

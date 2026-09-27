@@ -465,6 +465,13 @@ Status: DONE. `ChatState` → exported `SidebarState` in `chat.ts`; `activeThrea
 
 ## Two-column sidebar
 
+Status: DONE. `Sidebar.syncRight(target)` reconciles the right column (display window split right of the left display at the left column's current width, both `winfixwidth`; an input window below it only when a thread is shown) and `hide` closes it; `columnOfWindow`/`getRightWindows` expose the handles. `Magenta.syncActiveView` binds the left column and then `syncRightColumn` (right thread buffers, lazily recreated via `ensureActiveIsMounted`, or the overview buffer). `ReflectionsOverview` no longer owns a window: it is a buffer + TEA app shown in the right display window, created/disposed from `SidebarState.right` (a replaced overview is closed only after its buffer has left the window, since deleting a shown buffer closes the window). Overview `dd` deletes that reflection (and its reflect subtree via `session.deleteThread`). `:bd` on a thread buffer drops its buffers (`BufferManager.removeThread`) and never deletes: right thread → `close-right-pane`, left thread → thread overview; `:bd` on the overview → `close-right-pane`. Closing a right window (`:q`) dispatches `close-right-pane`. Keys route to the mounted app of the buffer they were pressed in. `-` is now also bound in input buffers (normal mode) via `sidebarKeymaps`. Chat exposes `leftThreadId`/`rightThreadId`/`shownThreadIds()` (replacing `shownThreadId`); both are visible for external targets and viewed-marking. TEA fix: a render that races an unmount finishes against the root it started with. Tests: `chat/two-column.test.ts`; `buffer-manager.test.ts` `:bd` tests now assert the thread survives and buffers are recreated. Deviations:
+- `visible` is not in `SidebarState`: `Sidebar` still owns left-column visibility; toggle re-syncs the right column from `right` after showing, so it comes back.
+- There is no configured per-column width option; the right column copies the left column's width when opened.
+- `-` keeps dispatching `:Magenta threads-navigate-up` (which runs `reflect-navigate-up`), not a new `reflect-up` command.
+- `above/below/tab` positions don't open the right column; creating a reflection there notifies instead.
+- Not tested: `-` from each of the four buffers individually, the left-buffer `:bd` with a reflection open, per-column abort/paste in two columns.
+
 - Goal: the sidebar opens a second display+input column to the right of the first, total width 2×, and closes it when `right` clears.
 - Tests (tier C):
   - Reflecting opens 4 magenta windows; the left column still shows the parent, the right shows the reflect thread, widths equal the configured column width.

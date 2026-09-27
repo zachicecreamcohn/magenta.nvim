@@ -467,16 +467,27 @@ export class Chat {
   /** Record that we've stopped viewing the currently-selected thread, so that
    * any activity from this point on counts as unviewed. */
   private markActiveThreadViewed() {
-    const shown = this.shownThreadId;
-    if (shown) this.lastViewedTimes.set(shown, Date.now());
+    for (const id of this.shownThreadIds()) {
+      this.lastViewedTimes.set(id, Date.now());
+    }
   }
 
-  /** The thread the single sidebar column displays: the right pane's
-   * reflection when one is open, else `left`. Until the two-column sidebar
-   * lands, only one of the two panes is on screen. */
-  get shownThreadId(): ThreadId | undefined {
-    if (this.state.state !== "thread-selected") return undefined;
-    return rightThreadId(this.state) ?? this.state.left;
+  /** The thread the left column displays, if it displays one. */
+  get leftThreadId(): ThreadId | undefined {
+    return this.state.state === "thread-selected" ? this.state.left : undefined;
+  }
+
+  /** The reflect thread the right column displays, if any. */
+  get rightThreadId(): ThreadId | undefined {
+    return rightThreadId(this.state);
+  }
+
+  /** Threads on screen when the sidebar is visible: at most two. */
+  shownThreadIds(): ThreadId[] {
+    const ids: ThreadId[] = [];
+    if (this.leftThreadId) ids.push(this.leftThreadId);
+    if (this.rightThreadId) ids.push(this.rightThreadId);
+    return ids;
   }
 
   private myUpdate(msg: Msg) {
@@ -727,7 +738,7 @@ export class Chat {
   }
 
   getMessages() {
-    const shown = this.shownThreadId;
+    const shown = this.leftThreadId;
     if (shown && this.session.getThread(shown)) {
       const threadState = this.wrapper(shown);
       if (threadState?.state === "initialized") {
@@ -1160,11 +1171,9 @@ ${rows}${loadMore}`;
     });
   }
 
-  /** The thread shown in the (single) sidebar column, if the sidebar is
-   * visible and showing a thread. Only used to pick external targets. */
+  /** Threads on screen. Only used to pick external targets. */
   private visibleThreadIds(sidebarVisible: boolean): ThreadId[] {
-    const shown = this.shownThreadId;
-    return sidebarVisible && shown ? [shown] : [];
+    return sidebarVisible ? this.shownThreadIds() : [];
   }
 
   /** Target for commands that come from outside magenta (code buffers,

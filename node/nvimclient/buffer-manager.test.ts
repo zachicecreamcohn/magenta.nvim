@@ -54,7 +54,7 @@ it("setting a thread title renames both buffers", async () => {
   });
 });
 
-it(":bd of a thread display buffer removes the thread", async () => {
+it(":bd of a thread display buffer drops its buffers but keeps the thread", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
     const threadId = leftThread(driver.magenta.chat).id;
@@ -63,18 +63,20 @@ it(":bd of a thread display buffer removes the thread", async () => {
     await driver.command(`bd! ${buffers.displayBuffer.id}`);
 
     await pollUntil(() => {
-      if (threadId in driver.magenta.chat.threadWrappers) {
-        throw new Error("thread still present");
+      if (driver.magenta.bufferManager.getThreadBuffers(threadId)) {
+        throw new Error("buffers still registered");
       }
     });
-    expect(threadId in driver.magenta.chat.threadWrappers).toBe(false);
-    expect(driver.magenta.bufferManager.getThreadBuffers(threadId)).toBe(
-      undefined,
-    );
+    expect(threadId in driver.magenta.chat.threadWrappers).toBe(true);
+    // Re-selecting recreates them lazily.
+    await driver.magenta.selectThreadEffect(threadId);
+    expect(
+      driver.magenta.bufferManager.getThreadBuffers(threadId),
+    ).toBeDefined();
   });
 });
 
-it(":bd of a thread input buffer removes the thread", async () => {
+it(":bd of a thread input buffer drops its buffers but keeps the thread", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
     const threadId = leftThread(driver.magenta.chat).id;
@@ -83,11 +85,11 @@ it(":bd of a thread input buffer removes the thread", async () => {
     await driver.command(`bd! ${buffers.inputBuffer.id}`);
 
     await pollUntil(() => {
-      if (threadId in driver.magenta.chat.threadWrappers) {
-        throw new Error("thread still present");
+      if (driver.magenta.bufferManager.getThreadBuffers(threadId)) {
+        throw new Error("buffers still registered");
       }
     });
-    expect(threadId in driver.magenta.chat.threadWrappers).toBe(false);
+    expect(threadId in driver.magenta.chat.threadWrappers).toBe(true);
   });
 });
 

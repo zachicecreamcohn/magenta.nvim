@@ -26,7 +26,7 @@ async function setupThread(driver: Driver): Promise<ThreadId> {
   r1.respond({ stopReason: "end_turn", text: LONG_REPLY, toolRequests: [] });
   await driver.assertDisplayBufferContains("omega line");
   await driver.wait(200);
-  return driver.magenta.chat.shownThreadId!;
+  return driver.magenta.chat.leftThreadId!;
 }
 
 async function reflect(driver: Driver, source: ThreadId, text: string) {
@@ -156,11 +156,14 @@ it("lists reflections in anchor order, centres them, and opens with <CR>", async
     });
     await driver.nvim.call("nvim_command", ['exe "normal \\<CR>"']);
     await pollUntil(() => {
-      if (driver.magenta.chat.shownThreadId !== omega) {
+      if (driver.magenta.chat.rightThreadId !== omega) {
         throw new Error("omega not shown");
       }
     });
-    expect(await driver.nvim.call("nvim_win_is_valid", [win])).toBe(false);
+    // The overview's window now shows the reflection.
+    expect(driver.magenta.sidebar.getRightWindows()?.displayWindow.id).toBe(
+      win,
+    );
     expect(driver.magenta.chat.state).toEqual({
       state: "thread-selected",
       left: source,
