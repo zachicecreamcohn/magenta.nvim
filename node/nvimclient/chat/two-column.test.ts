@@ -165,3 +165,100 @@ it("dd in the reflection overview deletes the reflection", async () => {
     );
   });
 });
+it(":bd on the reflections overview closes the right column", async () => {
+  await withDriver({}, async (driver) => {
+    const { source } = await setup(driver);
+    await driver.magenta.showReflectionsOverview(source);
+    const display = await pollUntil(() => {
+      const right = driver.magenta.sidebar.getRightWindows();
+      if (!right || right.inputWindow) throw new Error("overview not shown");
+      return right.displayWindow;
+    });
+    const buf = await driver.nvim.call("nvim_win_get_buf", [display.id]);
+    await driver.nvim.call("nvim_command", [`bd! ${buf}`]);
+    await rightClosed(driver);
+    expect(driver.magenta.chat.state).toEqual({
+      state: "thread-selected",
+      left: source,
+      right: undefined,
+    });
+    // Re-opening and closing again must not trip over the retired overview.
+    await driver.magenta.showReflectionsOverview(source);
+    await pollUntil(() => {
+      if (!driver.magenta.sidebar.getRightWindows()) throw new Error("closed");
+    });
+    await driver.magenta.command("threads-navigate-up");
+    await rightClosed(driver);
+  });
+});
+it(":bd on the left thread's buffer shows the thread overview", async () => {
+  await withDriver({}, async (driver) => {
+    const { source } = await setup(driver);
+    await rightWindows(driver);
+    const buf = await driver.nvim.call("nvim_win_get_buf", [
+      driver.getVisibleState().displayWindow.id,
+    ]);
+    await driver.nvim.call("nvim_command", [`bd! ${buf}`]);
+    await pollUntil(() => {
+      if (driver.magenta.chat.state.state !== "thread-overview") {
+        throw new Error(JSON.stringify(driver.magenta.chat.state));
+      }
+    });
+    await rightClosed(driver);
+    expect(driver.magenta.chat.session.getThread(source)).toBeDefined();
+  });
+});
+it("entering right-column windows does not change the panes", async () => {
+  await withDriver({}, async (driver) => {
+    const { source, child } = await setup(driver);
+    const { display, input } = await rightWindows(driver);
+    const expected = {
+      state: "thread-selected",
+      left: source,
+      right: { type: "reflection", threadId: child },
+    };
+    expect(driver.magenta.chat.state).toEqual(expected);
+    for (const win of [display, input, display]) {
+      await driver.nvim.call("nvim_set_current_win", [win.id]);
+      await new Promise((r) => setTimeout(r, 100));
+      expect(driver.magenta.chat.state).toEqual(expected);
+    }
+    await driver.magenta.showReflectionsOverview(source);
+    const overview = await pollUntil(() => {
+      const right = driver.magenta.sidebar.getRightWindows();
+      if (!right || right.inputWindow) throw new Error("overview not shown");
+      return right.displayWindow;
+    });
+    await driver.nvim.call("nvim_set_current_win", [overview.id]);
+    await new Promise((r) => setTimeout(r, 100));
+    expect(driver.magenta.chat.state).toEqual({
+      state: "thread-selected",
+      left: source,
+      right: { type: "reflections-overview" },
+    });
+  });
+});
+it("overview -> thread reuses the display window and opens a sized input", async () => {
+  await withDriver({}, async (driver) => {
+    const { source, child } = await setup(driver);
+    const { display: firstDisplay } = await rightWindows(driver);
+    await driver.magenta.showReflectionsOverview(source);
+    await pollUntil(() => {
+      const right = driver.magenta.sidebar.getRightWindows();
+      if (!right || right.inputWindow) throw new Error("overview not shown");
+    });
+    await driver.magenta.selectThreadEffect(child);
+    const { display, input } = await rightWindows(driver);
+    expect(display.id).toBe(firstDisplay.id);
+    expect(await bufName(driver, display.id)).not.toMatch(/reflections/i);
+    const leftInput = driver.getVisibleState().inputWindow.id;
+    expect(await driver.nvim.call("nvim_win_get_height", [input.id])).toBe(
+      await driver.nvim.call("nvim_win_get_height", [leftInput]),
+    );
+    const winbar = await driver.nvim.call("nvim_win_get_option", [
+      input.id,
+      "winbar",
+    ]);
+    expect(winbar).not.toBe("");
+  });
+});

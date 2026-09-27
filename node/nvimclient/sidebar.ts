@@ -55,7 +55,8 @@ type RightColumn = {
 
 /** What the right column should show; `sync` reconciles windows to it. */
 export type RightColumnTarget =
-  | { displayBuffer: NvimBuffer; inputBuffer?: NvimBuffer }
+  | { type: "thread"; displayBuffer: NvimBuffer; inputBuffer: NvimBuffer }
+  | { type: "overview"; displayBuffer: NvimBuffer }
   | undefined;
 
 export type ColumnStatus = "none" | "busy" | "failed" | "ok";
@@ -263,7 +264,7 @@ export class Sidebar {
     } else {
       await right.displayWindow.setBuffer(target.displayBuffer);
     }
-    if (target.inputBuffer) {
+    if (target.type === "thread") {
       if (right.inputWindow && (await right.inputWindow.valid())) {
         await right.inputWindow.setBuffer(target.inputBuffer);
       } else {

@@ -886,12 +886,13 @@ export class Magenta {
     const rightId = this.chat.rightThreadId;
     let target: RightColumnTarget;
     if (overview) {
-      target = { displayBuffer: overview.buffer };
+      target = { type: "overview", displayBuffer: overview.buffer };
     } else if (rightId) {
       const buffers = await this.bufferManager.ensureActiveIsMounted(
         threadKey(rightId),
       );
       target = {
+        type: "thread",
         displayBuffer: buffers.displayBuffer,
         inputBuffer: buffers.inputBuffer,
       };

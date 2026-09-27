@@ -471,6 +471,7 @@ Status: DONE. `Sidebar.syncRight(target)` reconciles the right column (display w
 - `-` keeps dispatching `:Magenta threads-navigate-up` (which runs `reflect-navigate-up`), not a new `reflect-up` command.
 - `above/below/tab` positions don't open the right column; creating a reflection there notifies instead.
 - Not tested: `-` from each of the four buffers individually, the left-buffer `:bd` with a reflection open, per-column abort/paste in two columns.
+- Review follow-up: `RightColumnTarget` is a `thread | overview` union (only `thread` carries an input buffer); `RightColumn.inputWindow` stays optional since it is a reconciled window handle, not state. Tests added in `two-column.test.ts`: `:bd` on the overview (state + reopen/close), `:bd` on the left buffer → `thread-overview`, entering right-column/overview windows leaves `chat.state` unchanged, overview → thread reuses the display window and opens an input with the left's height and a winbar. Still untested: key routing to the right app, top/bottom-position notify fallback.
 
 - Goal: the sidebar opens a second display+input column to the right of the first, total width 2×, and closes it when `right` clears.
 - Tests (tier C):
