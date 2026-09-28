@@ -20,9 +20,14 @@ function sources(dir: string): string[] {
 
 it("nvimclient does not import fs or child_process outside the allowlist", () => {
   const root = import.meta.dirname;
-  const offenders = sources(root)
+  const files = sources(root);
+  expect(files.length).toBeGreaterThan(50);
+  const importers = files
     .filter((path) => FORBIDDEN.test(readFileSync(path, "utf8")))
-    .map((path) => relative(root, path))
-    .filter((path) => !ALLOWED.has(path));
-  expect(offenders).toEqual([]);
+    .map((path) => relative(root, path));
+  expect(importers.filter((path) => !ALLOWED.has(path))).toEqual([]);
+  // Stale allowlist entries must be removed.
+  expect(importers.filter((path) => ALLOWED.has(path)).sort()).toEqual(
+    [...ALLOWED].sort(),
+  );
 });

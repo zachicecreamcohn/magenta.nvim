@@ -222,6 +222,7 @@ export interface MessageContext {
 
 - Progress: `node/nvimclient/fs-boundary.node.test.ts` scans non-test `.ts` under `node/nvimclient` (skipping the `test/` support dir) for `fs`/`fs/promises`/`child_process` imports (static, dynamic, require). Allowlist: `open-target-under-cursor.ts`, `chat/thread-view.ts`. Verified it fails when `sandbox-file-io.ts` is copied into the client. `context.md` Sessions section describes `ServerSessionHost`, editor attachment, session approvals, options, `Cwd`, and the boundary.
 - Decisions: no lua-bridge-boot entry was needed in the allowlist (no such import exists); `node/nvimclient/test/` helpers are exempt as test infrastructure.
+- Review follow-up: the boundary test asserts the scan found files (>50) and that every allowlisted file is scanned and actually imports fs/child_process, so it cannot pass vacuously and stale allowlist entries fail.
 
 - Goal: Add a test that scans `node/nvimclient/**/*.ts` (excluding tests) for `node:fs`, `fs`, `fs/promises`, `node:child_process` and `child_process` imports, failing on anything outside the allowlist. Update `context.md` (Architecture/Sessions sections) to describe server-owned execution and editor attachment.
 - Tests:
