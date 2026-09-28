@@ -322,6 +322,7 @@ export class Magenta {
       sandbox: this.sandbox,
       getOptions: () => this.baseOptions,
       getAuthUI: () => this.session.getClient()?.authUI,
+      awaitClient: () => this.session.awaitClient(),
     });
     this.session = new Session(this.host);
     this.chat = new Chat(

@@ -116,3 +116,15 @@ export function withTimeout<T>(
 /** A cancellable unit of our own work. `abort` only interrupts; the result,
  * including its aborted variant, arrives on `promise`. */
 export type Task<T> = { readonly promise: Promise<T>; abort(): void };
+
+/** Bridges an external signal (e.g. an SDK request's) into a `Task`'s abort.
+ * Returns a cleanup that removes the listener. */
+export function abortTaskOnSignal(
+  task: { abort(): void },
+  signal: AbortSignal | undefined,
+): () => void {
+  if (!signal) return () => {};
+  const onAbort = () => task.abort();
+  signal.addEventListener("abort", onAbort, { once: true });
+  return () => signal.removeEventListener("abort", onAbort);
+}

@@ -2,6 +2,7 @@ import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
 import { loadAgents } from "./agents/agents.ts";
 import { anthropicTokenStore } from "./auth/anthropic-tokens.ts";
 import type { AuthUI } from "./auth-ui.ts";
+import type { ClientCapabilities } from "./capabilities/client.ts";
 import { FsFileIO } from "./capabilities/file-io.ts";
 import type { GitState } from "./capabilities/git-client.ts";
 import { NoopLspClient } from "./capabilities/noop-lsp-client.ts";
@@ -46,7 +47,7 @@ import { clientToolCreator } from "./tools/create-tool.ts";
 import { validateInput } from "./tools/helpers.ts";
 import { MCPToolManager } from "./tools/mcp/manager.ts";
 import type { MCPServersConfig } from "./tools/mcp/options.ts";
-import type { Task } from "./utils/async.ts";
+import { abortTaskOnSignal, type Task } from "./utils/async.ts";
 import type { Cwd, HomeDir } from "./utils/files.ts";
 
 /** The options the server host consumes. */
@@ -72,8 +73,10 @@ export type ServerSessionHostContext = {
   homeDir: HomeDir;
   sandbox: Sandbox;
   getOptions: () => ServerHostOptions;
-  /** The client currently able to prompt for provider logins, if any. */
+  /** The attached client's login UI, if any. */
   getAuthUI: () => AuthUI | undefined;
+  /** Resolves with the attached client or the next one to attach. */
+  awaitClient: () => Task<ClientCapabilities | Aborted>;
   /** Overrides server-built providers (tests). */
   getProvider?: (profile: ProviderProfile) => Provider;
 };
@@ -105,32 +108,78 @@ export class ServerSessionHost implements SessionHost {
   /** Providers are cached per profile, so they get a stable AuthUI that
    * prompts through whichever editor is attached when a login is needed. */
   readonly authUI: AuthUI = {
-    showOAuthFlow: (authUrl) => this.requireAuthUI().showOAuthFlow(authUrl),
+    showOAuthFlow: (authUrl, abortSignal) =>
+      this.showOAuthFlow(authUrl, abortSignal),
     showError: (message) => {
       const ui = this.context.getAuthUI();
-      if (ui) ui.showError(message);
-      else this.context.logger.error(message);
+      if (ui) return ui.showError(message);
+      this.context.logger.error(message);
+      this.bufferForNextClient({ type: "error", text: message });
     },
     showLoginProgress: (chunk) => {
       const ui = this.context.getAuthUI();
-      if (ui) ui.showLoginProgress(chunk);
-      else this.context.logger.info(chunk);
+      if (ui) return ui.showLoginProgress(chunk);
+      this.context.logger.info(chunk);
+      this.bufferForNextClient({ type: "progress", text: chunk });
     },
   };
+  /** Login output produced with no client attached, replayed in order to the
+   * next client so it sees e.g. a `codex login` URL. */
+  private pendingAuthOutput: { type: "error" | "progress"; text: string }[] =
+    [];
+  private replayTask: Task<ClientCapabilities | Aborted> | undefined;
   constructor(private context: ServerSessionHostContext) {
     this.mcpToolManager = new MCPToolManager(context.getOptions().mcpServers, {
       logger: context.logger,
     });
   }
-
-  private requireAuthUI(): AuthUI {
-    const ui = this.context.getAuthUI();
-    if (!ui) {
-      throw new Error("Interactive login requires an attached client");
-    }
-    return ui;
+  private bufferForNextClient(output: {
+    type: "error" | "progress";
+    text: string;
+  }): void {
+    this.pendingAuthOutput.push(output);
+    if (this.replayTask) return;
+    const task = this.context.awaitClient();
+    this.replayTask = task;
+    task.promise.then(
+      (client) => {
+        this.replayTask = undefined;
+        const output = this.pendingAuthOutput;
+        this.pendingAuthOutput = [];
+        if (client === ABORTED || !client.authUI) return;
+        for (const o of output) {
+          if (o.type === "error") client.authUI.showError(o.text);
+          else client.authUI.showLoginProgress(o.text);
+        }
+      },
+      () => {
+        this.replayTask = undefined;
+        this.pendingAuthOutput = [];
+      },
+    );
   }
-
+  /** Stays pending until a client attaches, cancellable via `abortSignal`. */
+  private async showOAuthFlow(
+    authUrl: string,
+    abortSignal?: AbortSignal,
+  ): Promise<string> {
+    abortSignal?.throwIfAborted();
+    const task = this.context.awaitClient();
+    const stopListening = abortTaskOnSignal(task, abortSignal);
+    let client: ClientCapabilities | Aborted;
+    try {
+      client = await task.promise;
+    } finally {
+      stopListening();
+    }
+    if (client === ABORTED) {
+      throw new Error("OAuth login aborted while waiting for a client");
+    }
+    if (!client.authUI) {
+      throw new Error("The attached client cannot prompt for logins");
+    }
+    return client.authUI.showOAuthFlow(authUrl, abortSignal);
+  }
   /** Preparation is recorded before the session registers the thread, so
    * this is defined for every initialized thread until it is released. */
   getPrepared(id: ThreadId): PreparedThreadInfo {

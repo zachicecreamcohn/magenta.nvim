@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AuthUI } from "./auth-ui.ts";
 import type { ClientCapabilities } from "./capabilities/client.ts";
 import { NoopLspClient } from "./capabilities/noop-lsp-client.ts";
 import type { ScriptInvocationId } from "./chat-types.ts";
@@ -73,7 +72,8 @@ beforeEach(async () => {
     homeDir: dir as HomeDir,
     sandbox: new MockSandboxManager(),
     getOptions: () => options,
-    getAuthUI: () => undefined,
+    getAuthUI: () => session.getClient()?.authUI,
+    awaitClient: () => session.awaitClient(),
     getProvider: () => provider,
   });
   session = new Session(host);
@@ -279,52 +279,87 @@ describe("submission resolution", () => {
 });
 
 describe("auth UI", () => {
-  function makeHost(getAuthUI: () => AuthUI | undefined, logger = noopLogger) {
-    return new ServerSessionHost({
+  function makeAuthSession(logger = noopLogger) {
+    const authHost: ServerSessionHost = new ServerSessionHost({
       logger,
       cwd: dir as Cwd,
       homeDir: dir as HomeDir,
       sandbox: new MockSandboxManager(),
       getOptions: () => options,
-      getAuthUI,
+      getAuthUI: () => authSession.getClient()?.authUI,
+      awaitClient: () => authSession.awaitClient(),
     });
+    const authSession = new Session(authHost);
+    return { authHost, authSession };
   }
-  it("throws for OAuth and logs errors/progress when no client is attached", () => {
+  function clientWith(calls: string[]): ClientCapabilities {
+    return {
+      ...editor,
+      authUI: {
+        showOAuthFlow: (url) => {
+          calls.push(`oauth:${url}`);
+          return Promise.resolve("code");
+        },
+        showError: (m) => calls.push(`error:${m}`),
+        showLoginProgress: (m) => calls.push(`progress:${m}`),
+      },
+    };
+  }
+  it("OAuth waits for a client to attach, then prompts it", async () => {
+    const { authHost, authSession } = makeAuthSession();
+    let code: string | undefined;
+    const flow = authHost.authUI.showOAuthFlow("https://x").then((c) => {
+      code = c;
+    });
+    await Promise.resolve();
+    expect(code).toBeUndefined();
+    expect(authSession.awaitingClient).toBe(1);
+    const calls: string[] = [];
+    authSession.attachClient(clientWith(calls));
+    await flow;
+    expect(code).toBe("code");
+    expect(calls).toEqual(["oauth:https://x"]);
+    expect(authSession.awaitingClient).toBe(0);
+  });
+  it("aborting a waiting OAuth flow rejects and drops the waiter", async () => {
+    const { authHost, authSession } = makeAuthSession();
+    const controller = new AbortController();
+    const flow = authHost.authUI.showOAuthFlow("https://x", controller.signal);
+    expect(authSession.awaitingClient).toBe(1);
+    controller.abort();
+    await expect(flow).rejects.toThrow(/aborted/);
+    expect(authSession.awaitingClient).toBe(0);
+    const calls: string[] = [];
+    authSession.attachClient(clientWith(calls));
+    expect(calls).toEqual([]);
+  });
+  it("logs and replays login output from before attach, in order", async () => {
     const logged: string[] = [];
-    const h = makeHost(() => undefined, {
+    const { authHost, authSession } = makeAuthSession({
       ...noopLogger,
       error: (m: string) => logged.push(`error:${m}`),
       info: (m: string) => logged.push(`info:${m}`),
     });
-    expect(() => h.authUI.showOAuthFlow("https://x")).toThrow(
-      /attached client/,
-    );
-    h.authUI.showError("bad");
-    h.authUI.showLoginProgress("step");
-    expect(logged).toEqual(["error:bad", "info:step"]);
-  });
-  it("uses the UI attached at login time, not at construction", () => {
-    let ui: AuthUI | undefined;
-    const h = makeHost(() => ui);
+    authHost.authUI.showLoginProgress("one");
+    authHost.authUI.showError("bad");
+    authHost.authUI.showLoginProgress("two");
+    expect(logged).toEqual(["info:one", "error:bad", "info:two"]);
+    expect(authSession.awaitingClient).toBe(1);
     const calls: string[] = [];
-    ui = {
-      showOAuthFlow: (url) => {
-        calls.push(url);
-        return Promise.resolve("code");
-      },
-      showError: (m) => calls.push(m),
-      showLoginProgress: (m) => calls.push(m),
-    } as AuthUI;
-    void h.authUI.showOAuthFlow("https://x");
-    h.authUI.showError("e");
-    expect(calls).toEqual(["https://x", "e"]);
+    authSession.attachClient(clientWith(calls));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(calls).toEqual(["progress:one", "error:bad", "progress:two"]);
+    authHost.authUI.showLoginProgress("live");
+    expect(calls.at(-1)).toBe("progress:live");
   });
   it("builds a real provider without the test override", () => {
-    const h = makeHost(() => undefined);
-    expect(h.getProvider({ ...profile, name: "smoke-real" })).toBeDefined();
+    const { authHost } = makeAuthSession();
+    expect(
+      authHost.getProvider({ ...profile, name: "smoke-real" }),
+    ).toBeDefined();
   });
 });
-
 describe("active profile", () => {
   const profileA: ProviderProfile = { ...profile, name: "a" };
   const profileB: ProviderProfile = { ...profile, name: "b" };
@@ -345,6 +380,7 @@ describe("active profile", () => {
       sandbox: new MockSandboxManager(),
       getOptions: () => currentOptions,
       getAuthUI: () => undefined,
+      awaitClient: () => profileSession.awaitClient(),
       getProvider: () => provider,
     });
     profileSession = new Session(profileHost);

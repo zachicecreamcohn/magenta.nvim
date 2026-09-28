@@ -99,7 +99,7 @@ export class AnthropicProvider implements Provider {
       input: string | URL | Request,
       init?: RequestInit,
     ): Promise<Response> => {
-      await this.ensureValidToken();
+      await this.ensureValidToken(init?.signal ?? undefined);
 
       const accessToken = await this.auth!.getAccessToken();
       if (!accessToken) {
@@ -125,13 +125,14 @@ export class AnthropicProvider implements Provider {
     };
   }
 
-  private async ensureValidToken(): Promise<void> {
+  /** A shared flow is cancelled by the signal of the request that started it. */
+  private async ensureValidToken(abortSignal?: AbortSignal): Promise<void> {
     const isAuthenticated = await this.auth!.isAuthenticated();
     if (!isAuthenticated) {
       const auth = this.auth!;
       let pending = pendingOAuthFlows.get(auth);
       if (!pending) {
-        pending = this.triggerOAuthFlow().finally(() => {
+        pending = this.triggerOAuthFlow(abortSignal).finally(() => {
           pendingOAuthFlows.delete(auth);
         });
         pendingOAuthFlows.set(auth, pending);
@@ -140,7 +141,7 @@ export class AnthropicProvider implements Provider {
     }
   }
 
-  private async triggerOAuthFlow(): Promise<void> {
+  private async triggerOAuthFlow(abortSignal?: AbortSignal): Promise<void> {
     if (!this.authUI) {
       throw new Error(
         "OAuth authentication required but no AuthUI provided. Configure authType or provide an AuthUI implementation.",
@@ -150,7 +151,7 @@ export class AnthropicProvider implements Provider {
     try {
       const { url, verifier } = await this.auth!.authorize();
 
-      const code = await this.authUI.showOAuthFlow(url);
+      const code = await this.authUI.showOAuthFlow(url, abortSignal);
 
       const tokens = await this.auth!.exchange(code, verifier);
       await this.auth!.storeTokens(tokens);
