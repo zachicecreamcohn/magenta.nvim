@@ -69,7 +69,14 @@ The root project uses a **single-dispatch TEA architecture**:
 
 - Session owns identity, parent/script-invocation associations, pending creation and its cancellation, construction policy (fresh vs. fork), bootstrap submission, labels/title scheduling, lifecycle results, subtree abort, deletion and disposal. It implements `ThreadManager`, so subagent tools and compact children route through it.
 - `assembleThread` (`node/server/src/thread-assembly.ts`) builds the ready `{ thread, compactor }` pair: supervisor ordering, compactor creation and automatic title generation. Session never touches `ThreadCore` or compaction replacement.
-the delivery-time resolver, hierarchy discovery (supplied to `FileSupervisor` with the file services), and approval- The server `ScriptManager` (`node/server/src/scripts/script-manager.ts`) is session-owned: catalog, child-process IPC, logs, invocation lifecycle, titles and the invocation⇄thread association. It is wired as `session.scriptRunner` before any thread exists.
+- `ServerSessionHost` (`node/server/src/server-session-host.ts`) prepares every thread: environments (sandboxed local or docker `FileIO`/`Shell`/git, in `node/server/src/capabilities/`), auto context, system info/prompt, MCP, agents, providers (with auth) and the delivery-time submission resolver (`submission/resolve.ts`, fs/git commands). It records `PreparedThreadInfo` (`getPrepared(id)`) for views.
+- Editor attachment: the client attaches optional `EditorCapabilities` (`capabilities/editor.ts`: LSP client factory, lua executor, `onFileWritten`, `authUI`) via `session.attachEditor`/`detachEditor`. They are read only at thread preparation, so threads created without an editor lack `lsp`/`nvim` tools, and detaching never aborts running threads.
+- Approvals and sandbox bypass are session state (`getPendingApprovals`, `approve`, `reject`, `toggleSandboxBypass`, ...); the client only renders them (`render-pending-approvals.ts`).
+- Server options come only from `~/.magenta/options.json` and `<cwd>/.magenta/options.json` via `OptionsStore` (`config/options-store.ts`); lua `setup()` only sets `ClientOptions`. The sandbox is initialized by `startSandbox`.
+- Each thread has an immutable `Cwd` (server brand); `NvimCwd` is client-only, converted once via `threadCwdFromNvimCwd` when the client creates a thread.
+- The client pre-expands editor commands (`@buf`, `@qf`, `@diag`) into text and absolutizes `@file:` paths before submitting. The server never sees buffer contents.
+- `nvimclient` must not import `fs`/`child_process` outside a small allowlist (enforced by `node/nvimclient/fs-boundary.node.test.ts`).
+- The server `ScriptManager` (`node/server/src/scripts/script-manager.ts`) is session-owned: catalog, child-process IPC, logs, invocation lifecycle, titles and the invocation⇄thread association. It is wired as `session.scriptRunner` before any thread exists.
 - Execution never depends on a view: starting input, settling results, and aborting scripts require no `RootMsg` dispatch.
 
 ## Core → Root bridge
