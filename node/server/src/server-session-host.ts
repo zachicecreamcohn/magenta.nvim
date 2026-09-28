@@ -85,7 +85,8 @@ export type PreparedThreadInfo = {
   profile: ProviderProfile;
   environment: Environment;
   initialFiles?: Files;
-  initialGitState?: GitState | undefined;
+  /** Undefined for forks, which inherit the source's git context. */
+  initialGitState: GitState | undefined;
   subagentConfig?: SubagentConfig;
   systemInfo: SystemInfo;
   yieldSchema?: JSONSchemaType;
@@ -109,8 +110,12 @@ export class ServerSessionHost implements SessionHost {
     });
   }
 
-  getPrepared(id: ThreadId): PreparedThreadInfo | undefined {
-    return this.prepared.get(id);
+  /** Preparation is recorded before the session registers the thread, so
+   * this is defined for every initialized thread until it is released. */
+  getPrepared(id: ThreadId): PreparedThreadInfo {
+    const info = this.prepared.get(id);
+    if (!info) throw new Error(`No prepared info for thread ${id}`);
+    return info;
   }
 
   getActiveProfile(): ProviderProfile {
@@ -212,7 +217,9 @@ export class ServerSessionHost implements SessionHost {
                 ? {
                     lspClient: editor.createLspClient(localCwd, homeDir),
                     luaExecutor: editor.luaExecutor,
-                    onFileWritten: editor.onFileWritten?.bind(editor),
+                    ...(editor.onFileWritten
+                      ? { onFileWritten: editor.onFileWritten.bind(editor) }
+                      : {}),
                   }
                 : {}),
               threadId,

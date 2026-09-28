@@ -411,9 +411,6 @@ export class Chat {
     let thread = this.threadViews.get(id);
     if (!thread) {
       const prepared = this.host.getPrepared(id);
-      // The host records a prepared context before the session registers the
-      // thread, so an initialized record always has one.
-      if (!prepared) return;
       const { dispatch, getDisplayWidth, nvim, homeDir, commandRegistry } =
         this.context;
       thread = new NvimThread(id, record.thread, record.compactor, {

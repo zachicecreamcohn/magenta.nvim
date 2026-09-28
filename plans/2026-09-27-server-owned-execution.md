@@ -176,6 +176,7 @@ export interface MessageContext {
   - With no editor, the system info reports `neovimVersion: "none (no editor attached)"`. The editor's version is evaluated once at attach time instead of per thread.
   - Buffer reload after writes (`onFileWritten`) is an optional editor capability, resolved against Neovim's cwd.
   - Tests: `node/server/src/server-session-host.test.ts` (tmp dir cwd for the real local git client, `InMemoryFileIO` via the `fileIO` thread option): no-editor thread lacks `hover`, edits a file with `edl`; attaching later only affects new threads; detaching mid-stream does not abort the submission.
+  - Review follow-up: `getPrepared(id)` returns `PreparedThreadInfo` and throws if missing (it is recorded before the session registers the thread), so `Chat.syncThread` has no silent-return branch. `PreparedThreadInfo.initialGitState` is a required `GitState | undefined` (undefined for forks). `onFileWritten` is spread conditionally. New tier-B test "wires editor capabilities into threads with the thread's cwd": real tmp dir, `createLspClient` receives the thread's `environmentConfig.cwd`, systemInfo carries the editor's `neovimVersion`, and `onFileWritten` fires with the absolute path only for threads created after attach.
 
 - Goal: `ServerSessionHost` lives in the server and performs all of today's `prepare` except editor collaborators, which come from `session.attachEditor`. `NvimSessionHost` is deleted; `magenta.ts` constructs the server host and attaches the editor.
 - Tests:

@@ -1,7 +1,7 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { EditorCapabilities } from "./capabilities/editor.ts";
 import { NoopLspClient } from "./capabilities/noop-lsp-client.ts";
 import { InMemoryFileIO } from "./edl/in-memory-file-io.ts";
@@ -23,7 +23,7 @@ import {
 import type { Thread } from "./thread.ts";
 import { ABORTED } from "./thread-api.ts";
 import type { ToolName, ToolRequestId } from "./tool-types.ts";
-import type { Cwd, HomeDir } from "./utils/files.ts";
+import type { AbsFilePath, Cwd, HomeDir } from "./utils/files.ts";
 
 const profile: ProviderProfile = {
   name: "mock",
@@ -55,26 +55,26 @@ const editor: EditorCapabilities = {
 let dir: string;
 let mockClient: MockAnthropicClient;
 let session: Session;
+let host: ServerSessionHost;
 let fileIO: InMemoryFileIO;
 beforeEach(async () => {
   dir = await mkdtemp(path.join(tmpdir(), "server-host-"));
   mockClient = new MockAnthropicClient();
   const provider = createMockProvider(mockClient);
   fileIO = new InMemoryFileIO({ [path.join(dir, "a.txt")]: "hello" });
-  session = new Session(
-    new ServerSessionHost({
-      logger: noopLogger,
-      cwd: dir as Cwd,
-      homeDir: dir as HomeDir,
-      sandbox: new MockSandboxManager(),
-      getOptions: () => options,
-      getProvider: () => provider,
-      resolveSubmission: async (message) => ({
-        type: "send",
-        prompt: { content: [{ type: "text", text: message }], reminders: [] },
-      }),
+  host = new ServerSessionHost({
+    logger: noopLogger,
+    cwd: dir as Cwd,
+    homeDir: dir as HomeDir,
+    sandbox: new MockSandboxManager(),
+    getOptions: () => options,
+    getProvider: () => provider,
+    resolveSubmission: async (message) => ({
+      type: "send",
+      prompt: { content: [{ type: "text", text: message }], reminders: [] },
     }),
-  );
+  });
+  session = new Session(host);
 });
 afterEach(async () => {
   await session.dispose();
@@ -127,4 +127,58 @@ it("keeps a running submission going when the editor detaches", async () => {
   stream.streamText("still here");
   stream.finishResponse("end_turn");
   await expect(done).resolves.toMatchObject({ type: "completed" });
+});
+
+it("wires editor capabilities into threads with the thread's cwd", async () => {
+  const threadCwd = path.join(dir, "sub");
+  await mkdir(threadCwd);
+  const file = path.join(threadCwd, "b.txt");
+  await writeFile(file, "hello");
+  const onFileWritten = vi.fn(async (_: AbsFilePath) => {});
+  const createLspClient = vi.fn(() => new NoopLspClient());
+  const spyEditor: EditorCapabilities = {
+    ...editor,
+    createLspClient,
+    onFileWritten,
+  };
+
+  const create = async () => {
+    const id = await session.createThread({
+      profile,
+      threadType: "root",
+      environmentConfig: { type: "local", cwd: threadCwd as Cwd },
+    });
+    if (id === ABORTED) throw new Error("aborted");
+    const record = session.getThread(id);
+    if (record?.state !== "initialized") throw new Error("not initialized");
+    return { id, thread: record.thread };
+  };
+  let last: Awaited<ReturnType<typeof awaitNextStream>> | undefined;
+  const runEdit = async (thread: Thread, from: string, to: string) => {
+    const done = thread.submit({
+      type: "raw",
+      message: pendingMessage("edit"),
+    });
+    const stream = await awaitNextStream(mockClient, last);
+    stream.streamToolUse("edl-1" as ToolRequestId, "edl" as ToolName, {
+      script: `file \`${file}\`\nnarrow /${from}/\nreplace "${to}"`,
+    });
+    stream.finishResponse("tool_use");
+    const next = await awaitNextStream(mockClient, stream);
+    next.finishResponse("end_turn");
+    last = next;
+    await expect(done).resolves.toMatchObject({ type: "completed" });
+  };
+
+  const before = await create();
+  session.attachEditor(spyEditor);
+  await runEdit(before.thread, "hello", "bye");
+  expect(onFileWritten).not.toHaveBeenCalled();
+
+  const after = await create();
+  expect(createLspClient).toHaveBeenCalledWith(threadCwd, dir);
+  expect(host.getPrepared(after.id).systemInfo.neovimVersion).toBe("999");
+  await runEdit(after.thread, "bye", "again");
+  expect(onFileWritten).toHaveBeenCalledWith(file);
+  expect(await readFile(file, "utf8")).toBe("again");
 });
