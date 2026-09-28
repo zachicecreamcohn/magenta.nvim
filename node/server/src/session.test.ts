@@ -1,4 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
+import type { ClientCapabilities } from "./capabilities/client.ts";
+import { NoopLspClient } from "./capabilities/noop-lsp-client.ts";
 import type {
   ContentBlockIdx,
   DisplayBufferText,
@@ -781,7 +783,11 @@ it("delegates bypass of an externally owned root to that root", async () => {
 });
 it("awaitClient resolves on attach, supports abort, and rejects on dispose", async () => {
   const { session } = fixture();
-  const client = {} as Parameters<typeof session.attachClient>[0];
+  const client: ClientCapabilities = {
+    neovimVersion: "test",
+    createLspClient: () => new NoopLspClient(),
+    luaExecutor: { execLua: async () => undefined },
+  };
   const waiting = session.awaitClient();
   const aborted = session.awaitClient();
   expect(session.awaitingClient).toBe(2);
@@ -791,11 +797,15 @@ it("awaitClient resolves on attach, supports abort, and rejects on dispose", asy
   expect(session.awaitingClient).toBe(1);
   session.attachClient(client);
   expect(await waiting.promise).toBe(client);
+  waiting.abort();
   expect(session.awaitingClient).toBe(0);
   expect(await session.awaitClient().promise).toBe(client);
   session.detachClient();
   const pending = session.awaitClient();
   await session.dispose();
   await expect(pending.promise).rejects.toThrow("Session disposed");
+  await expect(session.awaitClient().promise).rejects.toThrow(
+    "Session disposed",
+  );
   expect(session.awaitingClient).toBe(0);
 });
