@@ -141,3 +141,24 @@ it("turns a failed expansion into an error block and proceeds", async () => {
   stream.finishResponse("end_turn");
   await sent;
 });
+it("expands repeated and mixed client commands once per match (grouped by command)", async () => {
+  const { session, core, mockClient } = setup();
+  let calls = 0;
+  session.attachClient(
+    fakeClient(async (command) => [
+      { type: "text", text: `${command} #${++calls}` },
+    ]),
+  );
+  const sent = core.submit({
+    type: "raw",
+    message: pendingMessage("@buf @qf @buf x"),
+  });
+  const stream = await mockClient.awaitStream();
+  const blocks = texts(core.getProviderMessages().at(-1)?.content ?? []);
+  expect(
+    blocks.filter((b) => /#\d/.test(b)).map((b) => b.split(" ")[0]),
+  ).toEqual(["buf", "buf", "qf"]);
+  expect(session.awaitingClient).toBe(0);
+  stream.finishResponse("end_turn");
+  await sent;
+});

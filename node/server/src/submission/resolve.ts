@@ -30,7 +30,7 @@ export type ResolveSubmissionContext = {
 export async function resolveSubmission(
   message: PendingMessage,
   context: ResolveSubmissionContext,
-  abandoned?: Promise<Aborted>,
+  abandoned: Promise<Aborted>,
 ): Promise<ResolvedSubmission> {
   const { compact, rest } = context.canCompact
     ? parseCompact(message)

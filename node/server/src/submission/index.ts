@@ -45,7 +45,7 @@ export type ResolvedSubmission =
 export type ResolveSubmission = (
   message: PendingMessage,
   /** Settles when the submission abandons this resolution. */
-  abandoned?: Promise<Aborted>,
+  abandoned: Promise<Aborted>,
 ) => Promise<ResolvedSubmission>;
 
 /** Used by threads whose content is composed programmatically (subagents, scripts). */

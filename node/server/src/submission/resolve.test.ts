@@ -32,6 +32,7 @@ describe("resolveSubmission @compact", () => {
     const result = await resolveSubmission(
       pendingMessage("@compact continue with @file:/proj/a.txt"),
       ctx,
+      new Promise<never>(() => {}),
     );
     expect(result.type).toBe("compact");
     expect(result.prompt.content[0]).toEqual({
@@ -46,6 +47,7 @@ describe("resolveSubmission @compact", () => {
     const result = await resolveSubmission(
       pendingMessage("@compact continue"),
       ctx,
+      new Promise<never>(() => {}),
     );
     expect(result.type).toBe("send");
     expect(result.prompt.content[0]).toEqual({

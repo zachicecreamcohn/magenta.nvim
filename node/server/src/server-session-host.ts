@@ -442,7 +442,7 @@ export class ServerSessionHost implements SessionHost {
       provider: this.getProvider(info.profile),
       // Resolved at delivery time against the session's current handle, never
       // a retired core.
-      resolve: (message: PendingMessage, abandoned?: Promise<Aborted>) =>
+      resolve: (message: PendingMessage, abandoned: Promise<Aborted>) =>
         resolveSubmission(
           message,
           {
