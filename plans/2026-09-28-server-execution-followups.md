@@ -159,4 +159,4 @@ export type ResolveSubmissionContext = {
 # Progress
 
 - [x] Stage 1: Rename editor to client. Files/identifiers renamed; prose referring to "editor" as a UI concept (LSP/lua tools, `Editor-backed` comments) left as is where it describes neovim itself.
-- [x] Stage 2: zx on the server. `zx ^8.8.5` added to `node/server/package.json`; `diff.ts` uses `$({ cwd, quiet: true })`. Added tier-B `@staged:` test (staged vs unstaged content) in `server-session-host.test.ts`.
+- [x] Stage 2: zx on the server. `zx ^8.8.5` added to `node/server/package.json`; `diff.ts` uses `$({ cwd, quiet: true })`. Added tier-B `@staged:` test (staged vs unstaged content) in `server-session-host.test.ts`. Review follow-up: the `@staged:` test also covers a path with shell metacharacters (`$`, quotes; spaces are impossible since the pattern is `\S+`) and the empty-output placeholders for both commands.

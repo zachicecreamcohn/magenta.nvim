@@ -246,20 +246,31 @@ describe("submission resolution", () => {
     await git("config", "user.email", "t@t");
     await git("config", "user.name", "t");
     await writeFile(path.join(dir, "s.txt"), "one\n");
+    await writeFile(path.join(dir, "clean.txt"), "clean\n");
     await git("add", ".");
     await git("commit", "-qm", "init");
     await writeFile(path.join(dir, "s.txt"), "staged\n");
     await git("add", "s.txt");
     await writeFile(path.join(dir, "s.txt"), "unstaged\n");
+    // zx builds a shell string, so shell metacharacters in the path must be quoted
+    const weirdName = "we$ird'\"name.txt";
+    await writeFile(path.join(dir, weirdName), "weird\n");
+    await git("add", weirdName);
     const thread = await createThread();
     const done = thread.submit({
       type: "raw",
-      message: pendingMessage("@staged:s.txt"),
+      message: pendingMessage(
+        `@staged:s.txt @staged:${weirdName} @diff:clean.txt @staged:clean.txt`,
+      ),
     });
     const stream = await awaitNextStream(mockClient, undefined);
     const text = userText(stream);
     expect(text).toContain("+staged");
     expect(text).not.toContain("+unstaged");
+    expect(text).toContain("+weird");
+    expect(text).not.toContain("Error fetching");
+    expect(text).toContain("(no unstaged changes)");
+    expect(text).toContain("(no staged changes)");
     stream.finishResponse("end_turn");
     await done;
   });
