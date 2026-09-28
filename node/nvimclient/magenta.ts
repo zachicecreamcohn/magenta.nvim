@@ -3,6 +3,7 @@ import type { SandboxAskCallback } from "@anthropic-ai/sandbox-runtime";
 import {
   ABORTED,
   type Aborted,
+  initializeSandbox,
   isThreadId,
   type NativeMessageIdx,
   parseDelivery,
@@ -11,8 +12,10 @@ import {
   readArchivedThreadLog,
   readThreadMeta,
   renderThreadLogToMarkdown,
+  type Sandbox,
   ScriptManager,
   Session,
+  StraceUnavailableError,
   type ThreadId,
   threadConversationLogPath,
 } from "@magenta/server";
@@ -25,7 +28,6 @@ import {
   threadKey,
 } from "./buffer-manager.ts";
 import { Lsp } from "./capabilities/lsp.ts";
-import { StraceUnavailableError } from "./capabilities/strace.ts";
 import { Chat } from "./chat/chat.ts";
 import { CommandRegistry } from "./chat/commands/registry.ts";
 import { sliceDisplayBufferSelection } from "./chat/reflect-anchor.ts";
@@ -71,7 +73,6 @@ import {
 } from "./options.ts";
 import { DynamicOptionsLoader } from "./options-loader.ts";
 import type { RootMsg, SidebarMsg } from "./root-msg.ts";
-import { initializeSandbox, type Sandbox } from "./sandbox-manager.ts";
 import { ScriptController } from "./scripts/script-manager.ts";
 import {
   type ColumnChrome,

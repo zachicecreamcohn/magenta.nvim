@@ -8,6 +8,7 @@ import {
   mockServers,
   type ServerName,
 } from "@magenta/server";
+import { MockSandboxManager } from "@magenta/server/src/test/mock-sandbox-manager.ts";
 import { Magenta } from "../magenta.ts";
 import { attach, type LogLevel, type Nvim } from "../nvim/nvim-node/index.ts";
 import type { MagentaOptions } from "../options.ts";
@@ -18,7 +19,6 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { pollUntil } from "../utils/async.ts";
 import { NvimDriver } from "./driver.ts";
 import { leftThread } from "./left-thread.ts";
-import { MockSandboxManager } from "./mock-sandbox-manager.ts";
 
 type ToolResultBlockParam = Anthropic.Messages.ToolResultBlockParam;
 

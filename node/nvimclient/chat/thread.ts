@@ -1,6 +1,8 @@
 import type {
+  Environment,
   GitState,
   ReflectAnchor,
+  SandboxViolationHandler,
   ScriptSandboxRoot,
   SubagentConfig,
   SystemInfo,
@@ -23,8 +25,6 @@ import {
 } from "@magenta/server";
 import * as diff from "diff";
 import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
-import type { SandboxViolationHandler } from "../capabilities/sandbox-violation-handler.ts";
-import type { Environment } from "../environment.ts";
 import { displaySnapshotDiff } from "../nvim/displaySnapshotDiff.ts";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
 import { openFileInNonMagentaWindow } from "../nvim/openFileInNonMagentaWindow.ts";

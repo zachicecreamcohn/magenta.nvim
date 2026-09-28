@@ -90,3 +90,23 @@ export async function getOrOpenBuffer({
     };
   }
 }
+
+/** Keeps an open, unmodified buffer in sync after the agent writes its file on disk. */
+export async function reloadBufferIfOpen(
+  context: { nvim: Nvim; cwd: AbsFilePath; homeDir: HomeDir },
+  absPath: AbsFilePath,
+): Promise<void> {
+  const result = await getBufferIfOpen({ unresolvedPath: absPath, context });
+  if (result.status !== "ok") {
+    return;
+  }
+  const buffer = result.buffer;
+  const modified = await buffer.getOption("modified");
+  if (modified) {
+    context.nvim.logger.warn(
+      `Buffer for ${absPath} has unsaved changes; disk was updated by agent but buffer was not reloaded`,
+    );
+    return;
+  }
+  await buffer.reloadFromDisk();
+}

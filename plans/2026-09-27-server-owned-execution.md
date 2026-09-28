@@ -136,7 +136,14 @@ export interface MessageContext {
   - Type checks are the main test: `npx tsc -b` fails if a `NvimCwd` is passed where `Cwd` is expected.
   - Tier A: a thread created with an explicit `Cwd` runs its shell commands there. Changing the harness's client cwd afterwards does not move it.
 
-## Move capabilities to the server
+## Move capabilities to the server ✅ done
+
+- Progress: `sandbox-file-io`, `sandbox-shell`, `shell-utils`, `strace`, `docker-file-io`, `docker-shell`, `sandbox-violation-handler`, `noop-lsp-client` and the local/docker git clients (`capabilities/git-clients.ts`, beside the existing `git-client.ts` interface) now live in `node/server/src/capabilities/`; `sandbox-manager.ts` and `environment.ts` in `node/server/src/`; `mock-sandbox-manager.ts` in `node/server/src/test/`. Their tests moved with them into the `server` project and run without nvim. All are exported from the server barrel.
+- Decisions:
+  - `SandboxConfig`, `OnUnknownHostBehavior` and `DEFAULT_SANDBOX_CONFIG` moved to `node/server/src/sandbox-config.ts` (re-exported from client `options.ts`); `SandboxShell` takes `getSandboxConfig` instead of `getOptions`.
+  - `SandboxFileIO` takes a `Logger` and an optional `onFileWritten(absPath)` callback in place of the buffer reload; the client supplies `reloadBufferIfOpen` (`nvimclient/utils/buffers.ts`).
+  - `createLocalEnvironment` takes `logger`, `getSandboxConfig` and optional `lspClient`/`luaExecutor`/`onFileWritten`; the `lsp`/`nvim` capabilities are only offered when the respective collaborator is supplied (today `NvimSessionHost` always supplies both, so no behavior change).
+  - `SandboxViolationHandler.view()` became `renderApprovals(handler)` in `nvimclient/capabilities/render-pending-approvals.ts` (uses the exported `deduplicateViolations`); its rendering tests moved to `render-approvals.node.test.ts`.
 
 - Goal: `SandboxFileIO`, `SandboxShell`, `shell-utils`, `strace`, `DockerFileIO`, `DockerShell`, the git clients, `sandbox-manager.ts` and `environment.ts` live under `node/server/src`, taking a `Logger` instead of `Nvim`. `createLocalEnvironment` takes the LSP client and lua executor as optional inputs. `SandboxViolationHandler` moves with its rendering split out into `render-pending-approvals.ts`. No behavior change.
 - Tests:

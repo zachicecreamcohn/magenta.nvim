@@ -1,5 +1,6 @@
 import type {
   NativeMessageIdx,
+  Sandbox,
   ScriptRunner,
   StopReason,
   SubmissionResult,
@@ -16,10 +17,10 @@ import {
   threadCreatedAt,
 } from "@magenta/server";
 import type { Lsp } from "../capabilities/lsp.ts";
+import { renderApprovals } from "../capabilities/render-pending-approvals.ts";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
 import type { MagentaOptions } from "../options.ts";
 import type { RootMsg } from "../root-msg.ts";
-import type { Sandbox } from "../sandbox-manager.ts";
 import type { ScriptInvocationId } from "../scripts/script-manager.ts";
 import type { Dispatch } from "../tea/tea.ts";
 import { d, type VDOMNode, withBindings, withError } from "../tea/view.ts";
@@ -796,7 +797,7 @@ export class Chat {
     ) {
       const handler = wrapper.thread.sandboxViolationHandler;
       if (handler.getPendingViolations().size > 0) {
-        views.push(handler.view());
+        views.push(renderApprovals(handler));
       }
     }
     const children = childrenMap.get(threadId) ?? [];

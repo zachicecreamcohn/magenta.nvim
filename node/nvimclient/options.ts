@@ -1,9 +1,20 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
-import { type ServerName, validateServerName } from "@magenta/server";
+import {
+  DEFAULT_SANDBOX_CONFIG,
+  type OnUnknownHostBehavior,
+  type SandboxConfig,
+  type ServerName,
+  validateServerName,
+} from "@magenta/server";
 import { PROVIDER_NAMES, type ProviderName } from "./providers/provider.ts";
 import type { NvimCwd } from "./utils/files.ts";
+export {
+  DEFAULT_SANDBOX_CONFIG,
+  type OnUnknownHostBehavior,
+  type SandboxConfig,
+};
 
 // Source modules and the single-file bundle live at different depths.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -142,28 +153,6 @@ export type SidebarPositionOpts = {
   tab: TabWindowDimensions;
 };
 
-export type OnUnknownHostBehavior = "prompt" | "allow" | "deny";
-
-export type SandboxConfig = {
-  filesystem: {
-    allowWrite: string[];
-    denyWrite: string[];
-    denyRead: string[];
-    allowRead: string[];
-  };
-  network: {
-    allowedDomains: string[];
-    deniedDomains: string[];
-    allowUnixSockets: string[];
-    allowAllUnixSockets: boolean;
-    onUnknownHost: OnUnknownHostBehavior;
-  };
-  requireApprovalPatterns: string[];
-  strace: {
-    autoAllowViolations: boolean;
-  };
-};
-
 export const DEFAULT_AUTO_COMPACT_PROMPT =
   "Continue with the task you were working on before the conversation was automatically compacted.";
 
@@ -184,61 +173,6 @@ export const DEFAULT_SIDEBAR_POSITION_OPTS: SidebarPositionOpts = {
   },
   right: {
     displayHeightPercentage: 0.8,
-  },
-};
-
-export const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
-  filesystem: {
-    allowWrite: ["./"],
-    denyWrite: [".env", ".git/hooks/", ".magenta", "~/.magenta"],
-    denyRead: [
-      // Credentials and keys (literal paths → subpath matching blocks dir + all contents)
-      "~/.ssh",
-      "~/.gnupg",
-      "~/.aws",
-      "~/.azure",
-      "~/.config/gcloud",
-      "~/.docker",
-      "~/.kube",
-      "~/.password-store",
-      "~/.netrc",
-      "~/.npmrc",
-      "~/.pypirc",
-      "~/.gem",
-      "~/.config/gh",
-      // Shell configs (can execute code on shell startup)
-      "~/.bashrc",
-      "~/.bash_profile",
-      "~/.bash_login",
-      "~/.bash_logout",
-      "~/.zshrc",
-      "~/.zprofile",
-      "~/.zshenv",
-      "~/.zlogin",
-      "~/.zlogout",
-      "~/.profile",
-      "~/.config/fish",
-    ],
-    allowRead: [],
-  },
-  network: {
-    allowedDomains: [
-      "registry.npmjs.org",
-      "github.com",
-      "*.github.com",
-      "pypi.org",
-      "files.pythonhosted.org",
-      "rubygems.org",
-      "crates.io",
-    ],
-    deniedDomains: [],
-    allowUnixSockets: [],
-    allowAllUnixSockets: false,
-    onUnknownHost: "prompt",
-  },
-  requireApprovalPatterns: ["git\\s+push"],
-  strace: {
-    autoAllowViolations: false,
   },
 };
 

@@ -19,6 +19,8 @@ export type {
   ToolApplied,
   TrackedFileInfo,
 } from "./capabilities/context-tracker.ts";
+export { DockerFileIO } from "./capabilities/docker-file-io.ts";
+export { DockerShell } from "./capabilities/docker-shell.ts";
 export type { FileIO } from "./capabilities/file-io.ts";
 export { FsFileIO } from "./capabilities/file-io.ts";
 export {
@@ -29,6 +31,7 @@ export {
   type GitState,
   parseGitState,
 } from "./capabilities/git-client.ts";
+export { DockerGitClient, LocalGitClient } from "./capabilities/git-clients.ts";
 export type {
   LspClient,
   LspDefinitionResponse,
@@ -37,11 +40,23 @@ export type {
   LspReferencesResponse,
 } from "./capabilities/lsp-client.ts";
 export type { LuaExecutor } from "./capabilities/lua-executor.ts";
+export { SandboxFileIO } from "./capabilities/sandbox-file-io.ts";
+export { SandboxShell } from "./capabilities/sandbox-shell.ts";
+export {
+  deduplicateViolations,
+  type PendingViolation,
+  type SandboxViolation,
+  SandboxViolationHandler,
+} from "./capabilities/sandbox-violation-handler.ts";
 export type {
   ScriptCatalogEntry,
   ScriptRunner,
 } from "./capabilities/script-runner.ts";
 export type { OutputLine, Shell, ShellResult } from "./capabilities/shell.ts";
+export {
+  assertStraceAvailable,
+  StraceUnavailableError,
+} from "./capabilities/strace.ts";
 export type {
   DockerSpawnConfig,
   ThreadManager,
@@ -114,6 +129,7 @@ export {
 export { parse } from "./edl/parser.ts";
 export type { FileMutationSummary } from "./edl/types.ts";
 export { Emitter, type EventMap } from "./emitter.ts";
+export * from "./environment.ts";
 export type { Logger } from "./logger.ts";
 export type { OpenAIAuth } from "./openai-auth.ts";
 export type { AbsFilePath, Cwd } from "./paths.ts";
@@ -216,6 +232,12 @@ export {
   type ReminderKind,
 } from "./providers/system-reminders.ts";
 export { buildReflectSeed, renderReflectHistory } from "./reflect/seed.ts";
+export {
+  DEFAULT_SANDBOX_CONFIG,
+  type OnUnknownHostBehavior,
+  type SandboxConfig,
+} from "./sandbox-config.ts";
+export * from "./sandbox-manager.ts";
 export type {
   JSONSchema,
   MagentaToScript,

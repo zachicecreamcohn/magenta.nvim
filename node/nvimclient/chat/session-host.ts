@@ -1,3 +1,4 @@
+import type { Sandbox } from "@magenta/server";
 import {
   ABORTED,
   type Aborted,
@@ -7,8 +8,11 @@ import {
   buildSystemInfo,
   type ContextFileAccess,
   clientToolCreator,
+  createDockerEnvironment,
+  createLocalEnvironment,
   createSystemPrompt,
   discoverHierarchyContext,
+  type EnvironmentConfig,
   FsFileIO,
   loadAgents,
   MCPToolManagerImpl,
@@ -27,17 +31,14 @@ import {
   type ThreadPreparation,
 } from "@magenta/server";
 import type { Lsp } from "../capabilities/lsp.ts";
-import {
-  createDockerEnvironment,
-  createLocalEnvironment,
-  type EnvironmentConfig,
-} from "../environment.ts";
+import { NvimLspClient } from "../capabilities/lsp-client-adapter.ts";
+import { NvimLuaExecutor } from "../capabilities/nvim-lua-executor.ts";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
 import type { MagentaOptions } from "../options.ts";
 import { getProvider } from "../providers/provider.ts";
 import type { RootMsg } from "../root-msg.ts";
-import type { Sandbox } from "../sandbox-manager.ts";
 import type { Dispatch } from "../tea/tea.ts";
+import { reloadBufferIfOpen } from "../utils/buffers.ts";
 import type { Cwd, HomeDir } from "../utils/files.ts";
 import type { CommandRegistry } from "./commands/registry.ts";
 import type { NvimThreadContext, SandboxRoot } from "./thread.ts";
@@ -198,6 +199,10 @@ export class NvimSessionHost implements SessionHost {
     const resolvedConfig: EnvironmentConfig = environmentConfig ?? {
       type: "local",
     };
+    const localCwd =
+      resolvedConfig.type === "local"
+        ? (resolvedConfig.cwd ?? this.context.cwd)
+        : this.context.cwd;
 
     const [autoContextFiles, environment] = await Promise.all([
       // auto-context is discovered against the host filesystem, so it is
@@ -221,11 +226,26 @@ export class NvimSessionHost implements SessionHost {
           })
         : Promise.resolve(
             createLocalEnvironment({
-              nvim: this.context.nvim,
-              lsp: this.context.lsp,
-              cwd: resolvedConfig.cwd ?? this.context.cwd,
+              logger: this.context.nvim.logger,
+              cwd: localCwd,
               homeDir: this.context.homeDir,
-              getOptions: this.context.getOptions,
+              getSandboxConfig: () => this.context.getOptions().sandbox,
+              lspClient: new NvimLspClient(
+                this.context.lsp,
+                this.context.nvim,
+                localCwd,
+                this.context.homeDir,
+              ),
+              luaExecutor: new NvimLuaExecutor(this.context.nvim),
+              onFileWritten: (absPath) =>
+                reloadBufferIfOpen(
+                  {
+                    nvim: this.context.nvim,
+                    cwd: localCwd,
+                    homeDir: this.context.homeDir,
+                  },
+                  absPath,
+                ),
               threadId,
               sandbox: this.context.sandbox,
               onPendingChange: () =>

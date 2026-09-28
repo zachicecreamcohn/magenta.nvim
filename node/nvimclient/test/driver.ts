@@ -1,4 +1,5 @@
 import type { ThreadId } from "@magenta/server";
+import type { MockSandboxManager } from "@magenta/server/src/test/mock-sandbox-manager.ts";
 import { expect } from "vitest";
 import type { BufferKey } from "../buffer-manager.ts";
 import type { Magenta } from "../magenta.ts";
@@ -20,7 +21,6 @@ import { pollUntil } from "../utils/async.ts";
 import { CompletionsInteraction } from "./driver/completions.ts";
 import { SidebarInteraction } from "./driver/sidebar.ts";
 import { leftThread } from "./left-thread.ts";
-import type { MockSandboxManager } from "./mock-sandbox-manager.ts";
 
 export class NvimDriver {
   public completions: CompletionsInteraction;
