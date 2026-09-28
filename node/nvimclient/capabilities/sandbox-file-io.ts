@@ -9,8 +9,8 @@ import type { Sandbox } from "../sandbox-manager.ts";
 import { getBufferIfOpen } from "../utils/buffers.ts";
 import {
   type AbsFilePath,
+  type Cwd,
   type HomeDir,
-  type NvimCwd,
   resolveFilePath,
   type UnresolvedFilePath,
 } from "../utils/files.ts";
@@ -19,7 +19,7 @@ export class SandboxFileIO implements FileIO {
   constructor(
     private context: {
       nvim: Nvim;
-      cwd: NvimCwd;
+      cwd: Cwd;
       homeDir: HomeDir;
     },
     private sandbox: Sandbox,

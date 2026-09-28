@@ -6,7 +6,7 @@ import { expect, it } from "vitest";
 import { parseOptions } from "../options.ts";
 import type { Sandbox } from "../sandbox-manager.ts";
 import { pollUntil } from "../utils/async.ts";
-import type { HomeDir, NvimCwd } from "../utils/files.ts";
+import type { Cwd, HomeDir } from "../utils/files.ts";
 import { SandboxShell } from "./sandbox-shell.ts";
 import { SandboxViolationHandler } from "./sandbox-violation-handler.ts";
 import type { OutputLine } from "./shell.ts";
@@ -41,7 +41,7 @@ const options = parseOptions(
 function createShell() {
   return new SandboxShell(
     {
-      cwd: os.tmpdir() as NvimCwd,
+      cwd: os.tmpdir() as Cwd,
       homeDir: os.homedir() as HomeDir,
       threadId: `shell-node-${process.pid}` as ThreadId,
       getOptions: () => options,

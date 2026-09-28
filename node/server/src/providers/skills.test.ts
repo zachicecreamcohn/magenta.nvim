@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FsFileIO } from "../capabilities/file-io.ts";
 import type { Logger } from "../logger.ts";
 import type { ProviderOptions } from "../provider-options.ts";
-import type { HomeDir, NvimCwd } from "../utils/files.ts";
+import type { Cwd, HomeDir } from "../utils/files.ts";
 import { loadSkills } from "./skills.ts";
 
 const noopLogger: Logger = {
@@ -17,7 +17,7 @@ const noopLogger: Logger = {
 let testCounter = 0;
 let tmpRoot: string;
 let tmpHome: HomeDir;
-let tmpCwd: NvimCwd;
+let tmpCwd: Cwd;
 
 beforeEach(async () => {
   tmpRoot = path.join(
@@ -26,7 +26,7 @@ beforeEach(async () => {
   );
   await fs.mkdir(tmpRoot, { recursive: true });
   tmpHome = path.join(tmpRoot, "home") as HomeDir;
-  tmpCwd = path.join(tmpRoot, "cwd") as NvimCwd;
+  tmpCwd = path.join(tmpRoot, "cwd") as Cwd;
   await fs.mkdir(tmpHome, { recursive: true });
   await fs.mkdir(tmpCwd, { recursive: true });
 });
@@ -60,7 +60,7 @@ function makeContext(options: ProviderOptions) {
 
 describe("loadSkills with hierarchical relative paths", () => {
   it("walks up parent directories above cwd for relative skills paths", async () => {
-    const deepCwd = path.join(tmpRoot, "level1", "level2") as NvimCwd;
+    const deepCwd = path.join(tmpRoot, "level1", "level2") as Cwd;
     await fs.mkdir(deepCwd, { recursive: true });
 
     await writeSkill(
@@ -92,7 +92,7 @@ describe("loadSkills with hierarchical relative paths", () => {
   });
 
   it("skills closer to cwd override same-named skills from parent directories", async () => {
-    const deepCwd = path.join(tmpRoot, "outer", "inner") as NvimCwd;
+    const deepCwd = path.join(tmpRoot, "outer", "inner") as Cwd;
     await fs.mkdir(deepCwd, { recursive: true });
 
     await writeSkill(
@@ -125,7 +125,7 @@ describe("loadSkills with hierarchical relative paths", () => {
     const homeSkillsDir = path.join(tmpHome, ".claude", "skills");
     await writeSkill(homeSkillsDir, "home-skill", "home-only");
 
-    const deepCwd = path.join(tmpRoot, "a", "b") as NvimCwd;
+    const deepCwd = path.join(tmpRoot, "a", "b") as Cwd;
     await fs.mkdir(deepCwd, { recursive: true });
     await writeSkill(
       path.join(tmpRoot, "a", ".claude", "skills"),

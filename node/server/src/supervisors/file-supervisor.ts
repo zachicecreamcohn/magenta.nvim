@@ -21,11 +21,11 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { formatSummary, summarizeFile } from "../utils/file-summary.ts";
 import {
   type AbsFilePath,
+  type Cwd,
   detectFileTypeViaFileIO,
   FileCategory,
   type FileTypeInfo,
   type HomeDir,
-  type NvimCwd,
   type RelFilePath,
   relativePath,
   resolveFilePath,
@@ -151,7 +151,7 @@ export type DiscoveredContextFile = {
 export type FileSupervisorDeps = {
   logger: Logger;
   fileIO: FileIO;
-  cwd: NvimCwd;
+  cwd: Cwd;
   homeDir: HomeDir;
   discoverHierarchy?: HierarchyDiscovery;
   pollIntervalMs?: number;
@@ -219,6 +219,28 @@ function cloneFile(
   );
 }
 
+/** Track `paths` as already delivered: each keeps only the source's latest
+ * view, as pre-history, so the new conversation receives diffs from there
+ * rather than whole files. Paths the source hasn't delivered are skipped. */
+export function buildLoadedFiles(
+  sourceFiles: Files,
+  paths: ReadonlyArray<AbsFilePath>,
+): Files {
+  const next: Files = {};
+  for (const absFilePath of paths) {
+    const file = sourceFiles[absFilePath];
+    if (!file?.agentView) continue;
+    next[absFilePath] = trackedFile(file, [
+      {
+        nativeMessageIdx: PRE_HISTORY,
+        agentView: cloneAgentView(file.agentView),
+        lastStat: file.lastStat,
+      },
+    ]);
+  }
+  return next;
+}
+
 /** Copy context membership while clearing conversation-local delivery state. */
 export function buildClonedFiles(sourceFiles: Files): Files {
   const next: Files = {};
@@ -278,7 +300,7 @@ export class FileSupervisor implements ContextTracker, ToolLoopSupervisor {
   private constructor(
     private logger: Logger,
     private fileIO: FileIO,
-    private cwd: NvimCwd,
+    private cwd: Cwd,
     private homeDir: HomeDir,
     private discoverHierarchy: HierarchyDiscovery | undefined,
     files: Files,

@@ -113,7 +113,7 @@ export function formatFileRef(filePath: string): string {
 /** Special nominal type to represent the neovim directory. The node plugin runs in the magenta directory, but when
  * dealing with paths, we always want to do it from the POV of the nvim cwd.
  */
-export type NvimCwd = AbsFilePath & { __nvim_cwd: true };
+export type Cwd = AbsFilePath & { __cwd: true };
 
 export const FileCategory = {
   TEXT: "text",
@@ -137,7 +137,7 @@ export function expandTilde(filepath: string, homeDir: HomeDir): string {
 }
 
 export function resolveFilePath(
-  cwd: NvimCwd,
+  cwd: AbsFilePath,
   filePath: UnresolvedFilePath | AbsFilePath | RelFilePath,
   homeDir: HomeDir,
 ) {
@@ -149,7 +149,7 @@ export function resolveFilePath(
 }
 
 export function relativePath(
-  cwd: NvimCwd,
+  cwd: AbsFilePath,
   filePath: UnresolvedFilePath | AbsFilePath,
   homeDir: HomeDir,
 ) {
@@ -165,7 +165,7 @@ export function shortenPath(filePath: string, homeDir: HomeDir): string {
 }
 
 export function displayPath(
-  cwd: NvimCwd,
+  cwd: AbsFilePath,
   absFilePath: AbsFilePath,
   homeDir: HomeDir,
 ): DisplayPath {

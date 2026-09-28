@@ -34,7 +34,7 @@ import {
 } from "./thread-assembly.ts";
 import * as ThreadTitle from "./tools/thread-title.ts";
 import { Defer, type Task } from "./utils/async.ts";
-import type { NvimCwd, UnresolvedFilePath } from "./utils/files.ts";
+import type { AbsFilePath, Cwd, UnresolvedFilePath } from "./utils/files.ts";
 
 export type SessionId = string & { __sessionId: true };
 
@@ -85,6 +85,9 @@ export type ThreadPreparation =
       source: Thread;
       anchor: ReflectAnchor;
       seed: AgentInput[];
+      /** Source context files the reflection treats as already read: their
+       * contents are covered by the seed, so only later changes are sent. */
+      loadedContextFiles: AbsFilePath[];
     };
 
 export type PreparedThread = {
@@ -308,7 +311,7 @@ export class Session extends Emitter<SessionEvents> implements ThreadManager {
     prompt: string;
     yieldSchema: JSONSchemaType;
     profile?: ProviderProfile;
-    cwd?: NvimCwd;
+    cwd?: Cwd;
     contextFiles?: UnresolvedFilePath[];
     systemReminder?: string;
     autoCompactThreshold?: number;
@@ -655,6 +658,9 @@ The title must be a single line (no newlines) and a few words long (ideally arou
         source: source.thread,
         anchor,
         seed,
+        loadedContextFiles: Object.keys(
+          source.thread.contextFiles.files,
+        ) as AbsFilePath[],
       }),
     );
   }

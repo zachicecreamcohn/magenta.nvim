@@ -6,7 +6,7 @@ import type {
   LspHoverResponse,
 } from "../capabilities/lsp-client.ts";
 import type { ExecutedToolResult, ToolRequestId } from "../tool-types.ts";
-import type { HomeDir, NvimCwd } from "../utils/files.ts";
+import type { Cwd, HomeDir } from "../utils/files.ts";
 import * as Hover from "./hover.ts";
 
 function createMockLspClient(overrides: Partial<LspClient> = {}): LspClient {
@@ -32,7 +32,7 @@ function createMockFileIO(fileContent: string): FileIO {
   };
 }
 
-const TEST_CWD = "/project" as NvimCwd;
+const TEST_CWD = "/project" as Cwd;
 const TEST_HOME = "/home/user" as HomeDir;
 
 function makeRequest(

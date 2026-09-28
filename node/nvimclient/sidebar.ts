@@ -237,28 +237,44 @@ export class Sidebar {
       right = undefined;
     }
     if (!right) {
-      const columnWidth = (await this.nvim.call("nvim_win_get_width", [
-        left.displayWindow.id,
-      ])) as number;
       const winId = (await this.nvim.call("nvim_open_win", [
         target.displayBuffer.id,
         false,
+        // A global split (win: -1) spans the full editor height; splitting the
+        // left display window would only split within the left column.
         {
-          split: "right",
-          win: left.displayWindow.id,
-          width: columnWidth,
+          split: this.resolvedPosition,
+          win: -1,
         },
       ])) as WindowId;
+      if (this.resolvedPosition === "left") {
+        // The new window is now leftmost; move the left column back to its
+        // left so the layout is [left column | right column | editor].
+        const inputHeight = (await this.nvim.call("nvim_win_get_height", [
+          left.inputWindow.id,
+        ])) as number;
+        await this.nvim.call("nvim_call_function", [
+          "win_splitmove",
+          [left.displayWindow.id, winId, { vertical: true, rightbelow: false }],
+        ]);
+        await this.nvim.call("nvim_call_function", [
+          "win_splitmove",
+          [
+            left.inputWindow.id,
+            left.displayWindow.id,
+            { vertical: false, rightbelow: true },
+          ],
+        ]);
+        await this.nvim.call("nvim_win_set_height", [
+          left.inputWindow.id,
+          inputHeight,
+        ]);
+      }
       const displayWindow = new NvimWindow(winId, this.nvim);
       await this.initWindow(displayWindow);
       await displayWindow.setVar("magenta_display_window", true);
       await displayWindow.setOption("winbar", this.getDisplayWindowTitle());
-      await displayWindow.setOption("winfixwidth", true);
-      await this.nvim.call("nvim_win_set_width", [
-        left.displayWindow.id,
-        columnWidth,
-      ]);
-      await left.displayWindow.setOption("winfixwidth", true);
+      await this.nvim.call("nvim_command", ["vertical wincmd ="]);
       right = { displayWindow };
       left.right = right;
     } else {
@@ -312,9 +328,7 @@ export class Sidebar {
         await win.close().catch(() => undefined);
       }
     }
-    if (await this.state.displayWindow.valid()) {
-      await this.state.displayWindow.setOption("winfixwidth", false);
-    }
+    await this.nvim.call("nvim_command", ["vertical wincmd ="]);
   }
 
   /** The right column's windows, if it is open. */
@@ -433,6 +447,9 @@ export class Sidebar {
     // set var so we can avoid closing this window when displaying a diff
     await inputWindow.setVar("magenta", true);
     await inputWindow.setOption("winfixheight", true);
+    if (resolvedPosition !== "tab") {
+      await this.nvim.call("nvim_command", ["vertical wincmd ="]);
+    }
 
     const displayWidth = (await this.nvim.call("nvim_win_get_width", [
       displayWindow.id,

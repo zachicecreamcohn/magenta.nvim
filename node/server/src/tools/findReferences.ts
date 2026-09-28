@@ -9,8 +9,8 @@ import type {
   ToolName,
 } from "../tool-types.ts";
 import {
+  type Cwd,
   type HomeDir,
-  type NvimCwd,
   resolveFilePath,
   type UnresolvedFilePath,
 } from "../utils/files.ts";
@@ -22,7 +22,7 @@ export type StructuredResult = { toolName: "find_references" };
 export function execute(
   request: ToolRequest,
   context: {
-    cwd: NvimCwd;
+    cwd: Cwd;
     homeDir: HomeDir;
     lspClient: LspClient;
     fileIO: FileIO;

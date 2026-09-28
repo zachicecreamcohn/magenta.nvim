@@ -9,6 +9,33 @@ export type ReflectionEntry = {
   threadId: ThreadId;
   origin: Extract<ThreadOrigin, { type: "reflect" }>;
 };
+export type ReflectionTreeEntry = ReflectionEntry & { depth: number };
+
+/** The thread at the top of `threadId`'s reflection chain. */
+export function reflectionRoot(
+  session: Pick<Session, "getOrigin">,
+  threadId: ThreadId,
+): ThreadId {
+  let id = threadId;
+  for (;;) {
+    const origin = session.getOrigin(id);
+    if (origin?.type !== "reflect") return id;
+    id = origin.sourceThreadId;
+  }
+}
+
+/** Every reflection below `rootId`, depth-first, each followed by its own
+ * reflections. */
+export function reflectionTree(
+  session: Pick<Session, "listDerived">,
+  rootId: ThreadId,
+  depth = 0,
+): ReflectionTreeEntry[] {
+  return orderedReflections(session, rootId).flatMap((entry) => [
+    { ...entry, depth },
+    ...reflectionTree(session, entry.threadId, depth + 1),
+  ]);
+}
 
 /** The source's reflections in anchor order (creation order breaks ties). */
 export function orderedReflections(
@@ -40,7 +67,7 @@ export function renderReflectionsOverview({
   onOpen,
   onDelete,
 }: {
-  entries: ReflectionEntry[];
+  entries: ReflectionTreeEntry[];
   label: (childId: ThreadId) => string;
   onOpen: (childId: ThreadId) => void;
   onDelete: (childId: ThreadId) => void;
@@ -49,9 +76,9 @@ export function renderReflectionsOverview({
   if (entries.length === 0) {
     return d`${header}No reflections yet. Visually select text in the thread and press r to reflect on it.\n`;
   }
-  return d`${header}${entries.map(({ threadId, origin }) =>
+  return d`${header}${entries.map(({ threadId, origin, depth }) =>
     withBindings(
-      d`> ${truncate(origin.anchor.reflectionText, 60)} — ${truncate(label(threadId), 40)}\n`,
+      d`${"  ".repeat(depth)}> ${truncate(origin.anchor.reflectionText, 60)} — ${truncate(label(threadId), 40)}\n`,
       {
         "<CR>": () => onOpen(threadId),
         dd: () => onDelete(threadId),
@@ -61,15 +88,13 @@ export function renderReflectionsOverview({
 }
 
 /** The entry under a 1-indexed buffer line; entries render one per line. */
-export function entryAtLine(
-  entries: ReflectionEntry[],
-  line: number,
-): ReflectionEntry | undefined {
+export function entryAtLine<T>(entries: T[], line: number): T | undefined {
   const idx = line - 1 - HEADER_LINES;
   return idx >= 0 ? entries[idx] : undefined;
 }
 
-/** A read-only reflection overview for one thread: its buffer and TEA app.
+/** A read-only overview of a whole reflection tree, keyed by its root: its
+ * buffer and TEA app.
  * The sidebar shows the buffer in the right column's display window. */
 export class ReflectionsOverview {
   /** The entry under the overview's cursor, drawn with `MagentaReflectActive`
@@ -78,7 +103,7 @@ export class ReflectionsOverview {
 
   private constructor(
     readonly threadId: ThreadId,
-    private session: Pick<Session, "listDerived">,
+    private session: Session,
     readonly buffer: NvimBuffer,
     private app: TEA.App<undefined>,
     readonly mountedApp: TEA.MountedApp,
@@ -114,7 +139,7 @@ export class ReflectionsOverview {
       initialModel: undefined,
       View: () =>
         renderReflectionsOverview({
-          entries: orderedReflections(session, threadId),
+          entries: reflectionTree(session, threadId),
           label,
           onOpen,
           onDelete,
@@ -133,8 +158,8 @@ export class ReflectionsOverview {
     this.mountedApp.render();
   }
 
-  entryAt(line: number): ReflectionEntry | undefined {
-    return entryAtLine(orderedReflections(this.session, this.threadId), line);
+  entryAt(line: number): ReflectionTreeEntry | undefined {
+    return entryAtLine(reflectionTree(this.session, this.threadId), line);
   }
 
   async close(): Promise<void> {

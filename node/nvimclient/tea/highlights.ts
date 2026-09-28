@@ -1,5 +1,6 @@
 import type { DisplayBufferText } from "@magenta/server";
 import { MAGENTA_REFLECT_NAMESPACE } from "../nvim/buffer.ts";
+import type { ExtmarkId } from "../nvim/extmarks.ts";
 import type { ByteIdx, Position0Indexed } from "../nvim/window.ts";
 import { calculatePosition } from "./util.ts";
 import type {
@@ -44,7 +45,13 @@ function signatureOf(
 ): HighlightSignature {
   return JSON.stringify([
     text,
-    (highlights ?? []).map((h) => [h.id, h.text, h.extmarkOptions, h.fallback]),
+    (highlights ?? []).map((h) => [
+      h.id,
+      h.text,
+      h.extmarkOptions,
+      h.fallback,
+      h.rowLabel?.([h.id]),
+    ]),
   ]) as HighlightSignature;
 }
 
@@ -79,6 +86,9 @@ export async function clearHighlights(
       placed.extmarkId,
       MAGENTA_REFLECT_NAMESPACE,
     );
+  }
+  for (const id of node.highlightState.rowLabelIds) {
+    await mount.buffer.deleteExtmark(id, MAGENTA_REFLECT_NAMESPACE);
   }
   delete node.highlightState;
 }
@@ -120,6 +130,10 @@ async function placeHighlights(
 ): Promise<HighlightState> {
   const buf = Buffer.from(text, "utf8");
   const placed = new Map<string, PlacedHighlight>();
+  const rows = new Map<
+    number,
+    { spec: NodeHighlight; pos: Position0Indexed; ids: string[] }
+  >();
   for (const h of highlights) {
     const match = findInDisplayBufferText(text, h.text);
     let startPos: Position0Indexed;
@@ -136,6 +150,13 @@ async function placeHighlights(
       ) as ByteIdx;
       startPos = calculatePosition(node.startPos, buf, last);
       endPos = startPos;
+    }
+    if (match && h.rowLabel) {
+      const row = rows.get(endPos.row);
+      if (row) {
+        row.ids.push(h.id);
+        if (endPos.col > row.pos.col) row.pos = endPos;
+      } else rows.set(endPos.row, { spec: h, pos: endPos, ids: [h.id] });
     }
     const extmarkId = await mount.buffer.setExtmark({
       startPos,
@@ -161,7 +182,20 @@ async function placeHighlights(
           },
     );
   }
-  return { signature, placed };
+  const rowLabelIds: ExtmarkId[] = [];
+  for (const { spec, pos, ids } of rows.values()) {
+    const virtLines = spec.rowLabel?.(ids);
+    if (!virtLines) continue;
+    rowLabelIds.push(
+      await mount.buffer.setExtmark({
+        startPos: pos,
+        endPos: pos,
+        options: { virt_lines: virtLines },
+        namespace: MAGENTA_REFLECT_NAMESPACE,
+      }),
+    );
+  }
+  return { signature, placed, rowLabelIds };
 }
 
 export function placedPos(

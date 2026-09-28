@@ -6,14 +6,14 @@ import { describe, expect, it } from "vitest";
 import { FsFileIO } from "../capabilities/file-io.ts";
 import { InMemoryFileIO } from "../edl/in-memory-file-io.ts";
 import { noopLogger } from "../test-helpers.ts";
-import type { AbsFilePath, HomeDir, NvimCwd } from "../utils/files.ts";
+import type { AbsFilePath, Cwd, HomeDir } from "../utils/files.ts";
 import {
   discoverHierarchyContext,
   globFiles,
   resolveAutoContext,
 } from "./auto-context.ts";
 
-const cwd = "/project" as NvimCwd;
+const cwd = "/project" as Cwd;
 const homeDir = "/home" as HomeDir;
 
 describe("discoverHierarchyContext", () => {
@@ -129,7 +129,7 @@ describe("resolveAutoContext", () => {
       const results = await resolveAutoContext({
         fileIO: new FsFileIO(),
         logger: noopLogger,
-        cwd: tmp as NvimCwd,
+        cwd: tmp as Cwd,
         homeDir,
         globs: ["context.md", "link.md"],
       });

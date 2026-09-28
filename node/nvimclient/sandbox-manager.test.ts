@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SandboxConfig } from "./options.ts";
 import { DEFAULT_SANDBOX_CONFIG } from "./options.ts";
 import { mergeApprovedDomains, NetworkAskStack } from "./sandbox-manager.ts";
-import type { HomeDir, NvimCwd } from "./utils/files.ts";
+import type { Cwd, HomeDir } from "./utils/files.ts";
 
 const mockInitialize = vi.fn().mockResolvedValue(undefined);
 const mockIsSupportedPlatform = vi.fn().mockReturnValue(true);
@@ -22,7 +22,7 @@ vi.mock("@anthropic-ai/sandbox-runtime", () => ({
   },
 }));
 
-const cwd = "/home/user/project" as NvimCwd;
+const cwd = "/home/user/project" as Cwd;
 const homeDir = "/home/user" as HomeDir;
 
 function makeConfig(overrides?: Partial<SandboxConfig>): SandboxConfig {

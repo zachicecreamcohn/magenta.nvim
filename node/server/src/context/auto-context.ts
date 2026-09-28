@@ -4,12 +4,12 @@ import type { Logger } from "../logger.ts";
 import type { Files } from "../supervisors/file-supervisor.ts";
 import {
   type AbsFilePath,
+  type Cwd,
   detectFileTypeViaFileIO,
   expandTilde,
   FileCategory,
   type FileTypeInfo,
   type HomeDir,
-  type NvimCwd,
   type RelFilePath,
   relativePath,
 } from "../utils/files.ts";
@@ -25,7 +25,7 @@ type Match = { absFilePath: AbsFilePath; relFilePath: RelFilePath };
 export async function resolveAutoContext(ctx: {
   fileIO: FileIO;
   logger: Logger;
-  cwd: NvimCwd;
+  cwd: Cwd;
   homeDir: HomeDir;
   globs: string[] | undefined;
 }): Promise<AutoContextFile[]> {
@@ -209,7 +209,7 @@ export async function discoverHierarchyContext(
   ctx: {
     fileIO: FileIO;
     logger: Logger;
-    cwd: NvimCwd;
+    cwd: Cwd;
     homeDir: HomeDir;
     hierarchyContextFileNames: string[] | undefined;
   },

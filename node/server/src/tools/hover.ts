@@ -14,9 +14,9 @@ import type {
 } from "../tool-types.ts";
 import {
   type AbsFilePath,
+  type Cwd,
   displayPath,
   type HomeDir,
-  type NvimCwd,
   resolveFilePath,
   type UnresolvedFilePath,
 } from "../utils/files.ts";
@@ -30,7 +30,7 @@ export type StructuredResult = { toolName: "hover" };
 export function execute(
   request: ToolRequest,
   context: {
-    cwd: NvimCwd;
+    cwd: Cwd;
     homeDir: HomeDir;
     lspClient: LspClient;
     fileIO: FileIO;

@@ -4,9 +4,9 @@ import type { Logger } from "../logger.ts";
 import type { NativeMessageIdx } from "../providers/provider-types.ts";
 import {
   type AbsFilePath,
+  type Cwd,
   FileCategory,
   type HomeDir,
-  type NvimCwd,
   type RelFilePath,
   type UnresolvedFilePath,
 } from "../utils/files.ts";
@@ -39,7 +39,7 @@ function setup(files: Record<string, string>) {
   const supervisor = FileSupervisor.create({
     logger,
     fileIO,
-    cwd: "/test" as NvimCwd,
+    cwd: "/test" as Cwd,
     homeDir: "/home" as HomeDir,
     initialFiles: {},
   });
@@ -269,7 +269,7 @@ describe("FileSupervisor conversation lifetime", () => {
     const supervisor = FileSupervisor.create({
       logger,
       fileIO,
-      cwd: "/test" as NvimCwd,
+      cwd: "/test" as Cwd,
       homeDir: "/home" as HomeDir,
       initialFiles: {},
     });

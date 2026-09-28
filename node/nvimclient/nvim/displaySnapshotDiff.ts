@@ -4,7 +4,6 @@ import type { Row0Indexed, WindowId } from "../nvim/window.ts";
 import {
   type AbsFilePath,
   type HomeDir,
-  type NvimCwd,
   resolveFilePath,
   type UnresolvedFilePath,
 } from "../utils/files.ts";
@@ -28,7 +27,7 @@ export async function displaySnapshotDiff({
   snapshot: string;
   content?: string;
   nvim: Nvim;
-  cwd: NvimCwd;
+  cwd: AbsFilePath;
   homeDir: HomeDir;
   getDisplayWidth: () => number;
 }) {

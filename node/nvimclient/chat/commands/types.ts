@@ -2,7 +2,7 @@ import type { AgentInput } from "../../providers/provider-types.ts";
 
 export interface MessageContext {
   nvim: import("../../nvim/nvim-node/index.ts").Nvim;
-  cwd: import("../../utils/files.ts").NvimCwd;
+  cwd: import("../../utils/files.ts").Cwd;
   homeDir: import("../../utils/files.ts").HomeDir;
   fileSupervisor: import("@magenta/server").ContextFileAccess;
   options: import("../../options.ts").MagentaOptions;

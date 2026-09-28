@@ -18,11 +18,11 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { formatSummary, summarizeFile } from "../utils/file-summary.ts";
 import {
   type AbsFilePath,
+  type Cwd,
   detectFileTypeViaFileIO,
   FILE_SIZE_LIMITS,
   FileCategory,
   type HomeDir,
-  type NvimCwd,
   resolveFilePath,
   type UnresolvedFilePath,
 } from "../utils/files.ts";
@@ -138,7 +138,7 @@ export type FileRequest = {
 };
 
 type ReadOneFileContext = {
-  cwd: NvimCwd;
+  cwd: Cwd;
   homeDir: HomeDir;
   fileIO: FileIO;
   contextTracker: ContextTracker;
@@ -459,7 +459,7 @@ You already have the most up-to-date information about the contents of this file
 export function execute(
   request: ToolRequest,
   context: {
-    cwd: NvimCwd;
+    cwd: Cwd;
     homeDir: HomeDir;
     fileIO: FileIO;
     contextTracker: ContextTracker;

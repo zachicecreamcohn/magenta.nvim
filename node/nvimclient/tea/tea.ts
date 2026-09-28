@@ -335,6 +335,8 @@ export function createApp<Model>({
           .clearAllExtmarks(MAGENTA_REFLECT_NAMESPACE)
           .catch(() => {});
         mountPoint.buffer.clearAllExtmarks().catch((err) => {
+          // The buffer may already be wiped (e.g. navigating away with "-"); nothing to clear.
+          if (JSON.stringify(err).includes("Invalid buffer id")) return;
           nvim.logger.error(
             err instanceof Error
               ? `Failed to clear extmarks on destroy: ${err.message}`

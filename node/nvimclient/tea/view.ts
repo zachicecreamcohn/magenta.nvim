@@ -29,6 +29,9 @@ export type NodeHighlight = {
   extmarkOptions: ExtmarkOptions;
   /** Placed at the node's end when `text` isn't found. */
   fallback: ExtmarkOptions;
+  /** Virtual lines below the match's last row, shared by every matched
+   * highlight ending on that row; `ids` are theirs. */
+  rowLabel?: (ids: string[]) => ExtmarkOptions["virt_lines"];
   /** Active (normal mode) when the cursor is inside the match. */
   bindings?: Bindings;
 };
@@ -54,6 +57,7 @@ export type HighlightSignature = string & { __highlightSignature: true };
 export type HighlightState = {
   signature: HighlightSignature;
   placed: Map<string, PlacedHighlight>;
+  rowLabelIds: ExtmarkId[];
 };
 
 export type View<P> = (props: P) => VDOMNode;

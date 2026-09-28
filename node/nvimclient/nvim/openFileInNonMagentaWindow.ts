@@ -5,7 +5,6 @@ import type { MagentaOptions } from "../options.ts";
 import {
   type AbsFilePath,
   type HomeDir,
-  type NvimCwd,
   resolveFilePath,
   type UnresolvedFilePath,
 } from "../utils/files.ts";
@@ -82,7 +81,7 @@ export async function openFileInNonMagentaWindow(
   filePath: UnresolvedFilePath | AbsFilePath,
   context: {
     nvim: Nvim;
-    cwd: NvimCwd;
+    cwd: AbsFilePath;
     homeDir: HomeDir;
     options: MagentaOptions;
   },

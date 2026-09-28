@@ -25,11 +25,11 @@ import type * as RunScript from "./tools/run-script.ts";
 import type * as SpawnSubagents from "./tools/spawn-subagents.ts";
 import type * as ThreadTitle from "./tools/thread-title.ts";
 import type { StaticToolName } from "./tools/tool-registry.ts";
-import type { HomeDir, NvimCwd } from "./utils/files.ts";
+import type { AbsFilePath, HomeDir } from "./utils/files.ts";
 import type { Result } from "./utils/result.ts";
 
 export type DisplayContext = {
-  cwd: NvimCwd;
+  cwd: AbsFilePath;
   homeDir: HomeDir;
 };
 

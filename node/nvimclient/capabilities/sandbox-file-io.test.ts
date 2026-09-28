@@ -5,7 +5,7 @@ import type {
   Sandbox,
   SandboxState,
 } from "../sandbox-manager.ts";
-import type { HomeDir, NvimCwd } from "../utils/files.ts";
+import type { Cwd, HomeDir } from "../utils/files.ts";
 import { SandboxFileIO } from "./sandbox-file-io.ts";
 
 let currentSandboxState: SandboxState = { status: "uninitialized" };
@@ -36,7 +36,7 @@ function createMockSandbox(): Sandbox {
   };
 }
 
-const cwd = "/test/cwd" as NvimCwd;
+const cwd = "/test/cwd" as Cwd;
 const homeDir = "/test/home" as HomeDir;
 
 function createSandboxIO(

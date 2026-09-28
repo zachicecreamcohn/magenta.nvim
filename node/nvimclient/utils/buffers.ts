@@ -4,7 +4,6 @@ import type { Nvim } from "../nvim/nvim-node/index.ts";
 import {
   type AbsFilePath,
   type HomeDir,
-  type NvimCwd,
   type RelFilePath,
   resolveFilePath,
   type UnresolvedFilePath,
@@ -15,7 +14,7 @@ export async function getBufferIfOpen({
   context,
 }: {
   unresolvedPath: UnresolvedFilePath | AbsFilePath | RelFilePath;
-  context: { nvim: Nvim; cwd: NvimCwd; homeDir: HomeDir };
+  context: { nvim: Nvim; cwd: AbsFilePath; homeDir: HomeDir };
 }): Promise<
   | { status: "ok"; buffer: NvimBuffer }
   | { status: "error"; error: string }
@@ -48,7 +47,7 @@ export async function getOrOpenBuffer({
   context,
 }: {
   unresolvedPath: UnresolvedFilePath;
-  context: { nvim: Nvim; cwd: NvimCwd; homeDir: HomeDir };
+  context: { nvim: Nvim; cwd: AbsFilePath; homeDir: HomeDir };
 }): Promise<
   { status: "ok"; buffer: NvimBuffer } | { status: "error"; error: string }
 > {

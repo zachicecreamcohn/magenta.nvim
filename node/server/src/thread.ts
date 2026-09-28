@@ -76,7 +76,7 @@ import type { ToolCapability } from "./tools/tool-registry.ts";
 import { getToolSpecs } from "./tools/toolManager.ts";
 import { assertUnreachable } from "./utils/assertUnreachable.ts";
 import { Defer } from "./utils/async.ts";
-import type { NvimCwd } from "./utils/files.ts";
+import type { Cwd } from "./utils/files.ts";
 export type { ContextDelivery, ThreadCoreContext, ThreadStatus, YieldState };
 /** What hooks see when no submission is running: nothing can abort them. */
 const RETIRED_CORE_SUPERVISOR: ThreadCoreCallbacks["supervisor"] = {
@@ -96,7 +96,7 @@ export type ContextFileAccess = Readonly<
 >;
 
 export type EnvironmentConfig =
-  | { type: "local"; cwd?: NvimCwd }
+  | { type: "local"; cwd?: Cwd }
   | { type: "docker"; container: string; cwd: string };
 
 export interface ThreadContextBase
@@ -1005,6 +1005,7 @@ export class Thread implements ThreadCoreView {
     // post-compaction prompt is the plain "continue" contract.
     return { type: "messages", messages };
   }
+
   /** Decided before anything is resolved or drained, because a stop that ends
    * the tool loop issues no request and the queues must not run their effects into
    * a message nothing is about to send. The supervisors' own injections are no

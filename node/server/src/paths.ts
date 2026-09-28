@@ -1,1 +1,1 @@
-export type { AbsFilePath, NvimCwd, NvimCwd as Cwd } from "./utils/files.ts";
+export type { AbsFilePath, Cwd } from "./utils/files.ts";

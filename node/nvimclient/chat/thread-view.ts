@@ -64,6 +64,7 @@ import {
 } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { formatTokens } from "../utils/tokens.ts";
+import { reflectionTree } from "./reflections-overview.ts";
 import type { Msg, NvimThread, ToolViewState } from "./thread.ts";
 
 function contextViewCtx(thread: NvimThread): ContextViewContext {
@@ -908,10 +909,22 @@ function reflectionHighlight(
         thread.context.chat.getActiveReflectionId() === childId
           ? "MagentaReflectActive"
           : "MagentaReflect",
-      virt_lines: [[[`  ↳ reflect: ${label}`, "MagentaReflect"]]],
     },
     fallback: {
-      virt_lines: [[[`  reflection → ${quoted} (${label})`, "MagentaReflect"]]],
+      virt_lines: [[[`  reflection → ${quoted} (${label})`, "Comment"]]],
+    },
+    rowLabel: (ids) => {
+      const session = thread.context.chat.session;
+      const sub = ids.reduce(
+        (n, id) => n + reflectionTree(session, id as ThreadId).length,
+        0,
+      );
+      const plural = (n: number, word: string) =>
+        `${n} ${word}${n === 1 ? "" : "s"}`;
+      const suffix = sub ? ` (${plural(sub, "sub-reflection")})` : "";
+      return [
+        [[`  ↳ ${plural(ids.length, "reflection")}${suffix}`, "Comment"]],
+      ];
     },
     bindings: {
       // Until the two-column layout lands, showing a reflection replaces the

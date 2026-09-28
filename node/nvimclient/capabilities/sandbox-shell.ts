@@ -6,7 +6,7 @@ import { MAGENTA_TEMP_DIR } from "@magenta/server";
 import type { MagentaOptions } from "../options.ts";
 import type { NetworkAskTarget, Sandbox } from "../sandbox-manager.ts";
 import { withTimeout } from "../utils/async.ts";
-import type { HomeDir, NvimCwd } from "../utils/files.ts";
+import type { Cwd, HomeDir } from "../utils/files.ts";
 import type { SandboxViolationHandler } from "./sandbox-violation-handler.ts";
 import type { OutputLine, Shell, ShellResult } from "./shell.ts";
 import {
@@ -30,7 +30,7 @@ export class SandboxShell implements Shell {
 
   constructor(
     private context: {
-      cwd: NvimCwd;
+      cwd: Cwd;
       homeDir: HomeDir;
       threadId: ThreadId;
       getOptions: () => MagentaOptions;

@@ -3,9 +3,9 @@ import * as fs from "node:fs";
 import { promisify } from "node:util";
 import type {
   AbsFilePath,
+  Cwd,
   HomeDir,
   MCPToolManager,
-  NvimCwd,
   ThreadId,
   ToolRequestId,
   ToolResultContent,
@@ -269,7 +269,7 @@ describe("Docker Environment", () => {
         };
 
         const invocation = GetFile.execute(request, {
-          cwd: "/tmp" as NvimCwd,
+          cwd: "/tmp" as Cwd,
           homeDir: "/root" as HomeDir,
           fileIO,
           contextTracker: { files: {} },
@@ -312,7 +312,7 @@ describe("Docker Environment", () => {
       const cm = FileSupervisor.create({
         logger: mockLogger,
         fileIO,
-        cwd: "/tmp" as NvimCwd,
+        cwd: "/tmp" as Cwd,
         homeDir: "/root" as HomeDir,
       });
 

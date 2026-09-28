@@ -3,6 +3,7 @@ import {
   type Aborted,
   type AgentInput,
   autoContextFilesToInitialFiles,
+  buildLoadedFiles,
   buildSystemInfo,
   type ContextFileAccess,
   clientToolCreator,
@@ -37,7 +38,7 @@ import { getProvider } from "../providers/provider.ts";
 import type { RootMsg } from "../root-msg.ts";
 import type { Sandbox } from "../sandbox-manager.ts";
 import type { Dispatch } from "../tea/tea.ts";
-import type { HomeDir, NvimCwd } from "../utils/files.ts";
+import type { Cwd, HomeDir } from "../utils/files.ts";
 import type { CommandRegistry } from "./commands/registry.ts";
 import type { NvimThreadContext, SandboxRoot } from "./thread.ts";
 
@@ -49,7 +50,7 @@ export type NvimHostContext = {
   dispatch: Dispatch<RootMsg>;
   getDisplayWidth: () => number;
   getOptions: () => MagentaOptions;
-  cwd: NvimCwd;
+  cwd: Cwd;
   homeDir: HomeDir;
   nvim: Nvim;
   lsp: Lsp;
@@ -203,7 +204,7 @@ export class NvimSessionHost implements SessionHost {
       // meaningless for a thread whose fileIO is a sandbox that doesn't contain
       // those paths - they would immediately be reported as deleted. A fork
       // inherits the source's context instead of resolving its own.
-      fileIO || source
+      fileIO || source || request.type === "reflect"
         ? Promise.resolve([])
         : resolveAutoContext({
             fileIO: hostFileIO,
@@ -281,7 +282,13 @@ export class NvimSessionHost implements SessionHost {
       mcpToolManager: this.mcpToolManager,
       profile,
       environment,
-      initialFiles: autoContextFilesToInitialFiles(autoContextFiles),
+      initialFiles:
+        request.type === "reflect"
+          ? buildLoadedFiles(
+              request.source.contextFiles.files,
+              request.loadedContextFiles,
+            )
+          : autoContextFilesToInitialFiles(autoContextFiles),
       initialGitState,
       systemInfo,
       ...(subagentConfig ? { subagentConfig } : {}),

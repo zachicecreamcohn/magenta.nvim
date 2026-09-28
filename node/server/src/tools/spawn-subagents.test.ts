@@ -8,7 +8,7 @@ import type { ProvisionResult } from "../container/types.ts";
 import type { ThreadOutcome } from "../thread-api.ts";
 import type { ExecutedToolResult, ToolRequestId } from "../tool-types.ts";
 import { Defer } from "../utils/async.ts";
-import type { NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
+import type { Cwd, UnresolvedFilePath } from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
 
 vi.mock("../container/provision.ts", () => ({
@@ -85,7 +85,7 @@ describe("spawn-subagents unit tests", () => {
         maxConcurrentSubagents: 10,
         maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         agents: {},
       },
     );
@@ -114,7 +114,7 @@ describe("spawn-subagents unit tests", () => {
         maxConcurrentSubagents: 10,
         maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         agents: {},
       },
     );
@@ -142,7 +142,7 @@ describe("spawn-subagents unit tests", () => {
         maxConcurrentSubagents: 10,
         maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         agents: {},
       },
     );
@@ -177,7 +177,7 @@ describe("spawn-subagents unit tests", () => {
         maxConcurrentSubagents: 10,
         maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         agents: {},
       },
     );
@@ -208,7 +208,7 @@ describe("spawn-subagents unit tests", () => {
         maxConcurrentSubagents: 10,
         maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         agents: {},
       });
 
@@ -241,7 +241,7 @@ describe("spawn-subagents unit tests", () => {
         maxConcurrentSubagents: 10,
         maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         agents: {},
       },
     );
@@ -283,7 +283,7 @@ describe("spawn-subagents unit tests", () => {
         maxConcurrentSubagents: 10,
         maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         agents: {},
       },
     );
@@ -335,7 +335,7 @@ describe("spawn-subagents unit tests", () => {
         maxConcurrentSubagents: 2,
         maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         agents: {},
       },
     );
@@ -403,7 +403,7 @@ describe("spawn-subagents unit tests", () => {
         maxConcurrentSubagents: 1,
         maxConcurrentFastSubagents: 1,
         requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         agents: {
           fast: {
             name: "fast",
@@ -482,7 +482,7 @@ describe("spawn-subagents unit tests", () => {
         maxConcurrentSubagents: 2,
         maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         agents: {},
       },
     );
@@ -538,7 +538,7 @@ describe("spawn-subagents unit tests", () => {
         maxConcurrentSubagents: 10,
         maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         agents: {},
       },
     );
@@ -577,7 +577,7 @@ describe("spawn-subagents unit tests", () => {
         maxConcurrentSubagents: 10,
         maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         agents: {},
       },
     );
@@ -619,7 +619,7 @@ describe("spawn-subagents unit tests", () => {
         maxConcurrentSubagents: 10,
         maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
-        cwd: "/project/root" as NvimCwd,
+        cwd: "/project/root" as Cwd,
         agents: {},
       },
     );
@@ -660,7 +660,7 @@ describe("spawn-subagents unit tests", () => {
         maxConcurrentSubagents: 10,
         maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
-        cwd: "/project/root" as NvimCwd,
+        cwd: "/project/root" as Cwd,
         agents: {},
       },
     );
@@ -755,7 +755,7 @@ describe("spawn-subagents unit tests", () => {
         maxConcurrentSubagents: 10,
         maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         agents: {},
       },
     );
@@ -822,7 +822,7 @@ describe("spawn-subagents docker provisioning", () => {
         maxConcurrentSubagents: 10,
         maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         agents: {},
       },
     );
@@ -866,7 +866,7 @@ describe("spawn-subagents docker provisioning", () => {
         maxConcurrentSubagents: 10,
         maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         agents: {},
       },
     );
@@ -898,7 +898,7 @@ describe("spawn-subagents docker provisioning", () => {
         maxConcurrentSubagents: 10,
         maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         agents: {},
       },
     );
@@ -946,7 +946,7 @@ describe("spawn-subagents docker provisioning", () => {
         maxConcurrentSubagents: 10,
         maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         agents: {},
       },
     );
@@ -986,7 +986,7 @@ describe("spawn-subagents docker provisioning", () => {
         maxConcurrentSubagents: 10,
         maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         agents: {},
       },
     );
@@ -1020,7 +1020,7 @@ describe("spawn-subagents docker provisioning", () => {
         maxConcurrentSubagents: 10,
         maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         agents: {},
       },
     );
@@ -1080,7 +1080,7 @@ describe("spawn-subagents docker provisioning", () => {
         maxConcurrentSubagents: 10,
         maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
-        cwd: tempDir as NvimCwd,
+        cwd: tempDir as Cwd,
         agents: {},
       },
     );
@@ -1122,7 +1122,7 @@ describe("spawn-subagents docker provisioning", () => {
         maxConcurrentSubagents: 10,
         maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         agents: {},
       },
     );
@@ -1161,7 +1161,7 @@ describe("sharedPrompt and sharedContextFiles", () => {
         maxConcurrentSubagents: 10,
         maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         agents: {},
       },
     );
@@ -1203,7 +1203,7 @@ describe("sharedPrompt and sharedContextFiles", () => {
         maxConcurrentSubagents: 10,
         maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         agents: {},
       },
     );
@@ -1246,7 +1246,7 @@ describe("sharedPrompt and sharedContextFiles", () => {
         maxConcurrentSubagents: 10,
         maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         agents: {},
       },
     );
@@ -1283,7 +1283,7 @@ describe("sharedPrompt and sharedContextFiles", () => {
         maxConcurrentSubagents: 10,
         maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         agents: {},
       },
     );
@@ -1320,7 +1320,7 @@ describe("environment routing", () => {
         maxConcurrentSubagents: 10,
         maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         agents: {},
       },
     );
@@ -1356,7 +1356,7 @@ describe("environment routing", () => {
         maxConcurrentSubagents: 10,
         maxConcurrentFastSubagents: 10,
         requestRender: vi.fn(),
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         agents: {},
       },
     );

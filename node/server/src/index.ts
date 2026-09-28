@@ -263,6 +263,7 @@ export type {
 } from "./submission/mailbox.ts";
 export {
   buildClonedFiles,
+  buildLoadedFiles,
   type DiffUpdate,
   type FileDeletedUpdate,
   FileSupervisor,
@@ -465,7 +466,6 @@ export {
   type HomeDir,
   isLikelyTextFile,
   MAGENTA_TEMP_DIR,
-  type NvimCwd,
   type RelFilePath,
   relativePath,
   resolveFilePath,

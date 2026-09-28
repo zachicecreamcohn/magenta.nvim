@@ -8,7 +8,7 @@ import type {
 import { SandboxManager } from "@anthropic-ai/sandbox-runtime";
 import { assertStraceAvailable } from "./capabilities/strace.ts";
 import type { SandboxConfig } from "./options.ts";
-import type { HomeDir, NvimCwd } from "./utils/files.ts";
+import type { Cwd, HomeDir } from "./utils/files.ts";
 
 export type SandboxState =
   | { status: "uninitialized" }
@@ -34,7 +34,7 @@ export interface Sandbox {
   getFsWriteConfig(): FsWriteConfig;
   updateConfigIfChanged(
     config: SandboxConfig,
-    cwd: NvimCwd,
+    cwd: Cwd,
     homeDir: HomeDir,
   ): void;
   cleanupAfterCommand(): void;
@@ -53,7 +53,7 @@ export interface Sandbox {
 
 // -- Path resolution helpers --
 
-function resolvePath(p: string, cwd: NvimCwd, homeDir: HomeDir): string {
+function resolvePath(p: string, cwd: Cwd, homeDir: HomeDir): string {
   if (p.startsWith("~/")) {
     return path.join(homeDir, p.slice(2));
   }
@@ -66,11 +66,7 @@ function resolvePath(p: string, cwd: NvimCwd, homeDir: HomeDir): string {
   return path.join(cwd, p);
 }
 
-function resolvePaths(
-  paths: string[],
-  cwd: NvimCwd,
-  homeDir: HomeDir,
-): string[] {
+function resolvePaths(paths: string[], cwd: Cwd, homeDir: HomeDir): string[] {
   return paths.map((p) => resolvePath(p, cwd, homeDir));
 }
 
@@ -104,7 +100,7 @@ function dedup(arr: string[]): string[] {
 
 export function resolveConfigPaths(
   config: SandboxConfig,
-  cwd: NvimCwd,
+  cwd: Cwd,
   homeDir: HomeDir,
 ): SandboxRuntimeConfig {
   return {
@@ -207,7 +203,7 @@ class RealSandbox implements Sandbox {
 
   updateConfigIfChanged(
     config: SandboxConfig,
-    cwd: NvimCwd,
+    cwd: Cwd,
     homeDir: HomeDir,
   ): void {
     const runtimeConfig = resolveConfigPaths(config, cwd, homeDir);
@@ -248,7 +244,7 @@ class RealSandbox implements Sandbox {
 
 export async function initializeSandbox(
   config: SandboxConfig,
-  cwd: NvimCwd,
+  cwd: Cwd,
   homeDir: HomeDir,
   askCallback: SandboxAskCallback | undefined,
   logger: { warn(msg: string): void },

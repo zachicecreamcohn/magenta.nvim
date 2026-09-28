@@ -1,11 +1,11 @@
 import { $, within } from "zx";
 import type { AgentInput } from "../../providers/provider-types.ts";
-import type { NvimCwd, UnresolvedFilePath } from "../../utils/files.ts";
+import type { Cwd, UnresolvedFilePath } from "../../utils/files.ts";
 import type { Command } from "./types.ts";
 
 async function getGitDiff(
   filePath: UnresolvedFilePath,
-  cwd: NvimCwd,
+  cwd: Cwd,
 ): Promise<string> {
   try {
     const result = await within(async () => {
@@ -22,7 +22,7 @@ async function getGitDiff(
 
 async function getStagedDiff(
   filePath: UnresolvedFilePath,
-  cwd: NvimCwd,
+  cwd: Cwd,
 ): Promise<string> {
   try {
     const result = await within(async () => {

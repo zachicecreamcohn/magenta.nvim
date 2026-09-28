@@ -8,6 +8,7 @@ import {
 } from "../thread-supervisor.ts";
 import type { ToolName, ToolRequestId } from "../tool-types.ts";
 import { pollUntil } from "../utils/async.ts";
+import type { Cwd } from "../utils/files.ts";
 import { FakeShell, shellResult } from "./fakes.ts";
 import { withHarness } from "./harness.ts";
 
@@ -208,5 +209,31 @@ it("seeds autoContext files from the in-memory fs", () =>
       expect(Object.keys(thread.contextFiles.files)).toEqual([
         "/project/context.md",
       ]);
+    },
+  ));
+it("keeps a thread's cwd fixed after creation", () =>
+  withHarness(
+    { files: { "/other/a.txt": "in other", "/project/a.txt": "in project" } },
+    async (h) => {
+      const id = await h.session.createThread({
+        profile: h.host.profile,
+        threadType: "root",
+        environmentConfig: { type: "local", cwd: "/other" as Cwd },
+      });
+      if (id === ABORTED) throw new Error("aborted");
+      const thread = h.thread(id);
+      h.host.cwd = "/moved" as Cwd;
+      expect(thread.systemInfo.cwd).toBe("/other");
+      const done = h.send(thread, "read it");
+      const stream = await h.nextStream();
+      stream.streamToolUse("r-1" as ToolRequestId, "get_files" as ToolName, {
+        files: [{ filePath: "a.txt" }],
+      });
+      stream.finishResponse("tool_use");
+      const next = await h.nextStream();
+      expect(JSON.stringify(next.messages)).toContain("in other");
+      expect(JSON.stringify(next.messages)).not.toContain("in project");
+      next.finishResponse("end_turn");
+      await done;
     },
   ));

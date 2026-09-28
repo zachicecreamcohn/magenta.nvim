@@ -44,9 +44,9 @@ import type { MCPServersConfig } from "../tools/mcp/options.ts";
 import type { ToolCapability } from "../tools/tool-registry.ts";
 import { pollUntil, type Task } from "../utils/async.ts";
 import {
+  type Cwd,
   detectFileTypeViaFileIO,
   type HomeDir,
-  type NvimCwd,
   relativePath,
   resolveFilePath,
   type UnresolvedFilePath,
@@ -136,7 +136,8 @@ export class TestSessionHost implements SessionHost {
   readonly fileIO: InMemoryFileIO;
   readonly git: FakeGitClient;
   readonly shell: FakeShell;
-  readonly cwd: NvimCwd;
+  /** Default cwd for threads created without an explicit local `cwd`. Mutable so tests can model the client moving. */
+  cwd: Cwd;
   readonly homeDir: HomeDir;
   readonly profile: ProviderProfile = {
     name: "mock",
@@ -165,7 +166,7 @@ export class TestSessionHost implements SessionHost {
   }
 
   constructor(opts: HarnessOptions = {}) {
-    this.cwd = (opts.cwd ?? "/project") as NvimCwd;
+    this.cwd = (opts.cwd ?? "/project") as Cwd;
     this.homeDir = (opts.homeDir ?? "/home") as HomeDir;
     this.fileIO = new InMemoryFileIO(opts.files ?? {});
     this.git = new FakeGitClient(opts.git);
@@ -220,7 +221,12 @@ export class TestSessionHost implements SessionHost {
       subagentConfig,
     } = request.options;
     const fileIO = request.options.fileIO ?? this.fileIO;
-    const { cwd, homeDir } = this;
+    const { homeDir } = this;
+    const requestedConfig = request.options.environmentConfig;
+    const cwd =
+      requestedConfig?.type === "local" && requestedConfig.cwd
+        ? requestedConfig.cwd
+        : this.cwd;
     const autoContextFiles =
       request.options.fileIO || source
         ? []

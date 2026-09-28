@@ -16,9 +16,9 @@ import type {
   ToolName,
 } from "../tool-types.ts";
 import {
+  type Cwd,
   FileCategory,
   type HomeDir,
-  type NvimCwd,
   resolveFilePath,
 } from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
@@ -53,7 +53,7 @@ export type ToolRequest = GenericToolRequest<"edl", Input>;
 export function execute(
   request: ToolRequest,
   context: {
-    cwd: NvimCwd;
+    cwd: Cwd;
     homeDir: HomeDir;
     fileIO: FileIO;
     edlRegisters: EdlRegisters;

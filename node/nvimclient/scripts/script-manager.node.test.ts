@@ -12,7 +12,7 @@ import {
   type Harness,
 } from "@magenta/server/src/test/harness.ts";
 import { noopLogger } from "@magenta/server/src/test-helpers.ts";
-import type { HomeDir, NvimCwd } from "@magenta/server/src/utils/files.ts";
+import type { Cwd, HomeDir } from "@magenta/server/src/utils/files.ts";
 import { expect, it } from "vitest";
 import { BUILTIN_SDK_PATH } from "../options.ts";
 
@@ -162,7 +162,7 @@ async function withScripts(
   const scripts = new ScriptManager({
     session: h.session,
     logger: noopLogger,
-    cwd: cwd as NvimCwd,
+    cwd: cwd as Cwd,
     homeDir: home as HomeDir,
     getScriptsPaths: () => ["~/.magenta/scripts", ".magenta/scripts"],
     sandbox: {

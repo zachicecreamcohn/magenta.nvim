@@ -3,7 +3,7 @@ import type { FileSupervisor } from "@magenta/server";
 import { describe, expect, it, vi } from "vitest";
 import type { Nvim } from "../../nvim/nvim-node/index.ts";
 import type { MagentaOptions } from "../../options.ts";
-import type { HomeDir, NvimCwd } from "../../utils/files.ts";
+import type { Cwd, HomeDir } from "../../utils/files.ts";
 import { CommandRegistry } from "./registry.ts";
 import type { MessageContext } from "./types.ts";
 
@@ -56,7 +56,7 @@ const createMockContext = (): MessageContext => {
         error: vi.fn(),
       },
     } as unknown as Nvim,
-    cwd: "/test" as NvimCwd,
+    cwd: "/test" as Cwd,
     homeDir: os.homedir() as HomeDir,
     fileSupervisor: {
       addFileContext: updateFn,

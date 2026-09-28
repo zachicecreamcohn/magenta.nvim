@@ -2,7 +2,6 @@ import type { Nvim } from "../nvim/nvim-node/index.ts";
 import {
   type AbsFilePath,
   type HomeDir,
-  type NvimCwd,
   resolveFilePath,
   type UnresolvedFilePath,
 } from "./files.ts";
@@ -42,7 +41,7 @@ export type DiagnosticsRes = {
 
 export async function getDiagnostics(
   nvim: Nvim,
-  cwd: NvimCwd,
+  cwd: AbsFilePath,
   homeDir: HomeDir,
 ): Promise<string> {
   nvim.logger.debug(`Getting diagnostics`);

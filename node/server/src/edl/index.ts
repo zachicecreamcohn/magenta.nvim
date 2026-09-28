@@ -1,5 +1,5 @@
 import type { FileIO } from "../capabilities/file-io.ts";
-import { type HomeDir, type NvimCwd, resolveFilePath } from "../utils/files.ts";
+import { type Cwd, type HomeDir, resolveFilePath } from "../utils/files.ts";
 import { ExecutionError, Executor } from "./executor.ts";
 import { lexWithPos, ParseError, parse } from "./parser.ts";
 import type {
@@ -227,7 +227,7 @@ export async function runScript(
   script: string,
   fileIO?: FileIO,
   edlRegisters?: EdlRegisters,
-  pathContext?: { cwd: NvimCwd; homeDir: HomeDir },
+  pathContext?: { cwd: Cwd; homeDir: HomeDir },
 ): Promise<RunScriptResult> {
   const toDisplayPath = (p: string): string =>
     pathContext

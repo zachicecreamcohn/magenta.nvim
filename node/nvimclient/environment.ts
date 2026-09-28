@@ -9,10 +9,10 @@ import type {
 import type { SandboxViolationHandler } from "./capabilities/sandbox-violation-handler.ts";
 import type { Shell } from "./capabilities/shell.ts";
 import type { Sandbox } from "./sandbox-manager.ts";
-import type { HomeDir, NvimCwd } from "./utils/files.ts";
+import type { Cwd, HomeDir } from "./utils/files.ts";
 
 export type EnvironmentConfig =
-  | { type: "local"; cwd?: NvimCwd }
+  | { type: "local"; cwd?: Cwd }
   | { type: "docker"; container: string; cwd: string };
 
 export interface Environment {
@@ -22,7 +22,7 @@ export interface Environment {
   sandboxViolationHandler?: SandboxViolationHandler | undefined;
   lspClient: LspClient;
   luaExecutor?: LuaExecutor | undefined;
-  cwd: NvimCwd;
+  cwd: Cwd;
   homeDir: HomeDir;
   availableCapabilities: Set<ToolCapability>;
   environmentConfig: EnvironmentConfig;
@@ -56,7 +56,7 @@ export function createLocalEnvironment({
 }: {
   nvim: Nvim;
   lsp: Lsp;
-  cwd: NvimCwd;
+  cwd: Cwd;
   homeDir: HomeDir;
   getOptions: () => MagentaOptions;
   threadId: ThreadId;
@@ -136,7 +136,7 @@ export async function createDockerEnvironment({
     gitClient: new DockerGitClient(container, resolvedCwd),
     sandboxViolationHandler: undefined,
     lspClient,
-    cwd: resolvedCwd as NvimCwd,
+    cwd: resolvedCwd as Cwd,
     homeDir: resolvedHome as HomeDir,
     availableCapabilities: new Set(["file-io", "shell", "threads"]),
     environmentConfig: { type: "docker", container, cwd: resolvedCwd },

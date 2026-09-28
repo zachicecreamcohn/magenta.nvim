@@ -5,9 +5,9 @@ import type { Logger } from "../logger.ts";
 import type { ProviderOptions } from "../provider-options.ts";
 import {
   type AbsFilePath,
+  type Cwd,
   expandTilde,
   type HomeDir,
-  type NvimCwd,
 } from "../utils/files.ts";
 
 export type SkillInfo = {
@@ -26,7 +26,7 @@ type YamlFrontmatter = {
 };
 
 export async function loadSkills(context: {
-  cwd: NvimCwd;
+  cwd: Cwd;
   logger: Logger;
   options: ProviderOptions;
   fileIO: FileIO;
@@ -94,7 +94,7 @@ function isUserLevelSkillsDir(skillsDir: string, homeDir: HomeDir): boolean {
 async function findSkillFilesInDirectory(
   skillsDir: string,
   context: {
-    cwd: NvimCwd;
+    cwd: Cwd;
     logger: Logger;
     fileIO: FileIO;
     homeDir: HomeDir;

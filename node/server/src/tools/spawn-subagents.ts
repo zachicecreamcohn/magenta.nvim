@@ -18,7 +18,7 @@ import type {
   GenericToolRequest,
   ToolName,
 } from "../tool-types.ts";
-import type { NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
+import type { Cwd, UnresolvedFilePath } from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
 
 const SPAWN_SUBAGENTS_BASE_DESCRIPTION = readFileSync(
@@ -381,7 +381,7 @@ export function execute(
     maxConcurrentSubagents: number;
     maxConcurrentFastSubagents: number;
     requestRender: () => void;
-    cwd: NvimCwd;
+    cwd: Cwd;
     agents: AgentsMap;
   },
 ): ExecutingToolInvocation & { progress: SpawnSubagentsProgress } {
@@ -452,7 +452,7 @@ export function execute(
       const subagentConfig = resolveSubagentConfig(entry, context.agents);
 
       const resolvedCwd = entry.directory
-        ? (resolve(context.cwd, entry.directory) as NvimCwd)
+        ? (resolve(context.cwd, entry.directory) as Cwd)
         : undefined;
 
       const threadId = await context.threadManager.spawnThread({

@@ -5,10 +5,10 @@ import type {
   LspReferencesResponse,
 } from "../capabilities/lsp-client.ts";
 import type { ExecutedToolResult, ToolRequestId } from "../tool-types.ts";
-import type { HomeDir, NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
+import type { Cwd, HomeDir, UnresolvedFilePath } from "../utils/files.ts";
 import * as FindReferences from "./findReferences.ts";
 
-const CWD = "/project" as NvimCwd;
+const CWD = "/project" as Cwd;
 const HOME = "/home/user" as HomeDir;
 
 function createMockLspClient(

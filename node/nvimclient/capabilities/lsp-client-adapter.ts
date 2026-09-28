@@ -9,8 +9,8 @@ import type { Row0Indexed, StringIdx } from "../nvim/window.ts";
 import { getOrOpenBuffer } from "../utils/buffers.ts";
 import type {
   AbsFilePath,
+  Cwd,
   HomeDir,
-  NvimCwd,
   UnresolvedFilePath,
 } from "../utils/files.ts";
 import type { Lsp } from "./lsp.ts";
@@ -19,7 +19,7 @@ export class NvimLspClient implements LspClient {
   constructor(
     private lsp: Lsp,
     private nvim: Nvim,
-    private cwd: NvimCwd,
+    private cwd: Cwd,
     private homeDir: HomeDir,
   ) {}
 

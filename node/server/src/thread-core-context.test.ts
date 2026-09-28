@@ -28,15 +28,15 @@ import { flushArchive } from "./thread-logger.ts";
 import { pollUntil } from "./utils/async.ts";
 import {
   type AbsFilePath,
+  type Cwd,
   FileCategory,
   type HomeDir,
-  type NvimCwd,
   type RelFilePath,
   type UnresolvedFilePath,
 } from "./utils/files.ts";
 
 async function fixture(overrides: TestContextOverrides = {}) {
-  const cwd = "/project" as NvimCwd;
+  const cwd = "/project" as Cwd;
   const homeDir = cwd as unknown as HomeDir;
   const file = path.join(cwd, "tracked.txt") as AbsFilePath;
   const fileIO = new InMemoryFileIO({ [file]: "original tracked content\n" });

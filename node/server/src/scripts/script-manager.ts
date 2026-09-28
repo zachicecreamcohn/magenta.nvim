@@ -16,7 +16,7 @@ import { Emitter } from "../emitter.ts";
 import type { Logger } from "../logger.ts";
 import type { Session } from "../session.ts";
 import type { ThreadOutcome } from "../thread-api.ts";
-import type { HomeDir, NvimCwd, UnresolvedFilePath } from "../utils/files.ts";
+import type { Cwd, HomeDir, UnresolvedFilePath } from "../utils/files.ts";
 import { expandTilde } from "../utils/files.ts";
 import { escalateToSigkill, terminateProcess } from "../utils/process.ts";
 import type {
@@ -149,7 +149,7 @@ type ScriptThreadRequest = {
   requestId: number;
   prompt: string;
   yieldSchema: JSONSchemaType;
-  cwd?: NvimCwd;
+  cwd?: Cwd;
   contextFiles?: UnresolvedFilePath[];
   systemReminder?: string;
   autoCompactThreshold?: number;
@@ -165,7 +165,7 @@ function normalizeThreadRequest(
     prompt: msg.prompt,
     yieldSchema: msg.yieldSchema as JSONSchemaType,
   };
-  if (typeof options.cwd === "string") request.cwd = options.cwd as NvimCwd;
+  if (typeof options.cwd === "string") request.cwd = options.cwd as Cwd;
   if (Array.isArray(options.contextFiles)) {
     request.contextFiles = options.contextFiles.filter(
       (f): f is string => typeof f === "string",
@@ -245,7 +245,7 @@ export class ScriptManager extends Emitter<ScriptManagerEvents> {
     private context: {
       session: Session;
       logger: Logger;
-      cwd: NvimCwd;
+      cwd: Cwd;
       homeDir: HomeDir;
       getScriptsPaths: () => string[];
       sandbox: ScriptSandboxCapability;

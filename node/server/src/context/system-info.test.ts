@@ -6,10 +6,10 @@ import {
   formatSystemInfo,
 } from "../providers/system-prompt.ts";
 import { noopLogger } from "../test-helpers.ts";
-import type { HomeDir, NvimCwd } from "../utils/files.ts";
+import type { Cwd, HomeDir } from "../utils/files.ts";
 import { buildSystemInfo } from "./system-info.ts";
 
-const cwd = "/project" as NvimCwd;
+const cwd = "/project" as Cwd;
 const promptCtx = {
   logger: noopLogger,
   cwd,
@@ -26,7 +26,7 @@ it("applies systemInfoOverrides when building system info", () => {
     buildSystemInfo({
       cwd,
       neovimVersion: "801",
-      overrides: { platform: "linux (docker)", cwd: "/workspace" as NvimCwd },
+      overrides: { platform: "linux (docker)", cwd: "/workspace" as Cwd },
     }),
   );
   expect(text).toContain("- Operating system: linux (docker)");

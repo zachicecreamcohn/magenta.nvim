@@ -66,12 +66,13 @@ it("opens a second column beside the parent with its own input", async () => {
     expect(await bufName(driver, display.id)).toContain(
       child.replace(/-/g, ""),
     );
-    expect(
-      await driver.nvim.call("nvim_win_get_option", [
-        display.id,
-        "winfixwidth",
-      ]),
-    ).toBe(true);
+    const leftWidth = (await driver.nvim.call("nvim_win_get_width", [
+      left.displayWindow.id,
+    ])) as number;
+    const rightWidth = (await driver.nvim.call("nvim_win_get_width", [
+      display.id,
+    ])) as number;
+    expect(Math.abs(leftWidth - rightWidth)).toBeLessThanOrEqual(1);
     const winbar = (await driver.nvim.call("nvim_win_get_option", [
       input.id,
       "winbar",

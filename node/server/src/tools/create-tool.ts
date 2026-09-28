@@ -14,7 +14,7 @@ import type { EdlRegisters } from "../edl/index.ts";
 import type { Logger } from "../logger.ts";
 import type { ExecutingToolInvocation, ToolRequest } from "../tool-types.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
-import type { HomeDir, NvimCwd } from "../utils/files.ts";
+import type { Cwd, HomeDir } from "../utils/files.ts";
 import * as BashCommand from "./bashCommand.ts";
 import * as Edl from "./edl.ts";
 import * as FindReferences from "./findReferences.ts";
@@ -37,7 +37,7 @@ export type ClientToolContext = {
   lspClient: LspClient;
   luaExecutor?: LuaExecutor | undefined;
   mcpToolManager: MCPToolManager;
-  cwd: NvimCwd;
+  cwd: Cwd;
   homeDir: HomeDir;
   maxConcurrentSubagents: number;
   maxConcurrentFastSubagents: number;

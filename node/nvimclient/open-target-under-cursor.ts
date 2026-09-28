@@ -6,8 +6,8 @@ import { openFileInNonMagentaWindow } from "./nvim/openFileInNonMagentaWindow.ts
 import { openUrl } from "./nvim/openUrl.ts";
 import type { MagentaOptions } from "./options.ts";
 import {
+  type AbsFilePath,
   type HomeDir,
-  type NvimCwd,
   resolveFilePath,
   type UnresolvedFilePath,
 } from "./utils/files.ts";
@@ -26,7 +26,7 @@ const URL_REGEX = /^(https?|ftp|file|ssh):\/\//;
  */
 export async function openTargetUnderCursor(context: {
   nvim: Nvim;
-  cwd: NvimCwd;
+  cwd: AbsFilePath;
   homeDir: HomeDir;
   options: MagentaOptions;
 }): Promise<void> {

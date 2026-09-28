@@ -4,7 +4,7 @@ import { formatGitInfo, type GitState } from "../capabilities/git-client.ts";
 import type { SubagentConfig, ThreadType } from "../chat-types.ts";
 import type { Logger } from "../logger.ts";
 import type { ProviderOptions } from "../provider-options.ts";
-import type { HomeDir, NvimCwd } from "../utils/files.ts";
+import type { Cwd, HomeDir } from "../utils/files.ts";
 import {
   formatSkillsIntroduction,
   loadSkills,
@@ -17,7 +17,7 @@ export interface SystemInfo {
   timestamp: string;
   platform: string;
   neovimVersion: string;
-  cwd: NvimCwd;
+  cwd: Cwd;
   git?: GitState | undefined;
 }
 
@@ -40,7 +40,7 @@ function getBaseSystemPrompt(
   opts: {
     subagentConfig?: SubagentConfig | undefined;
     logger: Logger;
-    cwd: NvimCwd;
+    cwd: Cwd;
     options: ProviderOptions;
   },
 ): { systemPrompt: string; systemReminder: string | undefined } {
@@ -90,7 +90,7 @@ export async function createSystemPrompt(
   type: ThreadType,
   context: {
     logger: Logger;
-    cwd: NvimCwd;
+    cwd: Cwd;
     options: ProviderOptions;
     fileIO: FileIO;
     homeDir: HomeDir;

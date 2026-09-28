@@ -6,9 +6,9 @@ import type {
 } from "../providers/provider-types.ts";
 import {
   type AbsFilePath,
+  type Cwd,
   FileCategory,
   type HomeDir,
-  type NvimCwd,
   type RelFilePath,
 } from "../utils/files.ts";
 import type { DiffUpdate, WholeFileUpdate } from "./file-supervisor.ts";
@@ -39,7 +39,7 @@ function createTestFileSupervisor(files: Record<string, string>) {
   const cm = FileSupervisor.create({
     logger: mockLogger,
     fileIO,
-    cwd: "/test" as NvimCwd,
+    cwd: "/test" as Cwd,
     homeDir: "/home" as HomeDir,
   });
 
@@ -826,7 +826,7 @@ describe("FileSupervisor - background poll", () => {
       const cm = FileSupervisor.create({
         logger: mockLogger,
         fileIO,
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         homeDir: "/home" as HomeDir,
         initialFiles: {},
         pollIntervalMs: 100,
@@ -867,7 +867,7 @@ describe("FileSupervisor - background poll", () => {
       const cm = FileSupervisor.create({
         logger: mockLogger,
         fileIO,
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         homeDir: "/home" as HomeDir,
         initialFiles: {},
         pollIntervalMs: 100,
@@ -992,7 +992,7 @@ describe("FileSupervisor conversation delivery lifetime", () => {
           debug: vi.fn(),
         },
         fileIO: new InMemoryFileIO({}),
-        cwd: "/test" as NvimCwd,
+        cwd: "/test" as Cwd,
         homeDir: "/home" as HomeDir,
         initialFiles: {},
         pollIntervalMs: 100,
