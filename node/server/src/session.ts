@@ -109,7 +109,10 @@ export type PreparedThread = {
 };
 
 export interface SessionHost {
-  getActiveProfile(): ProviderProfile;
+  /** The named profile if it exists in the current options, otherwise the
+   * options' default. */
+  getActiveProfile(name?: string): ProviderProfile;
+  getProfiles(): ProviderProfile[];
   getAgents?(): AgentsMap;
   getProvider?(profile: ProviderProfile): Provider;
   /** `abort` only interrupts: a preparation that has already acquired
@@ -145,6 +148,7 @@ type SessionEvents = {
   /** Invalidation: the record for this id may have changed in any way. */
   changed: [id: ThreadId];
   removed: [id: ThreadId];
+  "settings-changed": [];
 };
 
 /** The authoritative thread registry: identity, hierarchy, construction
@@ -205,8 +209,26 @@ export class Session extends Emitter<SessionEvents> implements ThreadManager {
     () => ScriptSandboxRoot | undefined
   >();
 
+  private activeProfileName: string | undefined;
   constructor(private host: SessionHost) {
     super();
+  }
+
+  /** Applies to threads created afterwards. Kept in memory only. */
+  setActiveProfile(name: string): void {
+    if (!this.host.getProfiles().some((p) => p.name === name)) {
+      throw new Error(`Profile "${name}" not found.`);
+    }
+    this.activeProfileName = name;
+    this.emit("settings-changed");
+  }
+
+  getActiveProfileName(): string | undefined {
+    return this.activeProfileName;
+  }
+
+  getActiveProfile(): ProviderProfile {
+    return this.host.getActiveProfile(this.activeProfileName);
   }
 
   attachClient(client: ClientCapabilities): void {
@@ -376,7 +398,7 @@ export class Session extends Emitter<SessionEvents> implements ThreadManager {
 
   createRootThread(): Promise<ThreadId | Aborted> {
     return this.createThread({
-      profile: this.host.getActiveProfile(),
+      profile: this.host.getActiveProfile(this.activeProfileName),
       threadType: "root",
     });
   }
@@ -390,7 +412,7 @@ export class Session extends Emitter<SessionEvents> implements ThreadManager {
       );
     }
     return this.createThread({
-      profile: this.host.getActiveProfile(),
+      profile: this.host.getActiveProfile(this.activeProfileName),
       threadType: "root",
       subagentConfig: {
         agentName: agent.name,
@@ -419,7 +441,8 @@ export class Session extends Emitter<SessionEvents> implements ThreadManager {
     const { contextFiles: _contextFiles, prompt: _prompt, ...rest } = opts;
     return this.createThread({
       ...rest,
-      profile: opts.profile ?? this.host.getActiveProfile(),
+      profile:
+        opts.profile ?? this.host.getActiveProfile(this.activeProfileName),
       threadType: "subagent",
       environmentConfig: {
         type: "local",
@@ -445,7 +468,7 @@ export class Session extends Emitter<SessionEvents> implements ThreadManager {
     description: string,
     parameters: unknown,
   ): Promise<string | undefined> {
-    const profile = this.host.getActiveProfile();
+    const profile = this.host.getActiveProfile(this.activeProfileName);
     if (!this.host.getProvider) {
       throw new Error("No title provider configured");
     }

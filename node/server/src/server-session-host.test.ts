@@ -322,3 +322,63 @@ describe("auth UI", () => {
     expect(h.getProvider({ ...profile, name: "smoke-real" })).toBeDefined();
   });
 });
+
+describe("active profile", () => {
+  const profileA: ProviderProfile = { ...profile, name: "a" };
+  const profileB: ProviderProfile = { ...profile, name: "b" };
+  let currentOptions: ServerHostOptions;
+  let profileSession: Session;
+  let profileHost: ServerSessionHost;
+  beforeEach(() => {
+    currentOptions = {
+      ...options,
+      profiles: [profileA, profileB],
+      activeProfile: "a",
+    };
+    const provider = createMockProvider(mockClient);
+    profileHost = new ServerSessionHost({
+      logger: noopLogger,
+      cwd: dir as Cwd,
+      homeDir: dir as HomeDir,
+      sandbox: new MockSandboxManager(),
+      getOptions: () => currentOptions,
+      getAuthUI: () => undefined,
+      getProvider: () => provider,
+    });
+    profileSession = new Session(profileHost);
+  });
+  afterEach(async () => {
+    await profileSession.dispose();
+  });
+  async function createRootProfile(): Promise<string> {
+    const id = await profileSession.createRootThread();
+    if (id === ABORTED) throw new Error("aborted");
+    return profileHost.getPrepared(id).profile.name;
+  }
+
+  it("applies to threads created after it is set", async () => {
+    const before = await createRootProfile();
+    const changed = vi.fn();
+    profileSession.on("settings-changed", changed);
+    profileSession.setActiveProfile("b");
+    expect(changed).toHaveBeenCalledTimes(1);
+    const after = await createRootProfile();
+    expect(before).toBe("a");
+    expect(after).toBe("b");
+  });
+
+  it("falls back to the default while the name is missing from options", () => {
+    profileSession.setActiveProfile("b");
+    currentOptions = { ...currentOptions, profiles: [profileA] };
+    expect(profileSession.getActiveProfile().name).toBe("a");
+    expect(profileSession.getActiveProfileName()).toBe("b");
+    currentOptions = { ...currentOptions, profiles: [profileA, profileB] };
+    expect(profileSession.getActiveProfile().name).toBe("b");
+  });
+
+  it("rejects unknown names without changing the selection", () => {
+    profileSession.setActiveProfile("b");
+    expect(() => profileSession.setActiveProfile("nope")).toThrow(/nope/);
+    expect(profileSession.getActiveProfileName()).toBe("b");
+  });
+});

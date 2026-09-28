@@ -154,6 +154,14 @@ it("can switch profiles", async () => {
       const thread = leftThread(driver.magenta.chat);
       expect(thread.context.profile.name).toEqual("mock");
       expect(driver.magenta.options.activeProfile).toEqual("mock2");
+      expect(driver.magenta.session.getActiveProfileName()).toEqual("mock2");
+      await pollUntil(async () => {
+        const active = await driver.nvim.call("nvim_exec_lua", [
+          "return require('magenta.options').serverOptions.activeProfile",
+          [],
+        ]);
+        if (active !== "mock2") throw new Error(`lua active: ${active}`);
+      });
       // Winbar still shows old profile since the active thread hasn't changed
       const winbar = await displayState.inputWindow.getOption("winbar");
       expect(winbar).toContain(`Magenta Input (mock)`);

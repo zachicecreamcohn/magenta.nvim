@@ -189,6 +189,9 @@ export class TestSessionHost implements SessionHost {
   getActiveProfile(): ProviderProfile {
     return this.profile;
   }
+  getProfiles(): ProviderProfile[] {
+    return [this.profile];
+  }
 
   getAgents(): AgentsMap {
     return this.agents;

@@ -178,7 +178,6 @@ export class Magenta {
   public scriptManager: ScriptController;
   public dispatch: Dispatch<RootMsg>;
   /** Set by the `profile` command; server options only supply the default. */
-  private activeProfileName: string | undefined;
   public activeBuffers: { displayBuffer: NvimBuffer; inputBuffer: NvimBuffer };
   private suppressDispatchRender = false;
 
@@ -438,10 +437,13 @@ export class Magenta {
     const serverOptions = this.optionsStore.getOptions(
       threadCwdFromNvimCwd(this.cwd),
     );
+    // The session may not exist yet: the host reads these options while it
+    // is being constructed.
+    const selected = this.session?.getActiveProfileName();
     const activeProfile =
-      this.activeProfileName !== undefined &&
-      serverOptions.profiles.some((p) => p.name === this.activeProfileName)
-        ? this.activeProfileName
+      selected !== undefined &&
+      serverOptions.profiles.some((p) => p.name === selected)
+        ? selected
         : serverOptions.activeProfile;
     return { ...serverOptions, ...this.clientOptions, activeProfile };
   }
@@ -1046,11 +1048,11 @@ export class Magenta {
   /** Lua reads profiles (picker) and custom commands (completion), which are
    * server configuration. */
   async syncServerOptionsToLua(): Promise<void> {
-    const { profiles, customCommands } = this.options;
+    const { profiles, customCommands, activeProfile } = this.options;
     try {
       await this.nvim.call("nvim_exec_lua", [
         `require('magenta.options').setServerOptions(...)`,
-        [{ profiles, customCommands }],
+        [{ profiles, customCommands, activeProfile }],
       ]);
     } catch (e) {
       this.nvim.logger.error(`Failed to sync options to lua: ${String(e)}`);
@@ -1070,19 +1072,12 @@ export class Magenta {
     switch (command) {
       case "profile": {
         const profileName = rest.join(" ");
-        const profile = this.options.profiles.find(
-          (p) => p.name === profileName,
-        );
-
-        if (profile) {
-          this.activeProfileName = profile.name;
-        } else {
-          this.nvim.logger.error(`Profile "${profileName}" not found.`);
-          notifyErr(
-            this.nvim,
-            "profile command",
-            new Error(`Profile "${profileName}" not found.`),
-          );
+        try {
+          this.session.setActiveProfile(profileName);
+          void this.syncServerOptionsToLua();
+        } catch (e) {
+          this.nvim.logger.error(String(e));
+          notifyErr(this.nvim, "profile command", e);
         }
         break;
       }
