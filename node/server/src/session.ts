@@ -202,6 +202,7 @@ export class Session extends Emitter<SessionEvents> implements ThreadManager {
   /** The attached client, if any. Read at preparation time, so attaching or
    * detaching never changes existing threads. */
   private client: ClientCapabilities | undefined;
+  private clientWaiters = new Set<Defer<ClientCapabilities | Aborted>>();
 
   /** Pending sandbox approvals per thread. Server state: they outlive any
    * attached view and are rejected when their thread is aborted or deleted. */
@@ -247,6 +248,32 @@ export class Session extends Emitter<SessionEvents> implements ThreadManager {
 
   attachClient(client: ClientCapabilities): void {
     this.client = client;
+    const waiters = [...this.clientWaiters];
+    this.clientWaiters.clear();
+    for (const waiter of waiters) waiter.resolve(client);
+  }
+  /** Resolves with the attached client, or with the next one to attach.
+   * Aborting resolves `ABORTED` and drops the waiter; dispose rejects it. */
+  awaitClient(): Task<ClientCapabilities | Aborted> {
+    const waiter = new Defer<ClientCapabilities | Aborted>();
+    if (this.disposed) {
+      waiter.reject(new Error("Session disposed"));
+    } else if (this.client) {
+      waiter.resolve(this.client);
+    } else {
+      this.clientWaiters.add(waiter);
+    }
+    return {
+      promise: waiter.promise,
+      abort: () => {
+        if (!this.clientWaiters.delete(waiter)) return;
+        waiter.resolve(ABORTED);
+      },
+    };
+  }
+  /** Outstanding `awaitClient` waiters, so views can show a waiting state. */
+  get awaitingClient(): number {
+    return this.clientWaiters.size;
   }
 
   detachClient(): void {
@@ -932,6 +959,10 @@ The title must be a single line (no newlines) and a few words long (ideally arou
     if (this.disposal) return this.disposal;
     this.disposed = true;
     for (const id of [...this.records.keys()]) this.deleteThread(id);
+    for (const waiter of this.clientWaiters) {
+      waiter.reject(new Error("Session disposed"));
+    }
+    this.clientWaiters.clear();
     this.disposal = (async () => {
       while (this.cleanup.size) await Promise.allSettled([...this.cleanup]);
       this.removeAllListeners();

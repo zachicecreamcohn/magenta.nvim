@@ -779,3 +779,23 @@ it("delegates bypass of an externally owned root to that root", async () => {
   externalBypassed = false;
   expect(session.isSandboxBypassed(rootId)).toBe(false);
 });
+it("awaitClient resolves on attach, supports abort, and rejects on dispose", async () => {
+  const { session } = fixture();
+  const client = {} as Parameters<typeof session.attachClient>[0];
+  const waiting = session.awaitClient();
+  const aborted = session.awaitClient();
+  expect(session.awaitingClient).toBe(2);
+  aborted.abort();
+  aborted.abort();
+  expect(await aborted.promise).toBe(ABORTED);
+  expect(session.awaitingClient).toBe(1);
+  session.attachClient(client);
+  expect(await waiting.promise).toBe(client);
+  expect(session.awaitingClient).toBe(0);
+  expect(await session.awaitClient().promise).toBe(client);
+  session.detachClient();
+  const pending = session.awaitClient();
+  await session.dispose();
+  await expect(pending.promise).rejects.toThrow("Session disposed");
+  expect(session.awaitingClient).toBe(0);
+});
