@@ -123,6 +123,13 @@ export function toCwd(dir: string): Cwd {
   return path.normalize(dir) as Cwd;
 }
 
+/** The single checked entry point for the `HomeDir` brand. */
+export function toHomeDir(dir: string): HomeDir {
+  if (!path.isAbsolute(dir)) {
+    throw new Error(`Expected an absolute home dir, got "${dir}"`);
+  }
+  return path.normalize(dir) as HomeDir;
+}
 export const FileCategory = {
   TEXT: "text",
   IMAGE: "image",

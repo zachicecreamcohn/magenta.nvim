@@ -19,7 +19,10 @@ import {
   PRE_HISTORY,
 } from "@magenta/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { createDockerEnvironment } from "../environment.ts";
+import {
+  createDockerEnvironment,
+  environmentCapabilities,
+} from "../environment.ts";
 import { DockerFileIO } from "./docker-file-io.ts";
 import { DockerShell } from "./docker-shell.ts";
 
@@ -176,10 +179,10 @@ describe("Docker Environment", () => {
         container: containerId,
         threadId: mockThreadId,
       });
-      expect(env.availableCapabilities.has("file-io")).toBe(true);
-      expect(env.availableCapabilities.has("shell")).toBe(true);
-      expect(env.availableCapabilities.has("threads")).toBe(true);
-      expect(env.availableCapabilities.has("lsp")).toBe(false);
+      expect(environmentCapabilities(env).has("file-io")).toBe(true);
+      expect(environmentCapabilities(env).has("shell")).toBe(true);
+      expect(environmentCapabilities(env).has("threads")).toBe(true);
+      expect(environmentCapabilities(env).has("lsp")).toBe(false);
     });
 
     it("stores environmentConfig", async () => {
@@ -213,7 +216,7 @@ describe("Docker Environment", () => {
       const specs = getToolSpecs(
         "root",
         mockMcpToolManager,
-        env.availableCapabilities,
+        environmentCapabilities(env),
       );
       const toolNames = specs.map((s) => s.name);
 
@@ -236,7 +239,7 @@ describe("Docker Environment", () => {
       const specs = getToolSpecs(
         "subagent",
         mockMcpToolManager,
-        env.availableCapabilities,
+        environmentCapabilities(env),
       );
       const toolNames = specs.map((s) => s.name);
 

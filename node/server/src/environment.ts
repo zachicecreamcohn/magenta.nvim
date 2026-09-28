@@ -7,7 +7,6 @@ import type { GitClient } from "./capabilities/git-client.ts";
 import { DockerGitClient, LocalGitClient } from "./capabilities/git-clients.ts";
 import type { LspClient } from "./capabilities/lsp-client.ts";
 import type { LuaExecutor } from "./capabilities/lua-executor.ts";
-import { NoopLspClient } from "./capabilities/noop-lsp-client.ts";
 import { SandboxFileIO } from "./capabilities/sandbox-file-io.ts";
 import { SandboxShell } from "./capabilities/sandbox-shell.ts";
 import { SandboxViolationHandler } from "./capabilities/sandbox-violation-handler.ts";
@@ -22,6 +21,7 @@ import {
   type Cwd,
   type HomeDir,
   toCwd,
+  toHomeDir,
 } from "./utils/files.ts";
 export type EnvironmentConfig =
   | { type: "local"; cwd?: Cwd }
@@ -32,12 +32,21 @@ export interface Environment {
   shell: Shell;
   gitClient: GitClient;
   sandboxViolationHandler?: SandboxViolationHandler | undefined;
-  lspClient: LspClient;
+  /** Editor-backed; its presence is what offers the lsp tools. */
+  lspClient?: LspClient | undefined;
+  /** Editor-backed; its presence is what offers the nvim tools. */
   luaExecutor?: LuaExecutor | undefined;
   cwd: Cwd;
   homeDir: HomeDir;
-  availableCapabilities: Set<ToolCapability>;
   environmentConfig: EnvironmentConfig;
+}
+/** Derived from the environment's collaborators so capabilities and their dependencies cannot disagree. */
+export function environmentCapabilities(env: Environment): Set<ToolCapability> {
+  const caps = new Set<ToolCapability>(["file-io", "shell", "threads"]);
+  if (env.environmentConfig.type === "local") caps.add("scripts");
+  if (env.lspClient) caps.add("lsp");
+  if (env.luaExecutor) caps.add("nvim");
+  return caps;
 }
 
 export function createLocalEnvironment({
@@ -80,24 +89,15 @@ export function createLocalEnvironment({
     sandbox,
     violationHandler,
   );
-  const availableCapabilities = new Set<ToolCapability>([
-    "shell",
-    "threads",
-    "file-io",
-    "scripts",
-  ]);
-  if (lspClient) availableCapabilities.add("lsp");
-  if (luaExecutor) availableCapabilities.add("nvim");
   return {
     fileIO: sandboxFileIO,
     shell: sandboxShell,
     gitClient: new LocalGitClient(cwd),
     sandboxViolationHandler: violationHandler,
-    lspClient: lspClient ?? new NoopLspClient(),
+    lspClient,
     luaExecutor,
     cwd,
     homeDir,
-    availableCapabilities,
     environmentConfig: { type: "local" },
   };
 }
@@ -127,17 +127,14 @@ export async function createDockerEnvironment({
 
   const fileIO = new DockerFileIO({ container });
   const shell = new DockerShell({ container, cwd: resolvedCwd, threadId });
-  const lspClient = new NoopLspClient();
 
   return {
     fileIO,
     shell,
     gitClient: new DockerGitClient(container, resolvedCwd),
     sandboxViolationHandler: undefined,
-    lspClient,
     cwd: toCwd(resolvedCwd),
-    homeDir: resolvedHome as HomeDir,
-    availableCapabilities: new Set(["file-io", "shell", "threads"]),
+    homeDir: toHomeDir(resolvedHome),
     environmentConfig: { type: "docker", container, cwd: resolvedCwd },
   };
 }

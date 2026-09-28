@@ -40,6 +40,7 @@ export type {
   LspReferencesResponse,
 } from "./capabilities/lsp-client.ts";
 export type { LuaExecutor } from "./capabilities/lua-executor.ts";
+export { NoopLspClient } from "./capabilities/noop-lsp-client.ts";
 export { SandboxFileIO } from "./capabilities/sandbox-file-io.ts";
 export { SandboxShell } from "./capabilities/sandbox-shell.ts";
 export {

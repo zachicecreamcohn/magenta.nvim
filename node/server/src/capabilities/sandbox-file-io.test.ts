@@ -1,3 +1,6 @@
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import type {
   FsReadConfig,
@@ -6,7 +9,7 @@ import type {
   SandboxState,
 } from "../sandbox-manager.ts";
 import { noopLogger } from "../test-helpers.ts";
-import type { Cwd, HomeDir } from "../utils/files.ts";
+import type { AbsFilePath, Cwd, HomeDir } from "../utils/files.ts";
 import { SandboxFileIO } from "./sandbox-file-io.ts";
 
 let currentSandboxState: SandboxState = { status: "uninitialized" };
@@ -305,5 +308,48 @@ describe("SandboxFileIO", () => {
         "Sandbox: read access denied",
       );
     });
+  });
+});
+
+describe("SandboxFileIO onFileWritten", () => {
+  async function setup(
+    onFileWritten: (absPath: AbsFilePath) => Promise<void>,
+    prompt: (absPath: string) => Promise<void> = vi.fn(),
+  ) {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "sandbox-fio-"));
+    currentSandboxState = { status: "ready" };
+    mockFsWriteConfig = { allowOnly: [dir], denyWithinAllow: [] };
+    const sio = new SandboxFileIO(
+      { logger: noopLogger, cwd: dir as Cwd, homeDir },
+      createMockSandbox(),
+      prompt,
+      () => false,
+      onFileWritten,
+    );
+    return { dir, sio };
+  }
+
+  test("is called with the resolved absolute path after a write", async () => {
+    const onFileWritten = vi.fn(() => Promise.resolve());
+    const { dir, sio } = await setup(onFileWritten);
+    await sio.writeFile("a.txt", "hi");
+    expect(onFileWritten).toHaveBeenCalledWith(path.join(dir, "a.txt"));
+  });
+
+  test("is not called when write approval is rejected", async () => {
+    const onFileWritten = vi.fn(() => Promise.resolve());
+    const { sio } = await setup(onFileWritten, () =>
+      Promise.reject(new Error("denied")),
+    );
+    await expect(sio.writeFile("/outside/x.txt", "hi")).rejects.toThrow(
+      "denied",
+    );
+    expect(onFileWritten).not.toHaveBeenCalled();
+  });
+
+  test("a rejecting callback does not fail the write", async () => {
+    const { dir, sio } = await setup(() => Promise.reject(new Error("boom")));
+    await sio.writeFile("b.txt", "ok");
+    expect(await fs.readFile(path.join(dir, "b.txt"), "utf-8")).toBe("ok");
   });
 });

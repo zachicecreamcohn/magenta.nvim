@@ -13,9 +13,11 @@ import {
   createSystemPrompt,
   discoverHierarchyContext,
   type EnvironmentConfig,
+  environmentCapabilities,
   FsFileIO,
   loadAgents,
   MCPToolManagerImpl,
+  NoopLspClient,
   type PendingMessage,
   type PreparedThread,
   type PreparedThreadContext,
@@ -389,7 +391,7 @@ function prepareThreadDependencies(
       }),
     clientToolCreator: clientToolCreator({
       logger: context.nvim.logger,
-      lspClient: env.lspClient,
+      lspClient: env.lspClient ?? new NoopLspClient(),
       ...(env.luaExecutor !== undefined
         ? { luaExecutor: env.luaExecutor }
         : {}),
@@ -404,7 +406,7 @@ function prepareThreadDependencies(
       getScriptRunner,
       getAgents,
     }),
-    availableCapabilities: env.availableCapabilities,
+    availableCapabilities: environmentCapabilities(env),
     environmentConfig: env.environmentConfig,
     ...(context.options.dockerfile
       ? { subagentDockerfile: context.options.dockerfile }
