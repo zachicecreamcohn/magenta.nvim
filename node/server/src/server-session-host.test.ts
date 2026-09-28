@@ -238,6 +238,31 @@ describe("submission resolution", () => {
     stream.finishResponse("end_turn");
     await done;
   });
+
+  it("expands @staged in a real git repo", async () => {
+    const git = (...args: string[]) =>
+      promisify(execFile)("git", args, { cwd: dir });
+    await git("init", "-q");
+    await git("config", "user.email", "t@t");
+    await git("config", "user.name", "t");
+    await writeFile(path.join(dir, "s.txt"), "one\n");
+    await git("add", ".");
+    await git("commit", "-qm", "init");
+    await writeFile(path.join(dir, "s.txt"), "staged\n");
+    await git("add", "s.txt");
+    await writeFile(path.join(dir, "s.txt"), "unstaged\n");
+    const thread = await createThread();
+    const done = thread.submit({
+      type: "raw",
+      message: pendingMessage("@staged:s.txt"),
+    });
+    const stream = await awaitNextStream(mockClient, undefined);
+    const text = userText(stream);
+    expect(text).toContain("+staged");
+    expect(text).not.toContain("+unstaged");
+    stream.finishResponse("end_turn");
+    await done;
+  });
 });
 
 describe("auth UI", () => {

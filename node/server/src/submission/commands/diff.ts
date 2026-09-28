@@ -1,5 +1,4 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import { $ } from "zx";
 import type { AgentInput } from "../../providers/provider-types.ts";
 import type { Cwd, UnresolvedFilePath } from "../../utils/files.ts";
 import type { Command } from "./types.ts";
@@ -9,9 +8,7 @@ async function getGitDiff(
   cwd: Cwd,
 ): Promise<string> {
   try {
-    const result = await promisify(execFile)("git", ["diff", "--", filePath], {
-      cwd,
-    });
+    const result = await $({ cwd, quiet: true })`git diff -- ${filePath}`;
     return result.stdout || "(no unstaged changes)";
   } catch (error) {
     throw new Error(
@@ -25,11 +22,10 @@ async function getStagedDiff(
   cwd: Cwd,
 ): Promise<string> {
   try {
-    const result = await promisify(execFile)(
-      "git",
-      ["diff", "--staged", "--", filePath],
-      { cwd },
-    );
+    const result = await $({
+      cwd,
+      quiet: true,
+    })`git diff --staged -- ${filePath}`;
     return result.stdout || "(no staged changes)";
   } catch (error) {
     throw new Error(
