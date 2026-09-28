@@ -25,7 +25,7 @@ import {
   type ToolRequestId,
   type YieldState,
 } from "@magenta/server";
-import { renderApprovals } from "../capabilities/render-pending-approvals.ts";
+import { renderPendingApprovals } from "../capabilities/render-pending-approvals.ts";
 import {
   type ContextViewContext,
   contextFilesView,
@@ -535,10 +535,8 @@ ${contextFilesView(thread.thread.contextFiles, contextViewCtx(thread), {
       )}`
     : d``;
 
-  const sandboxView = thread.sandboxViolationHandler?.getPendingViolations()
-    .size
-    ? d`\n${renderApprovals(thread.sandboxViolationHandler)}`
-    : d``;
+  const sandboxView =
+    renderPendingApprovals(thread.context.chat.session, thread.id) ?? d``;
   const compactionHistoryView = renderCompactionHistory(
     thread.compactor?.runs ?? [],
     thread,

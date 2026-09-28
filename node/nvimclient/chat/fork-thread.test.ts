@@ -20,7 +20,7 @@ it("sandbox bypass and write approvals use the fork owner", async () => {
 
     const sourceThreadId = driver.magenta.chat.state.left!;
     const sourceThread = leftThread(driver.magenta.chat);
-    driver.magenta.chat.host.setSandboxBypassed(sourceThreadId, true);
+    driver.magenta.chat.session.toggleSandboxBypass(sourceThreadId);
 
     const idx = sourceThread.thread.nativeMessageIdx;
     await driver.magenta.forkAtMessageAndSwitch(sourceThreadId, idx);
@@ -28,7 +28,7 @@ it("sandbox bypass and write approvals use the fork owner", async () => {
     const forkThread = leftThread(driver.magenta.chat);
     expect(forkThread.isSandboxBypassed).toBe(true);
 
-    driver.magenta.chat.host.setSandboxBypassed(sourceThreadId, false);
+    driver.magenta.chat.session.toggleSandboxBypass(sourceThreadId);
 
     expect(forkThread.isSandboxBypassed).toBe(true);
     expect(sourceThread.isSandboxBypassed).toBe(false);
@@ -41,22 +41,22 @@ it("sandbox bypass and write approvals use the fork owner", async () => {
     expect(forkIO).not.toBe(sourceThread.thread["context"].fileIO);
     await forkIO.writeFile(destination, "bypassed fork write");
     expect(
-      sourceThread.sandboxViolationHandler!.getPendingViolations().size,
+      driver.magenta.chat.session.getPendingApprovals(sourceThread.id).size,
     ).toBe(0);
     expect(
-      forkThread.sandboxViolationHandler!.getPendingViolations().size,
+      driver.magenta.chat.session.getPendingApprovals(forkThread.id).size,
     ).toBe(0);
-    driver.magenta.chat.host.setSandboxBypassed(forkThread.id, false);
-    driver.magenta.chat.host.setSandboxBypassed(sourceThreadId, true);
+    driver.magenta.chat.session.toggleSandboxBypass(forkThread.id);
+    driver.magenta.chat.session.toggleSandboxBypass(sourceThreadId);
     const writing = forkIO.writeFile(destination, "approved fork write");
     await pollUntil(() => {
       expect(
-        forkThread.sandboxViolationHandler!.getPendingViolations().size,
+        driver.magenta.chat.session.getPendingApprovals(forkThread.id).size,
       ).toBe(1);
       return true;
     });
     expect(
-      sourceThread.sandboxViolationHandler!.getPendingViolations().size,
+      driver.magenta.chat.session.getPendingApprovals(sourceThread.id).size,
     ).toBe(0);
     const position = await driver.assertDisplayBufferContains("> YES");
     await driver.triggerDisplayBufferKey(position, "<CR>");

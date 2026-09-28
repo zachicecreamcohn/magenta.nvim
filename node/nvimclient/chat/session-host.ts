@@ -43,7 +43,7 @@ import type { Dispatch } from "../tea/tea.ts";
 import { reloadBufferIfOpen } from "../utils/buffers.ts";
 import type { Cwd, HomeDir } from "../utils/files.ts";
 import type { CommandRegistry } from "./commands/registry.ts";
-import type { NvimThreadContext, SandboxRoot } from "./thread.ts";
+import type { NvimThreadContext } from "./thread.ts";
 
 /** Auto/hierarchy context is discovered on the host filesystem, independent of
  * a thread's (possibly sandboxed or docker) fileIO. */
@@ -73,10 +73,6 @@ export class NvimSessionHost implements SessionHost {
   /** Per-thread editor collaborators, kept here so the view adapter can wrap a
    * ready Thread without the session knowing anything editor-shaped. */
   readonly contexts = new Map<ThreadId, PreparedNvimContext>();
-  /** Bypass state owned outside the session (a script invocation's root). */
-  private sandboxRoots = new Map<ThreadId, () => SandboxRoot | undefined>();
-  /** Bypass state for session-owned roots. */
-  private bypassed = new Set<ThreadId>();
   readonly mcpToolManager: MCPToolManagerImpl;
 
   constructor(private context: NvimHostContext) {
@@ -109,60 +105,6 @@ export class NvimSessionHost implements SessionHost {
 
   getProvider(profile: ProviderProfile) {
     return getProvider(this.context.nvim, profile);
-  }
-
-  rejectApprovals(id: ThreadId): void {
-    this.contexts.get(id)?.environment.sandboxViolationHandler?.rejectAll();
-  }
-
-  /** Bypass is a property of the root of the tree, which the session knows and
-   * a script invocation may own. */
-  isSandboxBypassed(id: ThreadId | undefined, session: Session): boolean {
-    if (!id) return false;
-    const root = session.getRootAncestorId(id);
-    const external = this.sandboxRoots.get(root)?.();
-    if (external) return external.isSandboxBypassed;
-    return this.bypassed.has(root);
-  }
-
-  toggleSandboxBypass(id: ThreadId, session: Session): void {
-    const root = session.getRootAncestorId(id);
-    const external = this.sandboxRoots.get(root)?.();
-    if (external?.toggle) {
-      external.toggle();
-    } else if (this.bypassed.has(root)) {
-      this.bypassed.delete(root);
-    } else {
-      this.bypassed.add(root);
-    }
-    if (this.isSandboxBypassed(root, session)) {
-      this.approveAllPendingInSubtree(root, session);
-    }
-  }
-
-  /** A fork starts its own tree, so it inherits its source's bypass state. */
-  setSandboxBypassed(id: ThreadId, bypassed: boolean): void {
-    if (bypassed) this.bypassed.add(id);
-    else this.bypassed.delete(id);
-  }
-
-  /** A thread whose bypass state is owned elsewhere (a script invocation). */
-  registerSandboxRoot(
-    id: ThreadId,
-    getSandboxRoot: () => SandboxRoot | undefined,
-  ): void {
-    this.sandboxRoots.set(id, getSandboxRoot);
-  }
-
-  approveAllPendingInSubtree(id: ThreadId, session: Session): void {
-    const children = session.buildChildrenMap();
-    const approve = (threadId: ThreadId) => {
-      this.contexts
-        .get(threadId)
-        ?.environment.sandboxViolationHandler?.approveAll();
-      for (const child of children.get(threadId) ?? []) approve(child);
-    };
-    approve(id);
   }
 
   prepareThread(
@@ -250,13 +192,8 @@ export class NvimSessionHost implements SessionHost {
                 ),
               threadId,
               sandbox: this.context.sandbox,
-              onPendingChange: () =>
-                this.context.dispatch({
-                  type: "thread-msg",
-                  id: threadId,
-                  msg: { type: "permission-pending-change" },
-                }),
-              isBypassed: () => this.isSandboxBypassed(threadId, session),
+              approvals: session.approvalsFor(threadId),
+              isBypassed: () => session.isSandboxBypassed(threadId),
             }),
           ),
       session.scriptRunner?.discover(),
@@ -333,8 +270,6 @@ export class NvimSessionHost implements SessionHost {
       release: async () => {
         environment.sandboxViolationHandler?.rejectAll();
         this.contexts.delete(threadId);
-        this.sandboxRoots.delete(threadId);
-        this.bypassed.delete(threadId);
       },
     };
   }

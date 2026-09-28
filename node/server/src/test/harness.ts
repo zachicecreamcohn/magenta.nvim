@@ -160,10 +160,6 @@ export class TestSessionHost implements SessionHost {
     | undefined;
   readonly mcp: MCPToolManager;
   readonly luaExecutor: LuaExecutor | undefined;
-  readonly rejectedApprovals: ThreadId[] = [];
-  rejectApprovals(id: ThreadId): void {
-    this.rejectedApprovals.push(id);
-  }
 
   constructor(opts: HarnessOptions = {}) {
     this.cwd = (opts.cwd ?? "/project") as Cwd;

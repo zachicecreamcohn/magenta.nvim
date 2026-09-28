@@ -17,7 +17,10 @@ import {
   threadCreatedAt,
 } from "@magenta/server";
 import type { Lsp } from "../capabilities/lsp.ts";
-import { renderApprovals } from "../capabilities/render-pending-approvals.ts";
+import {
+  renderApprovals,
+  sessionApprovals,
+} from "../capabilities/render-pending-approvals.ts";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
 import type { MagentaOptions } from "../options.ts";
 import type { RootMsg } from "../root-msg.ts";
@@ -456,10 +459,7 @@ export class Chat {
       if (msg.msg.type === "send-message") {
         this.session.recordActivity(this.getRootAncestorId(msg.id));
       }
-      if (
-        msg.msg.type === "submission-ended" ||
-        msg.msg.type === "permission-pending-change"
-      ) {
+      if (msg.msg.type === "submission-ended") {
         this.session.recordActivity(msg.id);
       }
     }
@@ -774,15 +774,15 @@ export class Chat {
   }
 
   isSandboxBypassed(threadId: ThreadId | undefined): boolean {
-    return this.host.isSandboxBypassed(threadId, this.session);
+    return this.session.isSandboxBypassed(threadId);
   }
 
   toggleSandboxBypass(threadId: ThreadId): void {
-    this.host.toggleSandboxBypass(threadId, this.session);
+    this.session.toggleSandboxBypass(threadId);
   }
 
   approveAllPendingInSubtree(threadId: ThreadId): void {
-    this.host.approveAllPendingInSubtree(threadId, this.session);
+    this.session.approveAllPendingInSubtree(threadId);
   }
 
   private collectSubtreeViolationViews(
@@ -790,15 +790,8 @@ export class Chat {
     childrenMap: Map<ThreadId, ThreadId[]>,
   ): VDOMNode[] {
     const views: VDOMNode[] = [];
-    const wrapper = this.wrapper(threadId);
-    if (
-      wrapper?.state === "initialized" &&
-      wrapper.thread.sandboxViolationHandler
-    ) {
-      const handler = wrapper.thread.sandboxViolationHandler;
-      if (handler.getPendingViolations().size > 0) {
-        views.push(renderApprovals(handler));
-      }
+    if (this.session.getPendingApprovals(threadId).size > 0) {
+      views.push(renderApprovals(sessionApprovals(this.session, threadId)));
     }
     const children = childrenMap.get(threadId) ?? [];
     for (const childId of children) {
@@ -1240,11 +1233,6 @@ ${rows}${loadMore}`;
     if (!wrapper || wrapper.state !== "initialized") return newThreadId;
     const thread = wrapper.thread;
 
-    this.host.setSandboxBypassed(
-      newThreadId,
-      this.isSandboxBypassed(sourceThreadId),
-    );
-
     for (const [idxStr, viewState] of Object.entries(
       sourceThread.state.messageViewState,
     )) {
@@ -1265,12 +1253,7 @@ ${rows}${loadMore}`;
 
   threadHasPendingApprovals(threadId: ThreadId): boolean {
     if (this.getThreadPendingApprovalTools(threadId).length > 0) return true;
-    const wrapper = this.wrapper(threadId);
-    if (!wrapper || wrapper.state !== "initialized") return false;
-    return (
-      (wrapper.thread.sandboxViolationHandler?.getPendingViolations().size ??
-        0) > 0
-    );
+    return this.session.getPendingApprovals(threadId).size > 0;
   }
   getThreadPendingApprovalTools(_threadId: ThreadId): never[] {
     return [];

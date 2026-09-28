@@ -302,7 +302,7 @@ it("runs bootstrap input and settles a yield with no dispatch involved", async (
 
 it("rejects approvals on deletion and releases environments even when destruction fails", async () => {
   const release = vi.fn(async () => {});
-  const { session, host } = fixture(withRelease(release));
+  const { session } = fixture(withRelease(release));
   const id = await created(session.createRootThread());
   const record = session.getThread(id);
   if (record?.state !== "initialized") throw new Error("expected initialized");
@@ -311,9 +311,12 @@ it("rejects approvals on deletion and releases environments even when destructio
     await destroy();
     throw new Error("teardown failed");
   });
+  const approval = session.approvalsFor(id).promptForWriteApproval("/x");
+  expect(session.getPendingApprovals(id).size).toBe(1);
   session.deleteThread(id);
+  await expect(approval).rejects.toThrow("did not allow writing");
   await session.dispose();
-  expect(host.rejectedApprovals).toContain(id);
+  expect(session.getPendingApprovals(id).size).toBe(0);
   expect(release).toHaveBeenCalledTimes(1);
 });
 
@@ -714,4 +717,30 @@ it("deletes nested and pending reflections with their source", async () => {
   expect(session.listDerived(id, "reflect")).toEqual([]);
   await pendingCreation;
   expect(session.listThreads()).toEqual([]);
+});
+it("owns approvals and bypass: toggling a root approves its subtree, forks inherit", async () => {
+  const { session } = fixture();
+  const rootId = await created(session.createRootThread());
+  const childId = await created(
+    session.spawnThread({
+      parentThreadId: rootId,
+      prompt: "do work",
+      threadType: "subagent",
+    }),
+  );
+  const write = session.approvalsFor(childId).promptForWriteApproval("/x");
+  expect([...session.getPendingApprovals(childId).values()]).toMatchObject([
+    { prompt: { kind: "write-approval", absPath: "/x" } },
+  ]);
+  expect(session.isSandboxBypassed(childId)).toBe(false);
+  session.toggleSandboxBypass(childId);
+  await expect(write).resolves.toBeUndefined();
+  expect(session.getPendingApprovals(childId).size).toBe(0);
+  expect(session.isSandboxBypassed(rootId)).toBe(true);
+  expect(session.isSandboxBypassed(childId)).toBe(true);
+  const forkId = await created(session.forkThread(rootId));
+  expect(session.isSandboxBypassed(forkId)).toBe(true);
+  session.toggleSandboxBypass(rootId);
+  expect(session.isSandboxBypassed(rootId)).toBe(false);
+  expect(session.isSandboxBypassed(forkId)).toBe(true);
 });

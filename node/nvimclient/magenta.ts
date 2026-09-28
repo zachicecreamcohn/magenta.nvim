@@ -362,11 +362,11 @@ export class Magenta {
       getScriptsPaths: () => this.options.scriptsPaths,
       sandbox: {
         isThreadBypassed: (threadId) =>
-          this.host.isSandboxBypassed(threadId, this.session),
+          this.session.isSandboxBypassed(threadId),
         registerSandboxRoot: (threadId, getSandboxRoot) =>
-          this.host.registerSandboxRoot(threadId, getSandboxRoot),
+          this.session.registerSandboxRoot(threadId, getSandboxRoot),
         approveAllPendingInSubtree: (threadId) =>
-          this.host.approveAllPendingInSubtree(threadId, this.session),
+          this.session.approveAllPendingInSubtree(threadId),
       },
     });
     // Wired before any thread exists, so the run_script tool always has a
@@ -460,7 +460,7 @@ export class Magenta {
           : thread.thread.lastResult()?.type === "failed"
             ? "failed"
             : "ok",
-      sandboxBypassed: this.host.isSandboxBypassed(threadId, this.session),
+      sandboxBypassed: this.session.isSandboxBypassed(threadId),
     };
   }
 

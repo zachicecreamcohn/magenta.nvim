@@ -1,9 +1,10 @@
-import type { ThreadId } from "@magenta/server";
 import {
   deduplicateViolations,
+  type PendingViolation,
   type SandboxViolationHandler,
+  type Session,
+  type ThreadId,
 } from "@magenta/server";
-import type { Chat } from "../chat/chat.ts";
 import {
   d,
   type VDOMNode,
@@ -12,22 +13,35 @@ import {
   withInlineCode,
 } from "../tea/view.ts";
 
-export function renderPendingApprovals(
-  chat: Chat,
-  threadId: ThreadId,
-): VDOMNode | undefined {
-  const wrapper = chat.threadWrappers[threadId];
-  if (wrapper?.state === "initialized") {
-    const handler = wrapper.thread.sandboxViolationHandler;
-    if (handler && handler.getPendingViolations().size > 0) {
-      return d`\n${renderApprovals(handler)}`;
-    }
-  }
+/** What an approvals view reads and acts on. Pending approvals are session
+ * state; the view only renders them and routes the user's decision back. */
+export type ApprovalActions = Pick<
+  SandboxViolationHandler,
+  "getPendingViolations" | "approve" | "reject" | "approveAll" | "rejectAll"
+>;
 
-  return undefined;
+export function sessionApprovals(
+  session: Session,
+  threadId: ThreadId,
+): ApprovalActions {
+  return {
+    getPendingViolations: () =>
+      session.getPendingApprovals(threadId) as Map<string, PendingViolation>,
+    approve: (id) => session.approve(threadId, id),
+    reject: (id) => session.reject(threadId, id),
+    approveAll: () => session.approveAll(threadId),
+    rejectAll: () => session.rejectAll(threadId),
+  };
 }
 
-export function renderApprovals(handler: SandboxViolationHandler): VDOMNode {
+export function renderPendingApprovals(
+  session: Session,
+  threadId: ThreadId,
+): VDOMNode | undefined {
+  if (session.getPendingApprovals(threadId).size === 0) return undefined;
+  return d`\n${renderApprovals(sessionApprovals(session, threadId))}`;
+}
+export function renderApprovals(handler: ApprovalActions): VDOMNode {
   const pending = handler.getPendingViolations();
   if (pending.size === 0) {
     return d``;

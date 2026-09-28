@@ -299,15 +299,15 @@ it("surfaces a spawned thread's pending permission under a collapsed script row 
       if (thread?.state !== "initialized")
         throw new Error("thread not initialized");
       expect(
-        thread.thread.sandboxViolationHandler!.getPendingViolations().size,
+        driver.magenta.chat.session.getPendingApprovals(thread.thread.id).size,
       ).toBe(1);
 
       await driver.triggerDisplayBufferKeyOnContent("> YES", "<CR>");
 
       await pollUntil(
         () =>
-          thread.thread.sandboxViolationHandler!.getPendingViolations().size ===
-          0,
+          driver.magenta.chat.session.getPendingApprovals(thread.thread.id)
+            .size === 0,
       );
     },
   );
@@ -368,8 +368,8 @@ it("toggling the invocation sandbox approves a spawned thread's pending permissi
       await driver.assertDisplayBufferContains("foo (running)");
       await pollUntil(
         () =>
-          thread.thread.sandboxViolationHandler!.getPendingViolations().size ===
-          1,
+          driver.magenta.chat.session.getPendingApprovals(thread.thread.id)
+            .size === 1,
       );
 
       // Bypassing the invocation must release every pending violation in its
@@ -377,8 +377,8 @@ it("toggling the invocation sandbox approves a spawned thread's pending permissi
       await driver.triggerDisplayBufferKeyOnContent("foo (running)", "t");
       await pollUntil(
         () =>
-          thread.thread.sandboxViolationHandler!.getPendingViolations().size ===
-          0,
+          driver.magenta.chat.session.getPendingApprovals(thread.thread.id)
+            .size === 0,
       );
       expect(driver.magenta.chat.isSandboxBypassed(threadId)).toBe(true);
       await driver.assertDisplayBufferContains("SANDBOX OFF");

@@ -9,7 +9,7 @@ import type { LspClient } from "./capabilities/lsp-client.ts";
 import type { LuaExecutor } from "./capabilities/lua-executor.ts";
 import { SandboxFileIO } from "./capabilities/sandbox-file-io.ts";
 import { SandboxShell } from "./capabilities/sandbox-shell.ts";
-import { SandboxViolationHandler } from "./capabilities/sandbox-violation-handler.ts";
+import type { SandboxViolationHandler } from "./capabilities/sandbox-violation-handler.ts";
 import type { Shell } from "./capabilities/shell.ts";
 import type { ThreadId } from "./chat-types.ts";
 import type { Logger } from "./logger.ts";
@@ -56,7 +56,7 @@ export function createLocalEnvironment({
   getSandboxConfig,
   threadId,
   sandbox,
-  onPendingChange,
+  approvals,
   isBypassed,
   lspClient,
   luaExecutor,
@@ -68,7 +68,8 @@ export function createLocalEnvironment({
   getSandboxConfig: () => SandboxConfig;
   threadId: ThreadId;
   sandbox: Sandbox;
-  onPendingChange: () => void;
+  /** Session-owned; see `Session.approvalsFor`. */
+  approvals: SandboxViolationHandler;
   isBypassed: () => boolean;
   /** Editor-backed; the lsp tools are only offered when supplied. */
   lspClient?: LspClient | undefined;
@@ -76,7 +77,7 @@ export function createLocalEnvironment({
   luaExecutor?: LuaExecutor | undefined;
   onFileWritten?: ((absPath: AbsFilePath) => Promise<void>) | undefined;
 }): Environment {
-  const violationHandler = new SandboxViolationHandler(onPendingChange);
+  const violationHandler = approvals;
   const sandboxFileIO = new SandboxFileIO(
     { logger, cwd, homeDir },
     sandbox,

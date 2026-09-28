@@ -152,7 +152,14 @@ export interface MessageContext {
   - Move the existing capability tests with the code into the `server` vitest project. The sandbox-file-io and sandbox-shell tests should run without nvim (tier A/B).
   - The full suite stays green.
 
-## Approval and bypass state on the session
+## Approval and bypass state on the session ✅ done
+
+- Progress: `Session` (`node/server/src/session.ts`) owns per-thread approval stores (`approvalsFor(id)` lazily creates a `SandboxViolationHandler` whose change callback is `recordActivity`, i.e. the session `changed` event), bypass state (`bypassed`, `sandboxRoots`) and the operations `getPendingApprovals`, `approve`, `reject`, `approveAll`, `rejectAll`, `approveAllPendingInSubtree`, `isSandboxBypassed`, `toggleSandboxBypass`, `registerSandboxRoot`. Abort/delete reject a thread's approvals directly; `SessionHost.rejectApprovals` is gone. `permission-pending-change` RootMsg is removed.
+- Decisions:
+  - `createLocalEnvironment` takes `approvals` (the session store) instead of `onPendingChange`. `Environment.sandboxViolationHandler` stays for now (host `release` still rejects through it); the rename to `approvals` can happen with the server host stage.
+  - Fork bypass inheritance happens inside `Session.create` for `fork` requests; `setSandboxBypassed` is gone (tests use `toggleSandboxBypass`).
+  - Views: `renderApprovals` takes an `ApprovalActions` (structural subset of the handler); `sessionApprovals(session, id)` adapts session methods; `renderPendingApprovals(session, id)`. `NvimThread` no longer holds the handler; it notifies the user in `onThreadUpdate` when the pending count grows.
+  - Tests: `session.test.ts` "owns approvals and bypass..." (child approval resolved by toggling bypass on root, fork inherits, independent afterward) and the deletion test now asserts a pending write is rejected. End-to-end tool completion under approval stays covered by the nvim tests (`fork-thread`, `thread-abort`, `script-manager`).
 
 - Goal: The session owns bypass state and approve/reject operations. Views read pending approvals via `session.getPendingApprovals` and act through session methods. The `permission-pending-change` RootMsg is replaced by the session `changed` event.
 - Tests:

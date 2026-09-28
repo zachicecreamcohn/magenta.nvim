@@ -2,6 +2,10 @@ import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
 import { v7 as uuidv7 } from "uuid";
 import type { AgentsMap } from "./agents/agents.ts";
 import type { FileIO } from "./capabilities/file-io.ts";
+import {
+  type PendingViolation,
+  SandboxViolationHandler,
+} from "./capabilities/sandbox-violation-handler.ts";
 import type { ScriptRunner } from "./capabilities/script-runner.ts";
 import type {
   DockerSpawnConfig,
@@ -24,6 +28,7 @@ import type {
   Provider,
 } from "./providers/provider-types.ts";
 import { buildReflectSeed } from "./reflect/seed.ts";
+import type { ScriptSandboxRoot } from "./scripts/script-manager.ts";
 import type { EnvironmentConfig, Thread, ThreadCallbacks } from "./thread.ts";
 import { ABORTED, type Aborted, type ThreadOutcome } from "./thread-api.ts";
 import {
@@ -106,8 +111,6 @@ export interface SessionHost {
   getActiveProfile(): ProviderProfile;
   getAgents?(): AgentsMap;
   getProvider?(profile: ProviderProfile): Provider;
-  /** Drop approvals that belong to work being abandoned. */
-  rejectApprovals?(id: ThreadId): void;
   /** `abort` only interrupts: a preparation that has already acquired
    * resources still resolves with them so the session can release them. */
   prepareThread(
@@ -187,6 +190,17 @@ export class Session extends Emitter<SessionEvents> implements ThreadManager {
    * exists. */
   scriptRunner: ScriptRunner | undefined;
 
+  /** Pending sandbox approvals per thread. Server state: they outlive any
+   * attached view and are rejected when their thread is aborted or deleted. */
+  private approvals = new Map<ThreadId, SandboxViolationHandler>();
+  /** Bypass state for session-owned roots. */
+  private bypassed = new Set<ThreadId>();
+  /** Roots whose bypass state is owned elsewhere (a script invocation). */
+  private sandboxRoots = new Map<
+    ThreadId,
+    () => ScriptSandboxRoot | undefined
+  >();
+
   constructor(private host: SessionHost) {
     super();
   }
@@ -240,6 +254,76 @@ export class Session extends Emitter<SessionEvents> implements ThreadManager {
     if (!record) return;
     record.lastActivityTime = Date.now();
     this.emit("changed", id);
+  }
+
+  /** The approval store a host wires into a thread's environment. */
+  approvalsFor(id: ThreadId): SandboxViolationHandler {
+    let handler = this.approvals.get(id);
+    if (!handler) {
+      handler = new SandboxViolationHandler(() => this.recordActivity(id));
+      this.approvals.set(id, handler);
+    }
+    return handler;
+  }
+
+  getPendingApprovals(id: ThreadId): ReadonlyMap<string, PendingViolation> {
+    return this.approvals.get(id)?.getPendingViolations() ?? new Map();
+  }
+
+  approve(id: ThreadId, approvalId: string): void {
+    this.approvals.get(id)?.approve(approvalId);
+  }
+
+  reject(id: ThreadId, approvalId: string): void {
+    this.approvals.get(id)?.reject(approvalId);
+  }
+
+  approveAll(id: ThreadId): void {
+    this.approvals.get(id)?.approveAll();
+  }
+
+  rejectAll(id: ThreadId): void {
+    this.approvals.get(id)?.rejectAll();
+  }
+
+  approveAllPendingInSubtree(id: ThreadId): void {
+    const children = this.buildChildrenMap();
+    const approve = (threadId: ThreadId) => {
+      this.approveAll(threadId);
+      for (const child of children.get(threadId) ?? []) approve(child);
+    };
+    approve(id);
+  }
+
+  /** Bypass is a property of the root of the tree, which a script invocation
+   * may own. */
+  isSandboxBypassed(id: ThreadId | undefined): boolean {
+    if (!id) return false;
+    const root = this.getRootAncestorId(id);
+    const external = this.sandboxRoots.get(root)?.();
+    if (external) return external.isSandboxBypassed;
+    return this.bypassed.has(root);
+  }
+
+  toggleSandboxBypass(id: ThreadId): void {
+    const root = this.getRootAncestorId(id);
+    const external = this.sandboxRoots.get(root)?.();
+    if (external) {
+      external.toggle();
+    } else if (this.bypassed.has(root)) {
+      this.bypassed.delete(root);
+    } else {
+      this.bypassed.add(root);
+    }
+    if (this.isSandboxBypassed(root)) this.approveAllPendingInSubtree(root);
+    this.emit("changed", root);
+  }
+
+  registerSandboxRoot(
+    id: ThreadId,
+    getSandboxRoot: () => ScriptSandboxRoot | undefined,
+  ): void {
+    this.sandboxRoots.set(id, getSandboxRoot);
   }
 
   buildChildrenMap(): Map<ThreadId, ThreadId[]> {
@@ -416,6 +500,10 @@ The title must be a single line (no newlines) and a few words long (ideally arou
       lastActivityTime: Date.now(),
       options,
     };
+    // A fork starts its own tree, so it inherits its source's bypass state.
+    if (request.type === "fork" && this.isSandboxBypassed(request.source.id)) {
+      this.bypassed.add(id);
+    }
     this.records.set(id, record);
     this.results.set(id, new Defer());
     this.emit("changed", id);
@@ -726,7 +814,7 @@ The title must be a single line (no newlines) and a few words long (ideally arou
     // an abort can observe the request having landed synchronously.
     const start = (target: ThreadId) => {
       this.abortPending(target);
-      this.host.rejectApprovals?.(target);
+      this.rejectAll(target);
       const entry = this.records.get(target);
       return entry?.state === "initialized" && !entry.thread.yielded
         ? entry.thread.abort()
@@ -758,7 +846,10 @@ The title must be a single line (no newlines) and a few words long (ideally arou
     // register or submit, and its result is released asynchronously below.
     this.pending.get(id)?.abort();
     this.pending.delete(id);
-    this.host.rejectApprovals?.(id);
+    this.rejectAll(id);
+    this.approvals.delete(id);
+    this.bypassed.delete(id);
+    this.sandboxRoots.delete(id);
     this.records.delete(id);
     this.results
       .get(id)

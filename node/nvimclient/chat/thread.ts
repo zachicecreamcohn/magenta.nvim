@@ -2,7 +2,6 @@ import type {
   Environment,
   GitState,
   ReflectAnchor,
-  SandboxViolationHandler,
   ScriptSandboxRoot,
   SubagentConfig,
   SystemInfo,
@@ -153,9 +152,6 @@ export type Msg =
       content: string;
     }
   | {
-      type: "permission-pending-change";
-    }
-  | {
       type: "tool-progress";
     }
   | {
@@ -244,7 +240,8 @@ export class NvimThread {
 
   private myDispatch: Dispatch<Msg>;
   private lastAppliedTitle: string | undefined;
-  public sandboxViolationHandler: SandboxViolationHandler | undefined;
+  /** Pending approvals last seen, so a new one notifies the user once. */
+  private seenApprovals = 0;
 
   /** Bypass belongs to the root of the thread tree, which the session knows. */
   get isSandboxBypassed(): boolean {
@@ -263,9 +260,6 @@ export class NvimThread {
         id: this.id,
         msg,
       });
-
-    const env = this.context.environment;
-    this.sandboxViolationHandler = env.sandboxViolationHandler;
 
     this.state = {
       showSystemPrompt: false,
@@ -309,6 +303,16 @@ export class NvimThread {
   private animationTimer: ReturnType<typeof setTimeout> | undefined;
 
   onThreadUpdate(): void {
+    const approvals = this.context.chat.session.getPendingApprovals(
+      this.id,
+    ).size;
+    if (approvals > this.seenApprovals) {
+      notifyUser(
+        { nvim: this.context.nvim, options: this.context.options },
+        "thread-attention",
+      );
+    }
+    this.seenApprovals = approvals;
     if (this.renderDebounceTimer) return;
     this.renderDebounceTimer = setTimeout(() => {
       this.renderDebounceTimer = undefined;
@@ -455,7 +459,7 @@ export class NvimThread {
    * sandbox approvals: they belong to the work being abandoned. */
   private rejectPendingSandboxApprovals(): void {
     if (this.thread.isBusy) {
-      this.sandboxViolationHandler?.rejectAll();
+      this.context.chat.session.rejectAll(this.id);
     }
   }
 
@@ -653,13 +657,6 @@ export class NvimThread {
           homeDir: this.context.homeDir,
           getDisplayWidth: this.context.getDisplayWidth,
         }).catch((e: Error) => this.context.nvim.logger.error(e.message));
-        return;
-
-      case "permission-pending-change":
-        notifyUser(
-          { nvim: this.context.nvim, options: this.context.options },
-          "thread-attention",
-        );
         return;
 
       case "animation-tick":

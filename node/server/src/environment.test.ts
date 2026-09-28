@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { LspClient } from "./capabilities/lsp-client.ts";
 import type { LuaExecutor } from "./capabilities/lua-executor.ts";
+import { SandboxViolationHandler } from "./capabilities/sandbox-violation-handler.ts";
 import type { ThreadId } from "./chat-types.ts";
 import {
   createLocalEnvironment,
@@ -20,7 +21,7 @@ function build(extra: { lspClient?: LspClient; luaExecutor?: LuaExecutor }) {
     },
     threadId: "t" as ThreadId,
     sandbox: new MockSandboxManager(),
-    onPendingChange: () => {},
+    approvals: new SandboxViolationHandler(() => {}),
     isBypassed: () => false,
     ...extra,
   });
