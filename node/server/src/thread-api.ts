@@ -95,10 +95,16 @@ export class ActiveSubmission {
   }
   /** Run a phase whose result is abandoned on abort. Only for work whose
    * effects the caller applies, so dropping the result drops the effects
-   * (see the cancellation invariants in context.md). */
-  async step<T>(work: () => Promise<T>): Promise<T | Aborted> {
+   * (see the cancellation invariants in context.md). `work` may use
+   * `abandoned` to release waits it holds on others (e.g. a client waiter). */
+  async step<T>(
+    work: (abandoned: Promise<Aborted>) => Promise<T>,
+  ): Promise<T | Aborted> {
     if (this.aborted) return ABORTED;
-    const result = await Promise.race([work(), this.abandoned.promise]);
+    const result = await Promise.race([
+      work(this.abandoned.promise),
+      this.abandoned.promise,
+    ]);
     if (result === ABORTED) return ABORTED;
     return result;
   }

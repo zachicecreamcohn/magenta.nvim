@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Nvim } from "../../nvim/nvim-node/index.ts";
 import type { HomeDir, NvimCwd } from "../../utils/files.ts";
-import { absolutizeFileRefs, expandEditorCommands } from "./client-commands.ts";
+import { absolutizeFileRefs, expandClientCommand } from "./client-commands.ts";
 
 const cwd = "/proj" as NvimCwd;
 const homeDir = "/home/me" as HomeDir;
@@ -20,19 +20,13 @@ describe("absolutizeFileRefs", () => {
   });
 });
 
-describe("expandEditorCommands", () => {
-  it("reports a failed expansion per match, in command order", async () => {
+describe("expandClientCommand", () => {
+  it("rejects when the editor read fails, for the server to report", async () => {
     const nvim = {
       call: () => Promise.reject(new Error("boom")),
-      logger: { error: () => {} },
     } as unknown as Nvim;
-    const result = await expandEditorCommands("@buf @buf x", {
-      nvim,
-      cwd,
-      homeDir,
-    });
-    expect(result).toBe(
-      "@buf @buf x\n\nError fetching buffers list: boom\n\nError fetching buffers list: boom",
-    );
+    await expect(
+      expandClientCommand("buf", { nvim, cwd, homeDir }),
+    ).rejects.toThrow("boom");
   });
 });

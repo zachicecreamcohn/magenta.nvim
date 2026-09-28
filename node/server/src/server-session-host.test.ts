@@ -54,6 +54,7 @@ const editor: ClientCapabilities = {
   neovimVersion: "999",
   createLspClient: () => new NoopLspClient(),
   luaExecutor: { execute: async () => "" } as never,
+  expandClientCommand: async () => [],
 };
 
 let dir: string;

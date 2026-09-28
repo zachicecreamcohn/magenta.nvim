@@ -13,7 +13,10 @@ export {
 export { renderThreadLogToMarkdown } from "./archive-renderer.ts";
 export { anthropicTokenStore } from "./auth/anthropic-tokens.ts";
 export type { AuthUI } from "./auth-ui.ts";
-export type { ClientCapabilities } from "./capabilities/client.ts";
+export type {
+  ClientCapabilities,
+  ClientCommandName,
+} from "./capabilities/client.ts";
 export type {
   ContextTracker,
   OnToolApplied,

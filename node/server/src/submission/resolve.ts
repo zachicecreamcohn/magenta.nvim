@@ -2,7 +2,9 @@ import type { FileIO } from "../capabilities/file-io.ts";
 import type { Logger } from "../logger.ts";
 import type { AgentInput } from "../providers/provider-types.ts";
 import type { ContextFileAccess } from "../thread.ts";
+import type { Aborted } from "../thread-api.ts";
 import type { Cwd, HomeDir } from "../utils/files.ts";
+import { type AwaitClient, clientCommands } from "./commands/client.ts";
 import { CommandRegistry } from "./commands/registry.ts";
 import type { CustomCommand } from "./commands/types.ts";
 import {
@@ -20,13 +22,15 @@ export type ResolveSubmissionContext = {
   getContextFiles: () => ContextFileAccess;
   /** A compact thread has no compactor, so `@compact` is ordinary text. */
   canCompact: boolean;
+  /** The client attached at delivery answers `@buf`, `@qf`, `@diag`. */
+  awaitClient: AwaitClient;
 };
 
-/** Expands the fs/git commands of a raw message at delivery time. Editor
- * commands (`@buf`, `@qf`, `@diag`) were already expanded by the client. */
+/** Expands the commands of a raw message at delivery time. */
 export async function resolveSubmission(
   message: PendingMessage,
   context: ResolveSubmissionContext,
+  abandoned?: Promise<Aborted>,
 ): Promise<ResolvedSubmission> {
   const { compact, rest } = context.canCompact
     ? parseCompact(message)
@@ -34,6 +38,9 @@ export async function resolveSubmission(
   const registry = new CommandRegistry();
   for (const custom of context.customCommands) {
     registry.registerCustomCommand(custom);
+  }
+  for (const command of clientCommands(context.awaitClient, abandoned)) {
+    registry.registerCommand(command);
   }
   const { processedText, additionalContent, reminders } =
     await registry.processMessage(rest, {

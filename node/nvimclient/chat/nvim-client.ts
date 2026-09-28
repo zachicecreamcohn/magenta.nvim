@@ -6,6 +6,7 @@ import { NvimLuaExecutor } from "../capabilities/nvim-lua-executor.ts";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
 import { reloadBufferIfOpen } from "../utils/buffers.ts";
 import type { HomeDir, NvimCwd } from "../utils/files.ts";
+import { expandClientCommand } from "./commands/client-commands.ts";
 
 /** The collaborators this Neovim instance lends to threads while attached. */
 export async function createNvimClient({
@@ -28,5 +29,7 @@ export async function createNvimClient({
     authUI: new NvimAuthUI(nvim),
     onFileWritten: (absPath) =>
       reloadBufferIfOpen({ nvim, cwd, homeDir }, absPath),
+    expandClientCommand: (command) =>
+      expandClientCommand(command, { nvim, cwd, homeDir }),
   };
 }

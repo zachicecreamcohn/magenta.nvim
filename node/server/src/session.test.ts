@@ -787,6 +787,7 @@ it("awaitClient resolves on attach, supports abort, and rejects on dispose", asy
     neovimVersion: "test",
     createLspClient: () => new NoopLspClient(),
     luaExecutor: { execLua: async () => undefined },
+    expandClientCommand: async () => [],
   };
   const waiting = session.awaitClient();
   const aborted = session.awaitClient();

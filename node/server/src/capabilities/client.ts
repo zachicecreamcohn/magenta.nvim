@@ -1,4 +1,5 @@
 import type { AuthUI } from "../auth-ui.ts";
+import type { AgentInput } from "../providers/provider-types.ts";
 import type { AbsFilePath, Cwd, HomeDir } from "../utils/files.ts";
 import type { LspClient } from "./lsp-client.ts";
 import type { LuaExecutor } from "./lua-executor.ts";
@@ -14,4 +15,17 @@ export interface ClientCapabilities {
   onFileWritten?(absPath: AbsFilePath): Promise<void>;
   /** Prompts for interactive provider logins (OAuth codes, CLI logins). */
   authUI?: AuthUI;
+  /** Expands a client-state command (`@buf`, `@qf`, `@diag`, ...) against the
+   * client's current state. Serializable: name and matched text in. */
+  expandClientCommand(
+    command: ClientCommandName,
+    match: string,
+  ): Promise<AgentInput[]>;
 }
+export type ClientCommandName =
+  | "buf"
+  | "buffers"
+  | "qf"
+  | "quickfix"
+  | "diag"
+  | "diagnostics";

@@ -19,6 +19,9 @@ function context(canCompact: boolean) {
       getContextFiles: () =>
         ({ addFileContext }) as unknown as ContextFileAccess,
       canCompact,
+      awaitClient: () => {
+        throw new Error("no client commands expected");
+      },
     },
   };
 }

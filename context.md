@@ -74,7 +74,7 @@ The root project uses a **single-dispatch TEA architecture**:
 - Approvals and sandbox bypass are session state (`getPendingApprovals`, `approve`, `reject`, `toggleSandboxBypass`, ...); the client only renders them (`render-pending-approvals.ts`).
 - Server options come only from `~/.magenta/options.json` and `<cwd>/.magenta/options.json` via `OptionsStore` (`config/options-store.ts`); lua `setup()` only sets `ClientOptions`. The sandbox is initialized by `startSandbox`.
 - Each thread has an immutable `Cwd` (server brand); `NvimCwd` is client-only, converted once via `threadCwdFromNvimCwd` when the client creates a thread.
-- The client pre-expands editor commands (`@buf`, `@qf`, `@diag`) into text and absolutizes `@file:` paths before submitting. The server never sees buffer contents.
+- The client absolutizes `@file:` paths before submitting. Client-state commands (`@buf`, `@qf`, `@diag`) are resolved at delivery by asking the currently attached client (`expandClientCommand`, waiting via `session.awaitClient()` if none). The server never reads buffer contents on its own.
 - `nvimclient` must not import `fs`/`child_process` outside a small allowlist (enforced by `node/nvimclient/fs-boundary.node.test.ts`).
 - The server `ScriptManager` (`node/server/src/scripts/script-manager.ts`) is session-owned: catalog, child-process IPC, logs, invocation lifecycle, titles and the invocation⇄thread association. It is wired as `session.scriptRunner` before any thread exists.
 - Execution never depends on a view: starting input, settling results, and aborting scripts require no `RootMsg` dispatch.

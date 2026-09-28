@@ -1,3 +1,4 @@
+import type { AgentInput, ClientCommandName } from "@magenta/server";
 import { getQuickfixList, quickfixListToString } from "../../nvim/nvim.ts";
 import type { Nvim } from "../../nvim/nvim-node/index.ts";
 import { getDiagnostics } from "../../utils/diagnostics.ts";
@@ -12,32 +13,40 @@ import {
 } from "../../utils/files.ts";
 import { getBuffersList } from "../../utils/listBuffers.ts";
 
-export type EditorCommandContext = {
+export type ClientCommandContext = {
   nvim: Nvim;
   cwd: NvimCwd;
   homeDir: HomeDir;
 };
 
-type EditorCommand = {
-  pattern: RegExp;
-  label: string;
-  expand(context: EditorCommandContext): Promise<string>;
-};
-
-const buffers = (context: EditorCommandContext) => getBuffersList(context.nvim);
-const quickfix = async ({ nvim }: EditorCommandContext) =>
+const buffers = (context: ClientCommandContext) => getBuffersList(context.nvim);
+const quickfix = async ({ nvim }: ClientCommandContext) =>
   quickfixListToString(await getQuickfixList(nvim), nvim);
-const diagnostics = ({ nvim, cwd, homeDir }: EditorCommandContext) =>
+const diagnostics = ({ nvim, cwd, homeDir }: ClientCommandContext) =>
   getDiagnostics(nvim, cwd, homeDir);
 
-const EDITOR_COMMANDS: EditorCommand[] = [
-  { pattern: /@buf\b/, label: "buffers list", expand: buffers },
-  { pattern: /@buffers\b/, label: "buffers list", expand: buffers },
-  { pattern: /@qf\b/, label: "quickfix list", expand: quickfix },
-  { pattern: /@quickfix\b/, label: "quickfix list", expand: quickfix },
-  { pattern: /@diag\b/, label: "diagnostics", expand: diagnostics },
-  { pattern: /@diagnostics\b/, label: "diagnostics", expand: diagnostics },
-];
+const CLIENT_COMMANDS: Record<
+  ClientCommandName,
+  { label: string; expand(context: ClientCommandContext): Promise<string> }
+> = {
+  buf: { label: "buffers list", expand: buffers },
+  buffers: { label: "buffers list", expand: buffers },
+  qf: { label: "quickfix list", expand: quickfix },
+  quickfix: { label: "quickfix list", expand: quickfix },
+  diag: { label: "diagnostics", expand: diagnostics },
+  diagnostics: { label: "diagnostics", expand: diagnostics },
+};
+/** Answers the server's delivery-time request for a client-state command.
+ * Failures reject, and the server turns them into an error block. */
+export async function expandClientCommand(
+  command: ClientCommandName,
+  context: ClientCommandContext,
+): Promise<AgentInput[]> {
+  const { label, expand } = CLIENT_COMMANDS[command];
+  return [
+    { type: "text", text: `Current ${label}:\n${await expand(context)}` },
+  ];
+}
 
 /** Rewrites every `@file:` ref to an absolute path against Neovim's cwd. */
 export function absolutizeFileRefs(
@@ -54,31 +63,4 @@ export function absolutizeFileRefs(
     last = match.index + match[0].length;
   }
   return result + text.slice(last);
-}
-/** Expands commands that read editor state into text, and makes `@file:`
- * paths absolute against Neovim's cwd, since the server knows neither. The
- * fs/git commands stay in the text for the server to resolve at delivery. */
-export async function expandEditorCommands(
-  text: string,
-  context: EditorCommandContext,
-): Promise<string> {
-  const withAbsFiles = absolutizeFileRefs(text, context.cwd, context.homeDir);
-  const expansions: string[] = [];
-  for (const command of EDITOR_COMMANDS) {
-    const matches = withAbsFiles.match(new RegExp(command.pattern.source, "g"));
-    for (const _ of matches ?? []) {
-      try {
-        expansions.push(
-          `Current ${command.label}:\n${await command.expand(context)}`,
-        );
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        context.nvim.logger.error(
-          `Failed to fetch ${command.label} for message: ${message}`,
-        );
-        expansions.push(`Error fetching ${command.label}: ${message}`);
-      }
-    }
-  }
-  return [withAbsFiles, ...expansions].join("\n\n");
 }

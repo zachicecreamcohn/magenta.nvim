@@ -442,22 +442,27 @@ export class ServerSessionHost implements SessionHost {
       provider: this.getProvider(info.profile),
       // Resolved at delivery time against the session's current handle, never
       // a retired core.
-      resolve: (message: PendingMessage) =>
-        resolveSubmission(message, {
-          cwd,
-          homeDir,
-          fileIO: env.fileIO,
-          logger: this.context.logger,
-          customCommands: this.context.getOptions().customCommands,
-          canCompact,
-          getContextFiles: () => {
-            const record = session.getThread(id);
-            if (record?.state !== "initialized") {
-              throw new Error(`Thread ${id} is no longer available`);
-            }
-            return record.thread.contextFiles;
+      resolve: (message: PendingMessage, abandoned?: Promise<Aborted>) =>
+        resolveSubmission(
+          message,
+          {
+            awaitClient: this.context.awaitClient,
+            cwd,
+            homeDir,
+            fileIO: env.fileIO,
+            logger: this.context.logger,
+            customCommands: this.context.getOptions().customCommands,
+            canCompact,
+            getContextFiles: () => {
+              const record = session.getThread(id);
+              if (record?.state !== "initialized") {
+                throw new Error(`Thread ${id} is no longer available`);
+              }
+              return record.thread.contextFiles;
+            },
           },
-        }),
+          abandoned,
+        ),
     };
   }
 }

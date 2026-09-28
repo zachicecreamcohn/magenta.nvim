@@ -1,4 +1,5 @@
 import type { AgentInput } from "../providers/provider-types.ts";
+import type { Aborted } from "../thread-api.ts";
 import type { QueueEntry } from "./mailbox.ts";
 
 /** When a parsed submission is delivered.
@@ -43,6 +44,8 @@ export type ResolvedSubmission =
   | { type: "compact"; prompt: ExpandedPrompt };
 export type ResolveSubmission = (
   message: PendingMessage,
+  /** Settles when the submission abandons this resolution. */
+  abandoned?: Promise<Aborted>,
 ) => Promise<ResolvedSubmission>;
 
 /** Used by threads whose content is composed programmatically (subagents, scripts). */

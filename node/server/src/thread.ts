@@ -603,7 +603,9 @@ export class Thread implements ThreadCoreView {
         return finish(aborted);
       const resolved: ResolvedSubmission | Aborted =
         input.type === "raw"
-          ? await submission.step(() => this.context.resolve(input.message))
+          ? await submission.step((abandoned) =>
+              this.context.resolve(input.message, abandoned),
+            )
           : {
               type: "send",
               prompt: { content: input.messages, reminders: [] },
@@ -803,8 +805,8 @@ export class Thread implements ThreadCoreView {
         prompt: { content: [entry.input], reminders: [] },
       };
     try {
-      const resolved = await submission.step(() =>
-        this.context.resolve(entry.message),
+      const resolved = await submission.step((abandoned) =>
+        this.context.resolve(entry.message, abandoned),
       );
       if (resolved === ABORTED) return undefined;
       for (const text of resolved.prompt.reminders) {

@@ -30,7 +30,7 @@ import {
 } from "./buffer-manager.ts";
 import { Lsp } from "./capabilities/lsp.ts";
 import { Chat } from "./chat/chat.ts";
-import { expandEditorCommands } from "./chat/commands/client-commands.ts";
+import { absolutizeFileRefs } from "./chat/commands/client-commands.ts";
 import { createNvimClient } from "./chat/nvim-client.ts";
 import { sliceDisplayBufferSelection } from "./chat/reflect-anchor.ts";
 import {
@@ -1894,11 +1894,7 @@ ${lines.join("\n")}
     const submission = {
       delivery,
       message: pendingMessage(
-        await expandEditorCommands(message, {
-          nvim: this.nvim,
-          cwd: this.cwd,
-          homeDir: this.homeDir,
-        }),
+        absolutizeFileRefs(message, this.cwd, this.homeDir),
       ),
     };
     this.dispatch({
