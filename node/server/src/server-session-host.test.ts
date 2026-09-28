@@ -353,6 +353,36 @@ describe("auth UI", () => {
     authHost.authUI.showLoginProgress("live");
     expect(calls.at(-1)).toBe("progress:live");
   });
+  it("output buffered after a replay starts a new wait", async () => {
+    const { authHost, authSession } = makeAuthSession();
+    authHost.authUI.showLoginProgress("one");
+    const first: string[] = [];
+    authSession.attachClient(clientWith(first));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(first).toEqual(["progress:one"]);
+    authSession.detachClient();
+    authHost.authUI.showLoginProgress("two");
+    expect(authSession.awaitingClient).toBe(1);
+    const second: string[] = [];
+    authSession.attachClient(clientWith(second));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(second).toEqual(["progress:two"]);
+  });
+  it("drops buffered output when the next client has no authUI", async () => {
+    const { authHost, authSession } = makeAuthSession();
+    authHost.authUI.showLoginProgress("lost");
+    const calls: string[] = [];
+    const { authUI: _, ...noAuth } = clientWith(calls);
+    authSession.attachClient(noAuth);
+    await Promise.resolve();
+    await Promise.resolve();
+    authSession.detachClient();
+    authSession.attachClient(clientWith(calls));
+    await Promise.resolve();
+    expect(calls).toEqual([]);
+  });
   it("builds a real provider without the test override", () => {
     const { authHost } = makeAuthSession();
     expect(

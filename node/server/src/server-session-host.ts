@@ -101,6 +101,8 @@ const hostFileIO = new FsFileIO();
 /** Prepares threads with server-owned execution. Editor collaborators (LSP,
  * lua, buffer reloads) come from whatever editor is attached to the session
  * at preparation time. */
+type BufferedAuthOutput = { type: "error" | "progress"; text: string };
+
 export class ServerSessionHost implements SessionHost {
   private readonly prepared = new Map<ThreadId, PreparedThreadInfo>();
   readonly mcpToolManager: MCPToolManager;
@@ -125,18 +127,14 @@ export class ServerSessionHost implements SessionHost {
   };
   /** Login output produced with no client attached, replayed in order to the
    * next client so it sees e.g. a `codex login` URL. */
-  private pendingAuthOutput: { type: "error" | "progress"; text: string }[] =
-    [];
+  private pendingAuthOutput: BufferedAuthOutput[] = [];
   private replayTask: Task<ClientCapabilities | Aborted> | undefined;
   constructor(private context: ServerSessionHostContext) {
     this.mcpToolManager = new MCPToolManager(context.getOptions().mcpServers, {
       logger: context.logger,
     });
   }
-  private bufferForNextClient(output: {
-    type: "error" | "progress";
-    text: string;
-  }): void {
+  private bufferForNextClient(output: BufferedAuthOutput): void {
     this.pendingAuthOutput.push(output);
     if (this.replayTask) return;
     const task = this.context.awaitClient();
