@@ -1,5 +1,13 @@
 import { spawn } from "node:child_process";
-import { access, cp, mkdir, realpath, rm } from "node:fs/promises";
+import {
+  access,
+  cp,
+  mkdir,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import * as path from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { ToolRequestId } from "@magenta/server";
@@ -11,7 +19,7 @@ import {
 import { MockSandboxManager } from "@magenta/server/src/test/mock-sandbox-manager.ts";
 import { Magenta } from "../magenta.ts";
 import { attach, type LogLevel, type Nvim } from "../nvim/nvim-node/index.ts";
-import type { MagentaOptions } from "../options.ts";
+import { type MagentaOptions, SERVER_OPTION_KEYS } from "../options.ts";
 import { withMockClient } from "../providers/mock.ts";
 import type { ProviderToolResult } from "../providers/provider-types.ts";
 import type { MountedVDOM } from "../tea/view.ts";
@@ -431,6 +439,57 @@ export type TestOptions = Partial<MagentaOptions> & {
   changeDebounceMs?: number;
 };
 
+const DEFAULT_SERVER_TEST_OPTIONS = {
+  profiles: [
+    { name: "mock", provider: "mock" },
+    { name: "mock2", provider: "mock" },
+  ],
+  autoContext: [],
+};
+
+function splitTestOptions(options: TestOptions): {
+  server: Record<string, unknown>;
+  client: Record<string, unknown>;
+} {
+  const server: Record<string, unknown> = {};
+  const client: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(options)) {
+    if ((SERVER_OPTION_KEYS as readonly string[]).includes(key)) {
+      server[key] = value;
+    } else {
+      client[key] = value;
+    }
+  }
+  return { server, client };
+}
+
+/** Test options win over whatever `setupHome` wrote, which wins over the
+ * mock-profile defaults. */
+async function writeHomeServerOptions(
+  homeDir: string,
+  testOptions: Record<string, unknown>,
+) {
+  const file = path.join(homeDir, ".magenta", "options.json");
+  let existing: Record<string, unknown> = {};
+  try {
+    existing = JSON.parse(await readFile(file, "utf8")) as Record<
+      string,
+      unknown
+    >;
+  } catch {
+    // no options file from setupHome
+  }
+  await mkdir(path.dirname(file), { recursive: true });
+  await writeFile(
+    file,
+    JSON.stringify({
+      ...DEFAULT_SERVER_TEST_OPTIONS,
+      ...existing,
+      ...testOptions,
+    }),
+  );
+}
+
 export type TestDirs = {
   tmpDir: string;
   homeDir: string;
@@ -457,11 +516,16 @@ export async function withDriver(
         logging: { level: "debug" },
       });
 
+      // Server options come only from ~/.magenta/options.json; client
+      // options still go through lua setup().
+      const { server: serverTestOptions, client: clientTestOptions } =
+        splitTestOptions(driverOptions.options ?? {});
+      await writeHomeServerOptions(dirs.homeDir, serverTestOptions);
       // Set test options before Magenta starts
-      if (driverOptions.options) {
+      if (Object.keys(clientTestOptions).length > 0) {
         // Send JSON string to Lua and let it parse the string into a table
         // Make sure we use the long string syntax [=[ ]=] to avoid escaping issues
-        const testOptionsJson = JSON.stringify(driverOptions.options);
+        const testOptionsJson = JSON.stringify(clientTestOptions);
         await nvim.call("nvim_exec_lua", [
           `setup_test_options([=[${testOptionsJson}]=])`,
           [],

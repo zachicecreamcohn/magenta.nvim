@@ -6,7 +6,10 @@ import type {
   SandboxViolationEvent,
 } from "@anthropic-ai/sandbox-runtime";
 import { SandboxManager } from "@anthropic-ai/sandbox-runtime";
-import { assertStraceAvailable } from "./capabilities/strace.ts";
+import {
+  assertStraceAvailable,
+  StraceUnavailableError,
+} from "./capabilities/strace.ts";
 import type { SandboxConfig } from "./sandbox-config.ts";
 import type { Cwd, HomeDir } from "./utils/files.ts";
 
@@ -278,4 +281,57 @@ export async function initializeSandbox(
   const lastConfigJson = JSON.stringify(runtimeConfig);
 
   return new RealSandbox({ status: "ready" }, lastConfigJson);
+}
+
+/** Sandbox for execution hosts. No initialization failure is fatal
+ * except a missing strace on Linux. The sandbox owns exactly one global
+ * network-ask callback, but prompts live in per-command handlers, so the
+ * callback forwards to the top of the sandbox's ask stack (empty stack
+ * denies). */
+export async function startSandbox(
+  config: SandboxConfig,
+  cwd: Cwd,
+  homeDir: HomeDir,
+  logger: { warn(msg: string): void },
+): Promise<Sandbox> {
+  let sandboxRef: Sandbox | undefined;
+  const askCallback: SandboxAskCallback = (params) => {
+    if (!sandboxRef) return Promise.resolve(false);
+    return sandboxRef.routeNetworkAsk({ host: params.host, port: params.port });
+  };
+  const sandbox = await initializeSandbox(config, cwd, homeDir, askCallback, {
+    warn: (msg) => logger.warn(`Sandbox: ${msg}`),
+  }).catch((err: unknown): Sandbox => {
+    if (err instanceof StraceUnavailableError) {
+      throw err;
+    }
+    const reason = err instanceof Error ? err.message : String(err);
+    logger.warn(
+      `Failed to initialize sandbox, continuing without it: ${reason}`,
+    );
+    return unsupportedSandbox(`initialization failed: ${reason}`);
+  });
+  sandboxRef = sandbox;
+  return sandbox;
+}
+
+function unsupportedSandbox(reason: string): Sandbox {
+  return {
+    getState: () => ({ status: "unsupported", reason }),
+    wrapWithSandbox: (cmd: string) => Promise.resolve(cmd),
+    getViolationStore: () => ({
+      getTotalCount: () => 0,
+      getViolations: () => [],
+      addViolation: () => {},
+    }),
+    annotateStderrWithSandboxFailures: (_cmd: string, stderr: string) => stderr,
+    getFsReadConfig: () => ({ denyOnly: [] }),
+    getFsWriteConfig: () => ({ allowOnly: [], denyWithinAllow: [] }),
+    updateConfigIfChanged: () => {},
+    cleanupAfterCommand: () => {},
+    pushNetworkAskTarget: () => {},
+    popNetworkAskTarget: () => {},
+    routeNetworkAsk: () => Promise.resolve(false),
+    recordSessionApprovedHost: () => {},
+  };
 }

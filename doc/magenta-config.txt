@@ -14,10 +14,20 @@ CONTENTS                                              *magenta-config-contents*
 ==============================================================================
 SETUP                                                        *magenta-setup*
 
-Call `require('magenta').setup()` with a configuration table:
+Configuration is split between the editor and the server:
+
+  - Server options (profiles, sandbox, autoContext, skills/scripts/agents
+    paths, subagent limits, auto-compaction, mcpServers, customCommands)
+    are read only from `~/.magenta/options.json`, merged with the
+    project's `.magenta/options.json`. Both files are re-read when they
+    change. Passing these keys to `setup()` logs a warning and has no
+    effect.
+  - Editor options (sidebar layout, keymaps, picker, chimeVolume,
+    bellOnNotify) are passed to `setup()`.
+
+Call `require('magenta').setup()` with the editor options:
 >lua
     require('magenta').setup({
-      profiles = { ... },
       sidebarPosition = "left",
       picker = "fzf-lua",
       defaultKeymaps = true,

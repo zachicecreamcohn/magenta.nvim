@@ -2,15 +2,9 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { generatePKCE } from "@openauthjs/openauth/pkce";
+import type { AnthropicAuth, OAuthTokens } from "../anthropic-auth.ts";
 
 const CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
-
-export interface OAuthTokens {
-  type: "oauth";
-  refresh: string;
-  access: string;
-  expires: number;
-}
 
 interface AuthData {
   anthropic?: OAuthTokens;
@@ -240,3 +234,12 @@ export async function isAuthenticated(): Promise<boolean> {
   const accessToken = await getAccessToken();
   return accessToken !== undefined;
 }
+
+/** Tokens persisted under the XDG data dir, owned by the server process. */
+export const anthropicTokenStore: AnthropicAuth = {
+  isAuthenticated,
+  authorize,
+  exchange,
+  storeTokens,
+  getAccessToken,
+};

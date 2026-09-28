@@ -1,20 +1,19 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { Cwd } from "../utils/files.ts";
 import {
   BUILTIN_SKILLS_PATH,
   DEFAULT_SANDBOX_CONFIG,
-  DEFAULT_SIDEBAR_POSITION_OPTS,
   loadProjectSettings,
-  loadUserSettings,
-  type MagentaOptions,
+  loadUserOptions,
   mergeOptions,
   parseOptions,
   parseProjectOptions,
+  type ServerOptions,
 } from "./options.ts";
-import type { NvimCwd } from "./utils/files.ts";
 
-function makeBaseOptions(overrides?: Partial<MagentaOptions>): MagentaOptions {
+function makeBaseOptions(overrides?: Partial<ServerOptions>): ServerOptions {
   return {
     profiles: [
       {
@@ -26,14 +25,6 @@ function makeBaseOptions(overrides?: Partial<MagentaOptions>): MagentaOptions {
       },
     ],
     activeProfile: "test",
-    sidebarPosition: "left",
-    sidebarPositionOpts: {
-      above: { displayHeightPercentage: 0.3, inputHeightPercentage: 0.1 },
-      below: { displayHeightPercentage: 0.3, inputHeightPercentage: 0.1 },
-      tab: { displayHeightPercentage: 0.8 },
-      left: { displayHeightPercentage: 0.8 },
-      right: { displayHeightPercentage: 0.8 },
-    },
     maxConcurrentSubagents: 3,
     maxConcurrentFastSubagents: 8,
     autoCompactThreshold: 300000,
@@ -494,7 +485,7 @@ describe("suppressProjectSkills", () => {
     const warnings: string[] = [];
     const logger = { warn: (msg: string) => warnings.push(msg) };
 
-    const result = loadProjectSettings(tmpRoot as NvimCwd, logger);
+    const result = loadProjectSettings(tmpRoot as Cwd, logger);
 
     expect(result).toBeDefined();
     expect(result?.suppressProjectSkills).toBeUndefined();
@@ -503,7 +494,7 @@ describe("suppressProjectSkills", () => {
     );
   });
 
-  it("loadUserSettings retains suppressProjectSkills", async () => {
+  it("loadUserOptions retains suppressProjectSkills", async () => {
     const magentaDir = path.join(tmpRoot, ".magenta");
     await fs.mkdir(magentaDir, { recursive: true });
     await fs.writeFile(
@@ -511,29 +502,31 @@ describe("suppressProjectSkills", () => {
       JSON.stringify({ suppressProjectSkills: ["plan"] }),
     );
 
-    const result = loadUserSettings(tmpRoot, noopLogger);
+    const result = loadUserOptions(tmpRoot, noopLogger);
 
     expect(result).toBeDefined();
     expect(result?.suppressProjectSkills).toEqual(["plan"]);
   });
 });
 
-describe("sidebarPositionOpts", () => {
-  it("keeps the defaults for positions the config does not name", () => {
+describe("defaults", () => {
+  it("configures default profiles and auto context without any input", () => {
+    const result = parseOptions({}, noopLogger);
+    expect(result.profiles.length).toBeGreaterThan(0);
+    expect(result.activeProfile).toBe(result.profiles[0].name);
+    expect(result.autoContext).toContain("context.md");
+    expect(result.customCommands.map((c) => c.name)).toContain("@nedit");
+  });
+  it("keeps the default profiles when none of the given ones are valid", () => {
+    const warnings: string[] = [];
     const result = parseOptions(
-      {
-        profiles: [{ name: "test", provider: "mock" }],
-        sidebarPositionOpts: { left: { displayHeightPercentage: 0.5 } },
-      },
-      noopLogger,
+      { profiles: [{ name: "bad" }] },
+      { warn: (m) => warnings.push(m), error: () => {} },
     );
-    expect(result.sidebarPositionOpts).toEqual({
-      ...DEFAULT_SIDEBAR_POSITION_OPTS,
-      left: { displayHeightPercentage: 0.5 },
-    });
+    expect(result.profiles).toEqual(parseOptions({}, noopLogger).profiles);
+    expect(warnings.length).toBeGreaterThan(0);
   });
 });
-
 describe("autoCompact options", () => {
   it("defaults autoCompactThreshold to 300000 and leaves prompt unset", () => {
     const result = parseOptions(

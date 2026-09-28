@@ -1,5 +1,7 @@
 import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
 import { loadAgents } from "./agents/agents.ts";
+import { anthropicTokenStore } from "./auth/anthropic-tokens.ts";
+import type { AuthUI } from "./auth-ui.ts";
 import { FsFileIO } from "./capabilities/file-io.ts";
 import type { GitState } from "./capabilities/git-client.ts";
 import { NoopLspClient } from "./capabilities/noop-lsp-client.ts";
@@ -18,6 +20,7 @@ import {
 } from "./environment.ts";
 import type { Logger } from "./logger.ts";
 import type { ProviderOptions, ProviderProfile } from "./provider-options.ts";
+import { getProvider } from "./providers/provider.ts";
 import type { Provider } from "./providers/provider-types.ts";
 import {
   createSystemPrompt,
@@ -40,6 +43,7 @@ import type { EnvironmentConfig } from "./thread.ts";
 import { ABORTED, type Aborted } from "./thread-api.ts";
 import type { PreparedThreadContext } from "./thread-assembly.ts";
 import { clientToolCreator } from "./tools/create-tool.ts";
+import { validateInput } from "./tools/helpers.ts";
 import { MCPToolManager } from "./tools/mcp/manager.ts";
 import type { MCPServersConfig } from "./tools/mcp/options.ts";
 import type { Task } from "./utils/async.ts";
@@ -68,7 +72,10 @@ export type ServerSessionHostContext = {
   homeDir: HomeDir;
   sandbox: Sandbox;
   getOptions: () => ServerHostOptions;
-  getProvider: (profile: ProviderProfile) => Provider;
+  /** The editor currently able to prompt for provider logins, if any. */
+  getAuthUI: () => AuthUI | undefined;
+  /** Overrides server-built providers (tests). */
+  getProvider?: (profile: ProviderProfile) => Provider;
 };
 
 /** What preparation produced for one thread, for views that present it. */
@@ -95,10 +102,33 @@ export class ServerSessionHost implements SessionHost {
   private readonly prepared = new Map<ThreadId, PreparedThreadInfo>();
   readonly mcpToolManager: MCPToolManager;
 
+  /** Providers are cached per profile, so they get a stable AuthUI that
+   * prompts through whichever editor is attached when a login is needed. */
+  private readonly authUI: AuthUI = {
+    showOAuthFlow: (authUrl) => this.requireAuthUI().showOAuthFlow(authUrl),
+    showError: (message) => {
+      const ui = this.context.getAuthUI();
+      if (ui) ui.showError(message);
+      else this.context.logger.error(message);
+    },
+    showLoginProgress: (chunk) => {
+      const ui = this.context.getAuthUI();
+      if (ui) ui.showLoginProgress(chunk);
+      else this.context.logger.info(chunk);
+    },
+  };
   constructor(private context: ServerSessionHostContext) {
     this.mcpToolManager = new MCPToolManager(context.getOptions().mcpServers, {
       logger: context.logger,
     });
+  }
+
+  private requireAuthUI(): AuthUI {
+    const ui = this.context.getAuthUI();
+    if (!ui) {
+      throw new Error("Interactive login requires an attached editor");
+    }
+    return ui;
   }
 
   /** Preparation is recorded before the session registers the thread, so
@@ -130,8 +160,15 @@ export class ServerSessionHost implements SessionHost {
     });
   }
 
-  getProvider(profile: ProviderProfile) {
-    return this.context.getProvider(profile);
+  getProvider(profile: ProviderProfile): Provider {
+    if (this.context.getProvider) return this.context.getProvider(profile);
+    return getProvider(
+      this.context.logger,
+      this.authUI,
+      validateInput,
+      anthropicTokenStore,
+      profile,
+    );
   }
 
   prepareThread(
@@ -354,7 +391,7 @@ export class ServerSessionHost implements SessionHost {
       ...(options.dockerfile ? { subagentDockerfile: options.dockerfile } : {}),
       ...(info.yieldSchema ? { yieldSchema: info.yieldSchema } : {}),
       getAgents,
-      provider: this.context.getProvider(info.profile),
+      provider: this.getProvider(info.profile),
       // Resolved at delivery time against the session's current handle, never
       // a retired core.
       resolve: (message: PendingMessage) =>

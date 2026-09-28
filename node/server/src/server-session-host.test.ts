@@ -71,6 +71,7 @@ beforeEach(async () => {
     homeDir: dir as HomeDir,
     sandbox: new MockSandboxManager(),
     getOptions: () => options,
+    getAuthUI: () => undefined,
     getProvider: () => provider,
   });
   session = new Session(host);

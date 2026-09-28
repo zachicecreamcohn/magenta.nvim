@@ -1,4 +1,5 @@
 import type { EditorCapabilities } from "@magenta/server";
+import { NvimAuthUI } from "../auth/auth-ui.ts";
 import type { Lsp } from "../capabilities/lsp.ts";
 import { NvimLspClient } from "../capabilities/lsp-client-adapter.ts";
 import { NvimLuaExecutor } from "../capabilities/nvim-lua-executor.ts";
@@ -24,6 +25,7 @@ export async function createNvimEditor({
     createLspClient: (threadCwd, threadHomeDir) =>
       new NvimLspClient(lsp, nvim, threadCwd, threadHomeDir),
     luaExecutor: new NvimLuaExecutor(nvim),
+    authUI: new NvimAuthUI(nvim),
     onFileWritten: (absPath) =>
       reloadBufferIfOpen({ nvim, cwd, homeDir }, absPath),
   };

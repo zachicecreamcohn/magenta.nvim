@@ -1,11 +1,10 @@
 import * as os from "node:os";
-import type { SandboxAskCallback } from "@anthropic-ai/sandbox-runtime";
 import {
   ABORTED,
   type Aborted,
-  initializeSandbox,
   isThreadId,
   type NativeMessageIdx,
+  OptionsStore,
   parseDelivery,
   pendingMessage,
   probeAndSaveClipboardImage,
@@ -17,7 +16,7 @@ import {
   ScriptManager,
   ServerSessionHost,
   Session,
-  StraceUnavailableError,
+  startSandbox,
   type ThreadId,
   threadConversationLogPath,
 } from "@magenta/server";
@@ -69,12 +68,11 @@ import {
 } from "./nvim/window.ts";
 import { openTargetUnderCursor } from "./open-target-under-cursor.ts";
 import {
+  type ClientOptions,
   getActiveProfile,
   type MagentaOptions,
-  parseOptions,
+  parseClientOptions,
 } from "./options.ts";
-import { DynamicOptionsLoader } from "./options-loader.ts";
-import { getProvider } from "./providers/provider.ts";
 import type { RootMsg, SidebarMsg } from "./root-msg.ts";
 import { ScriptController } from "./scripts/script-manager.ts";
 import {
@@ -179,7 +177,8 @@ export class Magenta {
   /** The editor-side view of it. */
   public scriptManager: ScriptController;
   public dispatch: Dispatch<RootMsg>;
-  public optionsLoader: DynamicOptionsLoader;
+  /** Set by the `profile` command; server options only supply the default. */
+  private activeProfileName: string | undefined;
   public activeBuffers: { displayBuffer: NvimBuffer; inputBuffer: NvimBuffer };
   private suppressDispatchRender = false;
 
@@ -188,12 +187,11 @@ export class Magenta {
     public lsp: Lsp,
     public cwd: NvimCwd,
     public homeDir: HomeDir,
-    optionsLoader: DynamicOptionsLoader,
+    public optionsStore: OptionsStore,
+    private clientOptions: ClientOptions,
     private sandbox: Sandbox,
     bufferManager: BufferManager,
   ) {
-    this.optionsLoader = optionsLoader;
-
     this.dispatch = (msg: RootMsg) => {
       try {
         // select-thread-effect: update chat state + fire-and-forget buffer sync.
@@ -324,7 +322,7 @@ export class Magenta {
       homeDir: this.homeDir,
       sandbox: this.sandbox,
       getOptions: () => this.options,
-      getProvider: (profile) => getProvider(this.nvim, profile),
+      getAuthUI: () => this.session.getEditor()?.authUI,
     });
     this.session = new Session(this.host);
     this.chat = new Chat(
@@ -437,7 +435,15 @@ export class Magenta {
   }
 
   get options(): MagentaOptions {
-    return this.optionsLoader.getOptions();
+    const serverOptions = this.optionsStore.getOptions(
+      threadCwdFromNvimCwd(this.cwd),
+    );
+    const activeProfile =
+      this.activeProfileName !== undefined &&
+      serverOptions.profiles.some((p) => p.name === this.activeProfileName)
+        ? this.activeProfileName
+        : serverOptions.activeProfile;
+    return { ...serverOptions, ...this.clientOptions, activeProfile };
   }
 
   private columnThreadId(column: SidebarColumnName): ThreadId | undefined {
@@ -1037,6 +1043,20 @@ export class Magenta {
     }
   }
 
+  /** Lua reads profiles (picker) and custom commands (completion), which are
+   * server configuration. */
+  async syncServerOptionsToLua(): Promise<void> {
+    const { profiles, customCommands } = this.options;
+    try {
+      await this.nvim.call("nvim_exec_lua", [
+        `require('magenta.options').set_server_options(...)`,
+        [{ profiles, customCommands }],
+      ]);
+    } catch (e) {
+      this.nvim.logger.error(`Failed to sync options to lua: ${String(e)}`);
+    }
+  }
+
   /** `bufnr` is the buffer the command was invoked from (lua always sends
    * it). Programmatic callers that omit it act as if invoked from the
    * sidebar's input buffer. */
@@ -1044,6 +1064,9 @@ export class Magenta {
     const invokingBuf = bufnr ?? this.activeBuffers.inputBuffer.id;
     const [command, ...rest] = input.trim().split(/\s+/);
     this.nvim.logger.debug(`Received command ${command}`);
+    // Profiles and custom commands feed lua pickers/completion; the options
+    // files may have changed since the last command.
+    void this.syncServerOptionsToLua();
     switch (command) {
       case "profile": {
         const profileName = rest.join(" ");
@@ -1052,7 +1075,7 @@ export class Magenta {
         );
 
         if (profile) {
-          this.options.activeProfile = profile.name;
+          this.activeProfileName = profile.name;
         } else {
           this.nvim.logger.error(`Profile "${profileName}" not found.`);
           notifyErr(
@@ -1793,81 +1816,23 @@ ${lines.join("\n")}
     ]);
     recordTiming("node: bridge call returned");
 
-    // Parse base options from Lua
-    const baseOptions = parseOptions(opts, nvim.logger);
-
+    const clientOptions = parseClientOptions(opts, {
+      warn: (msg) => nvim.logger.warn(`Settings: ${msg}`),
+    });
     // Determine home directory - use provided value or fall back to os.homedir()
     const resolvedHomeDir = homeDir ?? (os.homedir() as HomeDir);
-
     // Get the current working directory
     const cwd = await getcwd(nvim);
-
-    const optionsLoader = new DynamicOptionsLoader(
-      baseOptions,
-      cwd,
-      resolvedHomeDir,
-      { warn: (msg) => nvim.logger.warn(`Settings: ${msg}`) },
-    );
-    const parsedOptions = optionsLoader.getOptions();
-
-    // The sandbox owns exactly one global network-ask callback, but UI prompts
-    // live in per-command handlers. Each in-flight sandboxed command pushes
-    // itself as the active target; this callback forwards to the top of that
-    // stack via routeNetworkAsk. An empty stack fails closed (deny). The
-    // sandbox is created below, so we route through a mutable reference that is
-    // assigned immediately after construction.
-    let sandboxRef: Sandbox | undefined;
-    const askCallback: SandboxAskCallback = (params) => {
-      if (!sandboxRef) return Promise.resolve(false);
-      return sandboxRef.routeNetworkAsk({
-        host: params.host,
-        port: params.port,
-      });
-    };
-
+    const optionsStore = new OptionsStore(resolvedHomeDir, nvim.logger);
+    const threadCwd = threadCwdFromNvimCwd(cwd);
     const sandbox =
       sandboxOverride ??
-      (await initializeSandbox(
-        parsedOptions.sandbox,
-        threadCwdFromNvimCwd(cwd),
+      (await startSandbox(
+        optionsStore.getOptions(threadCwd).sandbox,
+        threadCwd,
         resolvedHomeDir,
-        askCallback,
-        { warn: (msg) => nvim.logger.warn(`Sandbox: ${msg}`) },
-      ).catch((err) => {
-        // strace is a hard requirement on Linux (no regex fallback). If it is
-        // missing/cannot attach, refuse to start rather than silently degrading.
-        if (err instanceof StraceUnavailableError) {
-          throw err;
-        }
-        const reason = err instanceof Error ? err.message : String(err);
-        nvim.logger.warn(
-          `Failed to initialize sandbox, continuing without it: ${reason}`,
-        );
-        // Return an unsupported sandbox on failure
-        return {
-          getState: () => ({
-            status: "unsupported" as const,
-            reason: `initialization failed: ${reason}`,
-          }),
-          wrapWithSandbox: (cmd: string) => Promise.resolve(cmd),
-          getViolationStore: () => ({
-            getTotalCount: () => 0,
-            getViolations: () => [],
-            addViolation: () => {},
-          }),
-          annotateStderrWithSandboxFailures: (_cmd: string, stderr: string) =>
-            stderr,
-          getFsReadConfig: () => ({ denyOnly: [] }),
-          getFsWriteConfig: () => ({ allowOnly: [], denyWithinAllow: [] }),
-          updateConfigIfChanged: () => {},
-          cleanupAfterCommand: () => {},
-          pushNetworkAskTarget: () => {},
-          popNetworkAskTarget: () => {},
-          routeNetworkAsk: () => Promise.resolve(false),
-          recordSessionApprovedHost: () => {},
-        } satisfies Sandbox;
-      }));
-    sandboxRef = sandbox;
+        nvim.logger,
+      ));
 
     // Initialize highlight groups in the magenta namespace
     try {
@@ -1895,7 +1860,8 @@ ${lines.join("\n")}
       lsp,
       cwd,
       resolvedHomeDir,
-      optionsLoader,
+      optionsStore,
+      clientOptions,
       sandbox,
       bufferManager,
     );
@@ -1903,6 +1869,7 @@ ${lines.join("\n")}
       await createNvimEditor({ nvim, lsp, cwd, homeDir: resolvedHomeDir }),
     );
 
+    await magenta.syncServerOptionsToLua();
     // Create the first thread eagerly so there's always an active thread
     const initialThreadId = await magenta.session.createRootThread();
     if (initialThreadId === ABORTED)
@@ -1915,7 +1882,7 @@ ${lines.join("\n")}
     });
 
     recordTiming("node: initial thread created");
-    nvim.logger.info(`Magenta initialized. ${JSON.stringify(parsedOptions)}`);
+    nvim.logger.info(`Magenta initialized. ${JSON.stringify(magenta.options)}`);
     return magenta;
   }
 

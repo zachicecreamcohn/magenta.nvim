@@ -42,18 +42,9 @@ if vim.fn.isdirectory(test_plugins_dir) == 1 then
 end
 
 -- Set default restrictive options for tests
+-- Server options (profiles, autoContext, ...) are written to the test home's
+-- ~/.magenta/options.json by the test driver.
 _G.magenta_test_options = {
-  profiles = {
-    {
-      name = "mock",
-      provider = "mock"
-    },
-    {
-      name = "mock2",
-      provider = "mock"
-    }
-  },
-  autoContext = {},
   chimeVolume = 0
 }
 

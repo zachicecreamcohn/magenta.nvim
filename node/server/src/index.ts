@@ -11,6 +11,7 @@ export {
   threadCreatedAt,
 } from "./archive.ts";
 export { renderThreadLogToMarkdown } from "./archive-renderer.ts";
+export { anthropicTokenStore } from "./auth/anthropic-tokens.ts";
 export type { AuthUI } from "./auth-ui.ts";
 export type {
   ContextTracker,
@@ -99,6 +100,8 @@ export {
   type BudgetDecision,
   TokenBudget,
 } from "./compaction/token-budget.ts";
+export * from "./config/options.ts";
+export { OptionsStore } from "./config/options-store.ts";
 export { provisionContainer } from "./container/provision.ts";
 export { teardownContainer } from "./container/teardown.ts";
 export type {

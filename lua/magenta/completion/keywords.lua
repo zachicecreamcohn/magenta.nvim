@@ -27,8 +27,8 @@ local function get_all_keywords()
   local Options = require('magenta.options')
   local keywords = vim.deepcopy(BUILTIN_KEYWORDS)
   
-  if Options.options.customCommands then
-    for _, command in ipairs(Options.options.customCommands) do
+  if Options.server_options.customCommands then
+    for _, command in ipairs(Options.server_options.customCommands) do
       table.insert(keywords, {
         label = command.name,
         kind = kinds.Keyword,

@@ -1,3 +1,4 @@
+import type { AuthUI } from "../auth-ui.ts";
 import type { AbsFilePath, Cwd, HomeDir } from "../utils/files.ts";
 import type { LspClient } from "./lsp-client.ts";
 import type { LuaExecutor } from "./lua-executor.ts";
@@ -11,4 +12,6 @@ export interface EditorCapabilities {
   luaExecutor: LuaExecutor;
   /** Lets the editor reload buffers after an agent writes a file. */
   onFileWritten?(absPath: AbsFilePath): Promise<void>;
+  /** Prompts for interactive provider logins (OAuth codes, CLI logins). */
+  authUI?: AuthUI;
 }

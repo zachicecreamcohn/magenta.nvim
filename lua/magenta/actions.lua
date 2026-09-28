@@ -108,7 +108,7 @@ end
 
 M.pick_profile = function()
   local items = {}
-  for _, profile in ipairs(Options.options.profiles) do
+  for _, profile in ipairs(Options.server_options.profiles) do
     table.insert(items, {
       display = profile.name .. " (" .. profile.provider .. " " .. profile.model .. ")",
       profile = profile.name
