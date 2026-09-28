@@ -108,11 +108,16 @@ export type PreparedThread = {
   release?: () => Promise<void>;
 };
 
+/** `missing`: the selected name is absent from the reloaded options, so the
+ * default applies until it reappears. */
+export type ProfileSelection =
+  | { type: "default"; profile: ProviderProfile }
+  | { type: "selected"; profile: ProviderProfile }
+  | { type: "missing"; name: string; profile: ProviderProfile };
 export interface SessionHost {
-  /** The named profile if it exists in the current options, otherwise the
-   * options' default. */
-  getActiveProfile(name?: string): ProviderProfile;
-  getProfiles(): ProviderProfile[];
+  /** Looks the name up in the current options. */
+  getProfile(name: string): ProviderProfile | undefined;
+  getDefaultProfile(): ProviderProfile;
   getAgents?(): AgentsMap;
   getProvider?(profile: ProviderProfile): Provider;
   /** `abort` only interrupts: a preparation that has already acquired
@@ -209,26 +214,35 @@ export class Session extends Emitter<SessionEvents> implements ThreadManager {
     () => ScriptSandboxRoot | undefined
   >();
 
-  private activeProfileName: string | undefined;
+  private selectedProfileName: string | undefined;
   constructor(private host: SessionHost) {
     super();
   }
 
   /** Applies to threads created afterwards. Kept in memory only. */
   setActiveProfile(name: string): void {
-    if (!this.host.getProfiles().some((p) => p.name === name)) {
+    if (!this.host.getProfile(name)) {
       throw new Error(`Profile "${name}" not found.`);
     }
-    this.activeProfileName = name;
+    this.selectedProfileName = name;
     this.emit("settings-changed");
   }
 
-  getActiveProfileName(): string | undefined {
-    return this.activeProfileName;
+  /** Resolved against the current options on every read, since options can
+   * reload and drop the selected name. */
+  getProfileSelection(): ProfileSelection {
+    const name = this.selectedProfileName;
+    if (name === undefined) {
+      return { type: "default", profile: this.host.getDefaultProfile() };
+    }
+    const profile = this.host.getProfile(name);
+    return profile
+      ? { type: "selected", profile }
+      : { type: "missing", name, profile: this.host.getDefaultProfile() };
   }
 
   getActiveProfile(): ProviderProfile {
-    return this.host.getActiveProfile(this.activeProfileName);
+    return this.getProfileSelection().profile;
   }
 
   attachClient(client: ClientCapabilities): void {
@@ -398,7 +412,7 @@ export class Session extends Emitter<SessionEvents> implements ThreadManager {
 
   createRootThread(): Promise<ThreadId | Aborted> {
     return this.createThread({
-      profile: this.host.getActiveProfile(this.activeProfileName),
+      profile: this.getActiveProfile(),
       threadType: "root",
     });
   }
@@ -412,7 +426,7 @@ export class Session extends Emitter<SessionEvents> implements ThreadManager {
       );
     }
     return this.createThread({
-      profile: this.host.getActiveProfile(this.activeProfileName),
+      profile: this.getActiveProfile(),
       threadType: "root",
       subagentConfig: {
         agentName: agent.name,
@@ -441,8 +455,7 @@ export class Session extends Emitter<SessionEvents> implements ThreadManager {
     const { contextFiles: _contextFiles, prompt: _prompt, ...rest } = opts;
     return this.createThread({
       ...rest,
-      profile:
-        opts.profile ?? this.host.getActiveProfile(this.activeProfileName),
+      profile: opts.profile ?? this.getActiveProfile(),
       threadType: "subagent",
       environmentConfig: {
         type: "local",
@@ -468,7 +481,7 @@ export class Session extends Emitter<SessionEvents> implements ThreadManager {
     description: string,
     parameters: unknown,
   ): Promise<string | undefined> {
-    const profile = this.host.getActiveProfile(this.activeProfileName);
+    const profile = this.getActiveProfile();
     if (!this.host.getProvider) {
       throw new Error("No title provider configured");
     }

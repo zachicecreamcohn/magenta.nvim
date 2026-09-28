@@ -320,7 +320,7 @@ export class Magenta {
       cwd: threadCwdFromNvimCwd(this.cwd),
       homeDir: this.homeDir,
       sandbox: this.sandbox,
-      getOptions: () => this.options,
+      getOptions: () => this.baseOptions,
       getAuthUI: () => this.session.getClient()?.authUI,
     });
     this.session = new Session(this.host);
@@ -433,19 +433,21 @@ export class Magenta {
     });
   }
 
-  get options(): MagentaOptions {
+  /** Options files without the session's profile selection; the host
+   * resolves the selection against these, so reading them must not consult
+   * the session. */
+  private get baseOptions(): MagentaOptions {
     const serverOptions = this.optionsStore.getOptions(
       threadCwdFromNvimCwd(this.cwd),
     );
-    // The session may not exist yet: the host reads these options while it
-    // is being constructed.
-    const selected = this.session?.getActiveProfileName();
+    return { ...serverOptions, ...this.clientOptions };
+  }
+  get options(): MagentaOptions {
+    const base = this.baseOptions;
+    // The session may not exist yet during construction.
     const activeProfile =
-      selected !== undefined &&
-      serverOptions.profiles.some((p) => p.name === selected)
-        ? selected
-        : serverOptions.activeProfile;
-    return { ...serverOptions, ...this.clientOptions, activeProfile };
+      this.session?.getActiveProfile().name ?? base.activeProfile;
+    return { ...base, activeProfile };
   }
 
   private columnThreadId(column: SidebarColumnName): ThreadId | undefined {

@@ -103,7 +103,7 @@ it.each([
   withHarness({}, async (h) => {
     const id = await created(
       h.session.createThread({
-        profile: h.host.getActiveProfile(),
+        profile: h.host.getDefaultProfile(),
         threadType,
         ...(supervised
           ? {
@@ -138,7 +138,7 @@ it("forks compact threads without a compactor or auto-compaction policy", () =>
   withHarness({}, async (h) => {
     const sourceId = await created(
       h.session.createThread({
-        profile: h.host.getActiveProfile(),
+        profile: h.host.getDefaultProfile(),
         threadType: "compact",
       }),
     );

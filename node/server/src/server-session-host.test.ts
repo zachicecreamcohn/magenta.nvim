@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthUI } from "./auth-ui.ts";
 import type { ClientCapabilities } from "./capabilities/client.ts";
 import { NoopLspClient } from "./capabilities/noop-lsp-client.ts";
+import type { ScriptInvocationId } from "./chat-types.ts";
 import { InMemoryFileIO } from "./edl/in-memory-file-io.ts";
 import type { ProviderProfile } from "./provider-options.ts";
 import { MockAnthropicClient } from "./providers/mock-anthropic-client.ts";
@@ -263,7 +264,8 @@ describe("submission resolution", () => {
         `@staged:s.txt @staged:${weirdName} @diff:clean.txt @staged:clean.txt`,
       ),
     });
-    const stream = await awaitNextStream(mockClient, undefined);
+    // Four real git processes; slow under full-suite load.
+    const stream = await awaitNextStream(mockClient, undefined, 10_000);
     const text = userText(stream);
     expect(text).toContain("+staged");
     expect(text).not.toContain("+unstaged");
@@ -367,18 +369,35 @@ describe("active profile", () => {
     expect(after).toBe("b");
   });
 
+  it("applies to script threads without an explicit profile", async () => {
+    profileSession.setActiveProfile("b");
+    const id = await profileSession.spawnScriptThread({
+      scriptInvocationId: "inv" as ScriptInvocationId,
+      scriptName: "s",
+      prompt: "hi",
+      yieldSchema: { type: "object" },
+    });
+    if (id === ABORTED) throw new Error("aborted");
+    expect(profileHost.getPrepared(id).profile.name).toBe("b");
+  });
   it("falls back to the default while the name is missing from options", () => {
     profileSession.setActiveProfile("b");
     currentOptions = { ...currentOptions, profiles: [profileA] };
-    expect(profileSession.getActiveProfile().name).toBe("a");
-    expect(profileSession.getActiveProfileName()).toBe("b");
+    expect(profileSession.getProfileSelection()).toMatchObject({
+      type: "missing",
+      name: "b",
+      profile: { name: "a" },
+    });
     currentOptions = { ...currentOptions, profiles: [profileA, profileB] };
-    expect(profileSession.getActiveProfile().name).toBe("b");
+    expect(profileSession.getProfileSelection()).toMatchObject({
+      type: "selected",
+      profile: { name: "b" },
+    });
   });
 
   it("rejects unknown names without changing the selection", () => {
     profileSession.setActiveProfile("b");
     expect(() => profileSession.setActiveProfile("nope")).toThrow(/nope/);
-    expect(profileSession.getActiveProfileName()).toBe("b");
+    expect(profileSession.getActiveProfile().name).toBe("b");
   });
 });

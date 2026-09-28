@@ -186,11 +186,11 @@ export class TestSessionHost implements SessionHost {
     };
   }
 
-  getActiveProfile(): ProviderProfile {
+  getDefaultProfile(): ProviderProfile {
     return this.profile;
   }
-  getProfiles(): ProviderProfile[] {
-    return [this.profile];
+  getProfile(name: string): ProviderProfile | undefined {
+    return name === this.profile.name ? this.profile : undefined;
   }
 
   getAgents(): AgentsMap {

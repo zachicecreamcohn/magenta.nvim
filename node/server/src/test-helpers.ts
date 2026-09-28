@@ -220,12 +220,16 @@ export function createMockProvider(
 export function awaitNextStream(
   mockClient: MockAnthropicClient,
   prev: MockStream | undefined,
+  timeout = 1000,
 ): Promise<MockStream> {
-  return pollUntil(() => {
-    const stream = mockClient.streams[mockClient.streams.length - 1];
-    if (stream && stream !== prev && !stream.aborted) return stream;
-    throw new Error("waiting for a new stream");
-  });
+  return pollUntil(
+    () => {
+      const stream = mockClient.streams[mockClient.streams.length - 1];
+      if (stream && stream !== prev && !stream.aborted) return stream;
+      throw new Error("waiting for a new stream");
+    },
+    { timeout },
+  );
 }
 
 /** A partial test double, checked field-by-field against the real interface:

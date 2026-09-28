@@ -139,17 +139,15 @@ export class ServerSessionHost implements SessionHost {
     return info;
   }
 
-  getProfiles(): ProviderProfile[] {
-    return this.context.getOptions().profiles;
+  getProfile(name: string): ProviderProfile | undefined {
+    return this.context.getOptions().profiles.find((p) => p.name === name);
   }
-  getActiveProfile(name?: string): ProviderProfile {
-    const options = this.context.getOptions();
-    const profile =
-      options.profiles.find((p) => p.name === name) ??
-      options.profiles.find((p) => p.name === options.activeProfile);
+  getDefaultProfile(): ProviderProfile {
+    const { profiles, activeProfile } = this.context.getOptions();
+    const profile = profiles.find((p) => p.name === activeProfile);
     if (!profile) {
       throw new Error(
-        `Profile ${options.activeProfile} not found in profiles: ${JSON.stringify(options.profiles)}`,
+        `Default profile ${activeProfile} not found in profiles: ${JSON.stringify(profiles)}`,
       );
     }
     return profile;
