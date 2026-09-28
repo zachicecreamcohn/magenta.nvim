@@ -10,7 +10,11 @@ import {
   type RelFilePath,
   type UnresolvedFilePath,
 } from "../utils/files.ts";
-import { FileSupervisor, type FileUpdates } from "./file-supervisor.ts";
+import {
+  buildLoadedFiles,
+  FileSupervisor,
+  type FileUpdates,
+} from "./file-supervisor.ts";
 
 const TEST_PATH = "/test/file.txt" as AbsFilePath;
 const TEXT_FILE_TYPE = {
@@ -290,5 +294,56 @@ describe("FileSupervisor conversation lifetime", () => {
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining("does not exist"),
     );
+  });
+});
+
+describe("buildLoadedFiles", () => {
+  it("seeds delivered files so the next change is a diff, and skips undelivered paths", async () => {
+    const { supervisor, fileIO } = setup({ [TEST_PATH]: "original content" });
+    supervisor.onToolApplied({
+      absFilePath: TEST_PATH,
+      tool: { type: "get-file", content: "original content" },
+      fileTypeInfo: TEXT_FILE_TYPE,
+      nativeMessageIdx: 0 as NativeMessageIdx,
+    });
+    const missing = "/test/missing.txt" as AbsFilePath;
+    const loaded = buildLoadedFiles(supervisor.files, [TEST_PATH, missing]);
+    expect(Object.keys(loaded)).toEqual([TEST_PATH]);
+
+    const onSent = vi.fn<(updates: FileUpdates) => void>();
+    const seeded = FileSupervisor.create({
+      logger,
+      fileIO,
+      cwd: "/test" as Cwd,
+      homeDir: "/home" as HomeDir,
+      initialFiles: loaded,
+    });
+    seeded.callbacks = { ...seeded.callbacks, onSent };
+    await fileIO.writeFile(TEST_PATH, "changed content");
+    const action = await seeded.onBeforeRequest({
+      outputTokenCount: 0,
+      nativeMessageIdx: 0 as NativeMessageIdx,
+    });
+    expect(action.type).toBe("inject");
+    const update = onSent.mock.calls[0][0][TEST_PATH].update;
+    if (update.status !== "ok") throw new Error("expected ok update");
+    expect(update.value.type).toBe("diff");
+
+    // The seeded view is a copy: the source still owes its own diff.
+    const sourceAction = await supervisor.onBeforeRequest({
+      outputTokenCount: 0,
+      nativeMessageIdx: 0 as NativeMessageIdx,
+    });
+    expect(sourceAction.type).toBe("inject");
+    expect(supervisor.files[TEST_PATH].agentView).toEqual({
+      type: "text",
+      content: "changed content",
+    });
+    expect(seeded.files[TEST_PATH].agentView).toEqual({
+      type: "text",
+      content: "changed content",
+    });
+    seeded.destroy();
+    supervisor.destroy();
   });
 });

@@ -17,7 +17,7 @@ import type { Logger } from "../logger.ts";
 import type { Session } from "../session.ts";
 import type { ThreadOutcome } from "../thread-api.ts";
 import type { Cwd, HomeDir, UnresolvedFilePath } from "../utils/files.ts";
-import { expandTilde } from "../utils/files.ts";
+import { expandTilde, toCwd } from "../utils/files.ts";
 import { escalateToSigkill, terminateProcess } from "../utils/process.ts";
 import type {
   MagentaToScript,
@@ -158,6 +158,7 @@ type ScriptThreadRequest = {
 
 function normalizeThreadRequest(
   msg: Extract<ScriptToMagenta, { type: "create-thread" }>,
+  base: { cwd: Cwd; homeDir: HomeDir },
 ): ScriptThreadRequest {
   const options = msg.options ?? {};
   const request: ScriptThreadRequest = {
@@ -165,7 +166,10 @@ function normalizeThreadRequest(
     prompt: msg.prompt,
     yieldSchema: msg.yieldSchema as JSONSchemaType,
   };
-  if (typeof options.cwd === "string") request.cwd = options.cwd as Cwd;
+  if (typeof options.cwd === "string")
+    request.cwd = toCwd(
+      path.resolve(base.cwd, expandTilde(options.cwd, base.homeDir)),
+    );
   if (Array.isArray(options.contextFiles)) {
     request.contextFiles = options.contextFiles.filter(
       (f): f is string => typeof f === "string",
@@ -603,7 +607,7 @@ export class ScriptManager extends Emitter<ScriptManagerEvents> {
   ): void {
     const invocation = this.invocations.get(id);
     if (!invocation) return;
-    const request = normalizeThreadRequest(msg);
+    const request = normalizeThreadRequest(msg, this.context);
     const { requestId, ...threadRequest } = request;
     // The bypass state of a script thread belongs to its invocation, so it is
     // published against the reserved id before creation starts.

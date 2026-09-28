@@ -472,6 +472,7 @@ export {
   shortenPath,
   threadConversationLogPath,
   threadMetaPath,
+  toCwd,
   type UnresolvedFilePath,
   unescapeFenceBody,
   validateFileSize,

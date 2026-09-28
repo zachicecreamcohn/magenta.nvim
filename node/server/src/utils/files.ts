@@ -115,6 +115,14 @@ export function formatFileRef(filePath: string): string {
  */
 export type Cwd = AbsFilePath & { __cwd: true };
 
+/** The single checked entry point for the `Cwd` brand. */
+export function toCwd(dir: string): Cwd {
+  if (!path.isAbsolute(dir)) {
+    throw new Error(`Expected an absolute cwd, got "${dir}"`);
+  }
+  return path.normalize(dir) as Cwd;
+}
+
 export const FileCategory = {
   TEXT: "text",
   IMAGE: "image",

@@ -1,11 +1,15 @@
+import type { ContextFileAccess } from "@magenta/server";
+import type { Nvim } from "../../nvim/nvim-node/index.ts";
+import type { MagentaOptions } from "../../options.ts";
 import type { AgentInput } from "../../providers/provider-types.ts";
+import type { Cwd, HomeDir } from "../../utils/files.ts";
 
 export interface MessageContext {
-  nvim: import("../../nvim/nvim-node/index.ts").Nvim;
-  cwd: import("../../utils/files.ts").Cwd;
-  homeDir: import("../../utils/files.ts").HomeDir;
-  fileSupervisor: import("@magenta/server").ContextFileAccess;
-  options: import("../../options.ts").MagentaOptions;
+  nvim: Nvim;
+  cwd: Cwd;
+  homeDir: HomeDir;
+  fileSupervisor: ContextFileAccess;
+  options: MagentaOptions;
 }
 
 export interface Command {

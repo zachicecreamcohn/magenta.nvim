@@ -307,7 +307,11 @@ local function jumpToReflection(direction)
   local ns = vim.api.nvim_create_namespace("magenta-reflect")
   local cursor = vim.api.nvim_win_get_cursor(0)
   local row, col = cursor[1] - 1, cursor[2]
-  local marks = vim.api.nvim_buf_get_extmarks(0, ns, 0, -1, {})
+  -- Row-label extmarks share the namespace but carry no highlight; only
+  -- highlighted reflection spans are jump targets.
+  local marks = vim.tbl_filter(function(m)
+    return m[4].hl_group ~= nil
+  end, vim.api.nvim_buf_get_extmarks(0, ns, 0, -1, { details = true }))
   local target = nil
   if direction == "next" then
     for _, m in ipairs(marks) do

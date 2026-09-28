@@ -174,7 +174,12 @@ it("highlights reflections, jumps with ]r/[r, and r on a highlight shows it", as
         .toString(),
     );
     expect(texts.sort()).toEqual(["Second", "calls itself"]);
-    expect(marks[0].options.virt_lines?.[0][0][0]).toContain("↳ reflect:");
+    const labels = (await buffer.getExtmarks(MAGENTA_REFLECT_NAMESPACE))
+      .map((m) => m.options.virt_lines?.[0][0][0])
+      .filter((t) => t !== undefined);
+    expect(labels).toEqual(
+      expect.arrayContaining([expect.stringContaining("↳ 1 reflection")]),
+    );
 
     const { displayWindow } = driver.getVisibleState();
     await driver.nvim.call("nvim_set_current_win", [displayWindow.id]);

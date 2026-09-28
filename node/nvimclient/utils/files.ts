@@ -1,4 +1,4 @@
-import type { AbsFilePath, Cwd } from "@magenta/server";
+import { type AbsFilePath, type Cwd, toCwd } from "@magenta/server";
 
 export {
   type AbsFilePath,
@@ -22,6 +22,7 @@ export {
   relativePath,
   resolveFilePath,
   shortenPath,
+  toCwd,
   type UnresolvedFilePath,
   unescapeFenceBody,
   validateFileSize,
@@ -34,5 +35,5 @@ export type NvimCwd = AbsFilePath & { __nvim_cwd: true };
  * operate in. The thread keeps it for life, independent of later Neovim cwd changes.
  */
 export function threadCwdFromNvimCwd(cwd: NvimCwd): Cwd {
-  return cwd as AbsFilePath as Cwd;
+  return toCwd(cwd);
 }

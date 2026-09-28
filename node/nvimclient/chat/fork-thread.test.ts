@@ -34,8 +34,10 @@ it("sandbox bypass and write approvals use the fork owner", async () => {
     expect(sourceThread.isSandboxBypassed).toBe(false);
     const destination = path.join(dirs.baseDir, "fork-write.txt");
     driver.mockSandbox.blockWritesTo(destination);
+    // biome-ignore lint/complexity/useLiteralKeys: white-box access to a private field
     const forkIO = forkThread.thread["context"].fileIO;
     expect(forkIO).toBe(forkThread.context.environment.fileIO);
+    // biome-ignore lint/complexity/useLiteralKeys: white-box access to a private field
     expect(forkIO).not.toBe(sourceThread.thread["context"].fileIO);
     await forkIO.writeFile(destination, "bypassed fork write");
     expect(

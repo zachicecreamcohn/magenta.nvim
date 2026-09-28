@@ -19,6 +19,7 @@ import type {
   ToolName,
 } from "../tool-types.ts";
 import type { Cwd, UnresolvedFilePath } from "../utils/files.ts";
+import { toCwd } from "../utils/files.ts";
 import type { Result } from "../utils/result.ts";
 
 const SPAWN_SUBAGENTS_BASE_DESCRIPTION = readFileSync(
@@ -452,7 +453,7 @@ export function execute(
       const subagentConfig = resolveSubagentConfig(entry, context.agents);
 
       const resolvedCwd = entry.directory
-        ? (resolve(context.cwd, entry.directory) as Cwd)
+        ? toCwd(resolve(context.cwd, entry.directory))
         : undefined;
 
       const threadId = await context.threadManager.spawnThread({
