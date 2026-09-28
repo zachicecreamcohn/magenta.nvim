@@ -425,7 +425,11 @@ it("aborts the subtree but returns only the requested thread's unsent input", as
     { type: "raw", message: pendingMessage("deep leftover") },
     "next",
   );
+  const approval = session
+    .approvalsFor(grandchild)
+    .promptForWriteApproval("/x");
   const { unsent } = await session.abortThread(root);
+  await expect(approval).rejects.toThrow("did not allow writing");
   expect(unsent.map((queued) => renderPending(queued.message))).toEqual([
     "root leftover",
   ]);
@@ -743,4 +747,35 @@ it("owns approvals and bypass: toggling a root approves its subtree, forks inher
   session.toggleSandboxBypass(rootId);
   expect(session.isSandboxBypassed(rootId)).toBe(false);
   expect(session.isSandboxBypassed(forkId)).toBe(true);
+});
+
+it("delegates bypass of an externally owned root to that root", async () => {
+  const { session } = fixture();
+  const rootId = await created(session.createRootThread());
+  const childId = await created(
+    session.spawnThread({
+      parentThreadId: rootId,
+      prompt: "do work",
+      threadType: "subagent",
+    }),
+  );
+  let externalBypassed = false;
+  const toggle = vi.fn(() => {
+    externalBypassed = !externalBypassed;
+  });
+  session.registerSandboxRoot(rootId, () => ({
+    get isSandboxBypassed() {
+      return externalBypassed;
+    },
+    toggle,
+  }));
+  const write = session.approvalsFor(childId).promptForWriteApproval("/x");
+  session.toggleSandboxBypass(childId);
+  expect(toggle).toHaveBeenCalledTimes(1);
+  await expect(write).resolves.toBeUndefined();
+  expect(session.isSandboxBypassed(childId)).toBe(true);
+  // The session's own bypass set was untouched: once the external root
+  // reports not bypassed, neither is the tree.
+  externalBypassed = false;
+  expect(session.isSandboxBypassed(rootId)).toBe(false);
 });

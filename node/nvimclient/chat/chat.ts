@@ -774,7 +774,7 @@ export class Chat {
   }
 
   isSandboxBypassed(threadId: ThreadId | undefined): boolean {
-    return this.session.isSandboxBypassed(threadId);
+    return threadId !== undefined && this.session.isSandboxBypassed(threadId);
   }
 
   toggleSandboxBypass(threadId: ThreadId): void {

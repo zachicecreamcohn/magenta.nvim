@@ -1,6 +1,5 @@
 import {
   deduplicateViolations,
-  type PendingViolation,
   type SandboxViolationHandler,
   type Session,
   type ThreadId,
@@ -25,8 +24,7 @@ export function sessionApprovals(
   threadId: ThreadId,
 ): ApprovalActions {
   return {
-    getPendingViolations: () =>
-      session.getPendingApprovals(threadId) as Map<string, PendingViolation>,
+    getPendingViolations: () => session.getPendingApprovals(threadId),
     approve: (id) => session.approve(threadId, id),
     reject: (id) => session.reject(threadId, id),
     approveAll: () => session.approveAll(threadId),

@@ -460,7 +460,8 @@ export class Magenta {
           : thread.thread.lastResult()?.type === "failed"
             ? "failed"
             : "ok",
-      sandboxBypassed: this.session.isSandboxBypassed(threadId),
+      sandboxBypassed:
+        threadId !== undefined && this.session.isSandboxBypassed(threadId),
     };
   }
 

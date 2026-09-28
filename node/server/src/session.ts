@@ -297,8 +297,7 @@ export class Session extends Emitter<SessionEvents> implements ThreadManager {
 
   /** Bypass is a property of the root of the tree, which a script invocation
    * may own. */
-  isSandboxBypassed(id: ThreadId | undefined): boolean {
-    if (!id) return false;
+  isSandboxBypassed(id: ThreadId): boolean {
     const root = this.getRootAncestorId(id);
     const external = this.sandboxRoots.get(root)?.();
     if (external) return external.isSandboxBypassed;

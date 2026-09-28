@@ -234,7 +234,7 @@ export class SandboxViolationHandler {
     }
   }
 
-  getPendingViolations(): Map<string, PendingViolation> {
+  getPendingViolations(): ReadonlyMap<string, PendingViolation> {
     return this.pending;
   }
 }
