@@ -269,7 +269,7 @@ it("processes @diag keyword to include diagnostics in message", {
     expect(content0.type).toBe("text");
     expect(
       (content0 as Extract<typeof content0, { type: "text" }>).text,
-    ).toContain("Help me fix this issue @diag");
+    ).toMatch(/^Help me fix this issue @diag\n\nCurrent diagnostics:\n/);
     const content1 = messages[0].content[2];
     expect(content1.type).toBe("text");
     expect(

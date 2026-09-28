@@ -192,6 +192,7 @@ export interface MessageContext {
   - `@file:` type detection uses `detectFileTypeViaFileIO` with the thread's `fileIO` (`MessageContext.fileIO`), so sandbox/docker/in-memory threads resolve through their own fileIO. `MessageContext` carries a `Logger` instead of `nvim`, and no `options`.
   - `@diff:`/`@staged:` use `execFile("git", ["diff", "--", path])` in the thread cwd instead of `zx` (not a server dependency).
   - Tests: `registry.test.ts` moved to the server (editor-command cases now use `@implementplan`/custom commands); `server-session-host.test.ts` "submission resolution": `@file:` adds context through `InMemoryFileIO` and custom commands expand, missing file error text, `@diff:` in a real tmp git repo. `chat/resolve-submission.test.ts` was deleted (its `@compact` cases are covered by `thread-compact.test.ts`).
+  - Review follow-up: `@compact` resolution (compact + rest still expanded; plain text when `canCompact` is false) is tested in `node/server/src/submission/resolve.test.ts`. `absolutizeFileRefs` (exported from `editor-commands.ts`) uses `matchAll`, removing the double cast; `editor-commands.node.test.ts` covers relative/`~`/absolute/multiple refs and failed expansions (one `Error fetching` block per match). The `@diag` tier-C test pins that expansions are appended to the user text. `canCompact` stays a boolean.
 
 
 - Goal: The fs/git commands and their registry move to the server resolver. The client pre-expands editor commands into text and makes `@file:` paths absolute before submitting.

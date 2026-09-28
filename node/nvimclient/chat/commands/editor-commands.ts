@@ -39,6 +39,22 @@ const EDITOR_COMMANDS: EditorCommand[] = [
   { pattern: /@diagnostics\b/, label: "diagnostics", expand: diagnostics },
 ];
 
+/** Rewrites every `@file:` ref to an absolute path against Neovim's cwd. */
+export function absolutizeFileRefs(
+  text: string,
+  cwd: NvimCwd,
+  homeDir: HomeDir,
+): string {
+  let result = "";
+  let last = 0;
+  for (const match of text.matchAll(AT_FILE_PATTERN)) {
+    const path = extractFileRefPath(match) as UnresolvedFilePath;
+    result += text.slice(last, match.index);
+    result += formatFileRef(resolveFilePath(cwd, path, homeDir));
+    last = match.index + match[0].length;
+  }
+  return result + text.slice(last);
+}
 /** Expands commands that read editor state into text, and makes `@file:`
  * paths absolute against Neovim's cwd, since the server knows neither. The
  * fs/git commands stay in the text for the server to resolve at delivery. */
@@ -46,12 +62,7 @@ export async function expandEditorCommands(
   text: string,
   context: EditorCommandContext,
 ): Promise<string> {
-  const withAbsFiles = text.replace(AT_FILE_PATTERN, (...args) => {
-    const path = extractFileRefPath(args as unknown as RegExpMatchArray);
-    return formatFileRef(
-      resolveFilePath(context.cwd, path as UnresolvedFilePath, context.homeDir),
-    );
-  });
+  const withAbsFiles = absolutizeFileRefs(text, context.cwd, context.homeDir);
   const expansions: string[] = [];
   for (const command of EDITOR_COMMANDS) {
     const matches = withAbsFiles.match(new RegExp(command.pattern.source, "g"));
