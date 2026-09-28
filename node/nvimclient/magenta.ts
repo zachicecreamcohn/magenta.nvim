@@ -30,8 +30,8 @@ import {
 } from "./buffer-manager.ts";
 import { Lsp } from "./capabilities/lsp.ts";
 import { Chat } from "./chat/chat.ts";
-import { expandEditorCommands } from "./chat/commands/editor-commands.ts";
-import { createNvimEditor } from "./chat/nvim-editor.ts";
+import { expandEditorCommands } from "./chat/commands/client-commands.ts";
+import { createNvimClient } from "./chat/nvim-client.ts";
 import { sliceDisplayBufferSelection } from "./chat/reflect-anchor.ts";
 import {
   ReflectionsOverview,
@@ -322,7 +322,7 @@ export class Magenta {
       homeDir: this.homeDir,
       sandbox: this.sandbox,
       getOptions: () => this.options,
-      getAuthUI: () => this.session.getEditor()?.authUI,
+      getAuthUI: () => this.session.getClient()?.authUI,
     });
     this.session = new Session(this.host);
     this.chat = new Chat(
@@ -1865,8 +1865,8 @@ ${lines.join("\n")}
       sandbox,
       bufferManager,
     );
-    magenta.session.attachEditor(
-      await createNvimEditor({ nvim, lsp, cwd, homeDir: resolvedHomeDir }),
+    magenta.session.attachClient(
+      await createNvimClient({ nvim, lsp, cwd, homeDir: resolvedHomeDir }),
     );
 
     await magenta.syncServerOptionsToLua();

@@ -13,6 +13,7 @@ export {
 export { renderThreadLogToMarkdown } from "./archive-renderer.ts";
 export { anthropicTokenStore } from "./auth/anthropic-tokens.ts";
 export type { AuthUI } from "./auth-ui.ts";
+export type { ClientCapabilities } from "./capabilities/client.ts";
 export type {
   ContextTracker,
   OnToolApplied,
@@ -22,7 +23,6 @@ export type {
 } from "./capabilities/context-tracker.ts";
 export { DockerFileIO } from "./capabilities/docker-file-io.ts";
 export { DockerShell } from "./capabilities/docker-shell.ts";
-export type { EditorCapabilities } from "./capabilities/editor.ts";
 export type { FileIO } from "./capabilities/file-io.ts";
 export { FsFileIO } from "./capabilities/file-io.ts";
 export {

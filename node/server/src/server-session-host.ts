@@ -72,7 +72,7 @@ export type ServerSessionHostContext = {
   homeDir: HomeDir;
   sandbox: Sandbox;
   getOptions: () => ServerHostOptions;
-  /** The editor currently able to prompt for provider logins, if any. */
+  /** The client currently able to prompt for provider logins, if any. */
   getAuthUI: () => AuthUI | undefined;
   /** Overrides server-built providers (tests). */
   getProvider?: (profile: ProviderProfile) => Provider;
@@ -126,7 +126,7 @@ export class ServerSessionHost implements SessionHost {
   private requireAuthUI(): AuthUI {
     const ui = this.context.getAuthUI();
     if (!ui) {
-      throw new Error("Interactive login requires an attached editor");
+      throw new Error("Interactive login requires an attached client");
     }
     return ui;
   }
@@ -206,7 +206,7 @@ export class ServerSessionHost implements SessionHost {
     if (isAborted()) return ABORTED;
     const hostOptions = this.context.getOptions();
     const { logger, homeDir } = this.context;
-    const editor = session.getEditor();
+    const editor = session.getClient();
     const resolvedConfig: EnvironmentConfig = environmentConfig ?? {
       type: "local",
     };
@@ -272,7 +272,7 @@ export class ServerSessionHost implements SessionHost {
       source?.systemInfo ??
       buildSystemInfo({
         cwd: environment.cwd,
-        neovimVersion: editor?.neovimVersion ?? "none (no editor attached)",
+        neovimVersion: editor?.neovimVersion ?? "none (no client attached)",
         overrides: {
           git: initialGitState,
           ...(resolvedConfig.type === "docker"

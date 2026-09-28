@@ -5,7 +5,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthUI } from "./auth-ui.ts";
-import type { EditorCapabilities } from "./capabilities/editor.ts";
+import type { ClientCapabilities } from "./capabilities/client.ts";
 import { NoopLspClient } from "./capabilities/noop-lsp-client.ts";
 import { InMemoryFileIO } from "./edl/in-memory-file-io.ts";
 import type { ProviderProfile } from "./provider-options.ts";
@@ -50,7 +50,7 @@ const options: ServerHostOptions = {
   mcpServers: {},
   customCommands: [{ name: "@hi", text: "custom text" }],
 };
-const editor: EditorCapabilities = {
+const editor: ClientCapabilities = {
   neovimVersion: "999",
   createLspClient: () => new NoopLspClient(),
   luaExecutor: { execute: async () => "" } as never,
@@ -113,18 +113,18 @@ it("runs a thread with no attached editor", async () => {
 
 it("gives editor tools only to threads created while attached", async () => {
   const before = await createThread();
-  session.attachEditor(editor);
+  session.attachClient(editor);
   const after = await createThread();
   expect(toolNames(before)).not.toContain("hover");
   expect(toolNames(after)).toContain("hover");
 });
 
 it("keeps a running submission going when the editor detaches", async () => {
-  session.attachEditor(editor);
+  session.attachClient(editor);
   const thread = await createThread();
   const done = thread.submit({ type: "raw", message: pendingMessage("hi") });
   const stream = await awaitNextStream(mockClient, undefined);
-  session.detachEditor();
+  session.detachClient();
   stream.streamText("still here");
   stream.finishResponse("end_turn");
   await expect(done).resolves.toMatchObject({ type: "completed" });
@@ -137,7 +137,7 @@ it("wires editor capabilities into threads with the thread's cwd", async () => {
   await writeFile(file, "hello");
   const onFileWritten = vi.fn(async (_: AbsFilePath) => {});
   const createLspClient = vi.fn(() => new NoopLspClient());
-  const spyEditor: EditorCapabilities = {
+  const spyEditor: ClientCapabilities = {
     ...editor,
     createLspClient,
     onFileWritten,
@@ -172,7 +172,7 @@ it("wires editor capabilities into threads with the thread's cwd", async () => {
   };
 
   const before = await create();
-  session.attachEditor(spyEditor);
+  session.attachClient(spyEditor);
   await runEdit(before.thread, "hello", "bye");
   expect(onFileWritten).not.toHaveBeenCalled();
 
@@ -251,7 +251,7 @@ describe("auth UI", () => {
       getAuthUI,
     });
   }
-  it("throws for OAuth and logs errors/progress when no editor is attached", () => {
+  it("throws for OAuth and logs errors/progress when no client is attached", () => {
     const logged: string[] = [];
     const h = makeHost(() => undefined, {
       ...noopLogger,
@@ -259,7 +259,7 @@ describe("auth UI", () => {
       info: (m: string) => logged.push(`info:${m}`),
     });
     expect(() => h.authUI.showOAuthFlow("https://x")).toThrow(
-      /attached editor/,
+      /attached client/,
     );
     h.authUI.showError("bad");
     h.authUI.showLoginProgress("step");

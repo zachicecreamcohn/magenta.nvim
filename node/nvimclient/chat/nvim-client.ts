@@ -1,4 +1,4 @@
-import type { EditorCapabilities } from "@magenta/server";
+import type { ClientCapabilities } from "@magenta/server";
 import { NvimAuthUI } from "../auth/auth-ui.ts";
 import type { Lsp } from "../capabilities/lsp.ts";
 import { NvimLspClient } from "../capabilities/lsp-client-adapter.ts";
@@ -8,7 +8,7 @@ import { reloadBufferIfOpen } from "../utils/buffers.ts";
 import type { HomeDir, NvimCwd } from "../utils/files.ts";
 
 /** The collaborators this Neovim instance lends to threads while attached. */
-export async function createNvimEditor({
+export async function createNvimClient({
   nvim,
   lsp,
   cwd,
@@ -18,7 +18,7 @@ export async function createNvimEditor({
   lsp: Lsp;
   cwd: NvimCwd;
   homeDir: HomeDir;
-}): Promise<EditorCapabilities> {
+}): Promise<ClientCapabilities> {
   const neovimVersion = String(await nvim.call("nvim_eval", ["v:version"]));
   return {
     neovimVersion,
