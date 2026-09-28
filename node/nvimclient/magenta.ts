@@ -106,6 +106,7 @@ const MAGENTA_REFLECTIONS_CURSOR = "magentaReflectionsCursor";
 
 /** Visual selection as sent by lua's `listenToBufKey`: 0-indexed rows, byte
  * columns, and the full buffer lines the selection spans. */
+const MAGENTA_SHOW_REFLECTIONS = "magentaShowReflections";
 function parsePosition(raw: unknown): Position0Indexed | undefined {
   if (
     !Array.isArray(raw) ||
@@ -614,6 +615,20 @@ export class Magenta {
    * focuses it. */
   async showReflectionsOverview(threadId: ThreadId): Promise<void> {
     this.dispatch({
+  /** Reflections of the visible thread, else of the thread that last held
+   * the cursor; a reflection resolves to its source. */
+  async showReflectionsForCurrentThread(): Promise<void> {
+    const target = this.chat.externalTarget(this.sidebar.isVisible());
+    if (!target) {
+      await notify(this.nvim, "No thread to show reflections for.");
+      return;
+    }
+    const origin = this.chat.session.getOrigin(target);
+    await this.showReflectionsOverview(
+      origin?.type === "reflect" ? origin.sourceThreadId : target,
+    );
+  }
+
       type: "chat-msg",
       msg: { type: "show-reflections-overview", thread: threadId },
     });
@@ -1658,6 +1673,13 @@ ${lines.join("\n")}
         }
       },
     );
+    nvim.onNotification(MAGENTA_SHOW_REFLECTIONS, async () => {
+      try {
+        await getMagentaIfReady()?.showReflectionsForCurrentThread();
+      } catch (err) {
+        nvim.logger.error(err as Error);
+      }
+    });
     nvim.onNotification(MAGENTA_BUF_DELETE, async (args) => {
       try {
         const data = (args as unknown as { bufnr: number }[])[0];

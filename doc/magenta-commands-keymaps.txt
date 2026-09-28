@@ -8,7 +8,8 @@ CONTENTS                                           *magenta-commands-keymaps-con
     3. Input Commands .......................... |magenta-input-commands|
     4. File & Image Attachments ................ |magenta-attachments|
     5. Display Buffer .......................... |magenta-display-buffer|
-    6. Smart Completions ....................... |magenta-completions|
+    6. Reflections ............................. |magenta-reflections|
+    7. Smart Completions ....................... |magenta-completions|
 
 ==============================================================================
 EX COMMANDS                                            *magenta-ex-commands*
@@ -239,6 +240,57 @@ You can interact with elements by pressing keys:
 `-`:~
   - In display buffer: View thread overview screen
   - In overview: Press `<CR>` on a thread to make it active
+`]m` / `[m`, `]u` / `[u`:~
+  - Jump to the next/previous message header (`u`: user messages only)
+`]r` / `[r`:~
+  - Jump to the next/previous reflection highlight
+`r`:~
+  - With a visual selection inside one content block: Create a reflection
+    on it. See |magenta-reflections|.
+  - Without a selection: Open the reflection overview for this thread
+`R`:~
+  - Open the reflection overview, from any display buffer. See
+    |magenta-reflection-overview|.
+
+==============================================================================
+REFLECTIONS                                            *magenta-reflections*
+
+A reflection is a side thread about one passage of another thread. It is
+seeded with an abridged transcript of the source conversation up to and
+including the selected message, plus the quoted selection. Nothing is sent
+until you submit a message, and the source thread is never
+modified. Use it to ask about or challenge part of a response without
+derailing the main conversation.
+
+Creating:~
+  Visually select text within a single content block (e.g. one text block
+  of a message) in the display buffer and press `r`. The reflection opens
+  in a right-hand column beside its source thread, with the cursor in its
+  input buffer. Two columns require a left or right sidebar position; with
+  other positions the reflection is created but not shown. Selecting the
+  exact same text in the same block again is refused. Reflections can
+  themselves be reflected on.
+
+In the source thread:~
+  Reflected passages are highlighted. `]r` / `[r` jump between them.
+
+                                                *magenta-reflection-overview*
+Reflection overview:~
+  Lists the whole reflection tree of a top-level thread (reflections,
+  their reflections, and so on) in the right column. `R` opens it from any
+  display buffer: it uses the thread on screen, or if none is visible, the
+  thread that last held the cursor. From a reflection, it shows the tree
+  of the top-level thread it descends from. `r` without a selection opens
+  it for the current thread.
+  - Moving the cursor over an entry shows its source thread in the left
+    column and centers the reflected passage there
+  - `<CR>`: Open the reflection
+  - `dd`: Delete the reflection
+
+In the thread overview:~
+  Reflections are nested under their source thread, marked with 💭, and
+  hidden until the source is expanded with `=`, like subagent threads.
+  Deleting a thread deletes its reflections.
 
 ==============================================================================
 SMART COMPLETIONS                                      *magenta-completions*

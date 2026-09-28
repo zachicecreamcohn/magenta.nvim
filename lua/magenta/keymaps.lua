@@ -329,6 +329,9 @@ local function jumpToReflection(direction)
     vim.api.nvim_win_set_cursor(0, { target[2] + 1, target[3] })
   end
 end
+local function show_reflections()
+  vim.rpcnotify(magentaChannelId, "magentaShowReflections", {})
+end
 local message_jump_keymaps = {
   ["]r"] = function() jumpToReflection("next") end,
   ["[r"] = function() jumpToReflection("prev") end,
@@ -376,6 +379,7 @@ M.set_display_buffer_keymaps = function(bufnr)
     end,
   })
 
+  vim.keymap.set("n", "R", show_reflections, { buffer = bufnr, noremap = true, silent = true })
   for key, action in pairs(message_jump_keymaps) do
     vim.keymap.set(
       { "n", "v" },
@@ -398,6 +402,7 @@ M.set_display_buffer_keymaps = function(bufnr)
 end
 
 M.set_reflections_buffer_keymaps = function(bufnr)
+  vim.keymap.set("n", "R", show_reflections, { buffer = bufnr, noremap = true, silent = true })
   vim.api.nvim_create_autocmd("CursorMoved", {
     buffer = bufnr,
     callback = function()

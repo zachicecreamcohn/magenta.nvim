@@ -62,6 +62,10 @@ I haven't actually used other neovim AI plugins in a while, so take this with a 
 
 # Updates
 
+## Sep 2026
+
+- Reflections: select a passage within one content block in the display buffer and press `r` to open a side thread that discusses just that passage, without touching the original thread. Reflections open in a right-hand column, are highlighted in the source thread (`]r`/`[r` to jump), and can be browsed in a reflection overview (`R` from any display buffer). In the thread overview they are nested under their source thread with a 💭 icon and collapsed by default. See `:help magenta-reflections`.
+
 ## Apr 2026
 
 - Per-thread buffers: each thread now gets its own chat and input buffer. Switching threads swaps buffers in place, preserving scroll position and unsent input.
@@ -234,6 +238,8 @@ For any of the below, you can also just ask magenta to explain.
 | `<leader>mf` | Pick files to add to context            |
 | `<leader>mn` | Create new thread                       |
 | `<leader>mp` | Paste clipboard image (in input buffer) |
+| `r` (visual, display buffer) | Reflect on the selected passage |
+| `R` (display buffer) | Open the reflection overview |
 
 **Input commands:** `@fork`, `@file:`, `@diff:`, `@diag`, `@buf`, `@qf`, `@fast`
 

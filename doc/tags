@@ -107,6 +107,8 @@ magenta-project-settings	magenta-config.txt	/*magenta-project-settings*
 magenta-providers-contents	magenta-providers.txt	/*magenta-providers-contents*
 magenta-providers.txt	magenta-providers.txt	/*magenta-providers.txt*
 magenta-quickstart	magenta.txt	/*magenta-quickstart*
+magenta-reflection-overview	magenta-commands-keymaps.txt	/*magenta-reflection-overview*
+magenta-reflections	magenta-commands-keymaps.txt	/*magenta-reflections*
 magenta-requirements	magenta.txt	/*magenta-requirements*
 magenta-sandbox	magenta-config.txt	/*magenta-sandbox*
 magenta-scripts	magenta-scripts.txt	/*magenta-scripts*

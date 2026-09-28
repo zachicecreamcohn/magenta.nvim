@@ -752,8 +752,19 @@ export class Chat {
     return this.session.getRootAncestorId(threadId);
   }
 
+  /** The overview tree: session parent/child links plus reflections nested
+   * under their source thread (reflections have no `parentThreadId`). */
   private buildChildrenMap(): Map<ThreadId, ThreadId[]> {
-    return this.session.buildChildrenMap();
+    const map = this.session.buildChildrenMap();
+    for (const record of this.session.listThreads()) {
+      const origin = record.origin;
+      if (origin?.type !== "reflect") continue;
+      map.set(origin.sourceThreadId, [
+        ...(map.get(origin.sourceThreadId) ?? []),
+        record.id,
+      ]);
+    }
+    return map;
   }
 
   /** Abort a thread and its descendants. */
@@ -937,7 +948,12 @@ export class Chat {
       threadWrapper?.state === "initialized"
         ? threadWrapper.thread.thread.threadType
         : undefined;
-    const icon = threadType === "docker_root" ? "🐳 " : "";
+    const icon =
+      this.session.getOrigin(threadId)?.type === "reflect"
+        ? "💭 "
+        : threadType === "docker_root"
+          ? "🐳 "
+          : "";
 
     const isSandboxBypassed =
       threadWrapper?.state === "initialized"
@@ -1006,16 +1022,16 @@ export class Chat {
 
   private renderThreadSubtree(
     threadId: ThreadId,
+    depth: number,
     childrenMap: Map<ThreadId, ThreadId[]>,
     left: ThreadId | undefined,
     views: VDOMNode[],
   ) {
-    const wrapper = this.wrapper(threadId);
-    if (!wrapper) return;
-    views.push(this.renderThread(threadId, wrapper.depth, left));
+    if (!this.wrapper(threadId)) return;
+    views.push(this.renderThread(threadId, depth, left));
     const children = childrenMap.get(threadId) || [];
     for (const childId of children) {
-      this.renderThreadSubtree(childId, childrenMap, left, views);
+      this.renderThreadSubtree(childId, depth + 1, childrenMap, left, views);
     }
   }
 
@@ -1051,7 +1067,8 @@ No threads yet`;
       // in the Scripts section, not as top-level threads here.
       if (
         record.parentThreadId === undefined &&
-        record.scriptInvocationId === undefined
+        record.scriptInvocationId === undefined &&
+        record.origin?.type !== "reflect"
       ) {
         rootThreads.push({ id: record.id });
       }
@@ -1081,6 +1098,7 @@ No threads yet`;
         for (const childId of children) {
           this.renderThreadSubtree(
             childId,
+            1,
             childrenMap,
             this.state.left,
             threadViews,
