@@ -21,6 +21,7 @@ export type {
 } from "./capabilities/context-tracker.ts";
 export { DockerFileIO } from "./capabilities/docker-file-io.ts";
 export { DockerShell } from "./capabilities/docker-shell.ts";
+export type { EditorCapabilities } from "./capabilities/editor.ts";
 export type { FileIO } from "./capabilities/file-io.ts";
 export { FsFileIO } from "./capabilities/file-io.ts";
 export {
@@ -256,6 +257,7 @@ export {
   type ScriptSandboxRoot,
   type ScriptThreadResult,
 } from "./scripts/script-manager.ts";
+export * from "./server-session-host.ts";
 export {
   type PreparedThread,
   Session,

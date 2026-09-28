@@ -1,6 +1,7 @@
 import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
 import { v7 as uuidv7 } from "uuid";
 import type { AgentsMap } from "./agents/agents.ts";
+import type { EditorCapabilities } from "./capabilities/editor.ts";
 import type { FileIO } from "./capabilities/file-io.ts";
 import {
   type PendingViolation,
@@ -189,6 +190,9 @@ export class Session extends Emitter<SessionEvents> implements ThreadManager {
   /** Late-bound so scripts can be wired after construction, before any thread
    * exists. */
   scriptRunner: ScriptRunner | undefined;
+  /** The attached editor, if any. Read at preparation time, so attaching or
+   * detaching never changes existing threads. */
+  private editor: EditorCapabilities | undefined;
 
   /** Pending sandbox approvals per thread. Server state: they outlive any
    * attached view and are rejected when their thread is aborted or deleted. */
@@ -203,6 +207,18 @@ export class Session extends Emitter<SessionEvents> implements ThreadManager {
 
   constructor(private host: SessionHost) {
     super();
+  }
+
+  attachEditor(editor: EditorCapabilities): void {
+    this.editor = editor;
+  }
+
+  detachEditor(): void {
+    this.editor = undefined;
+  }
+
+  getEditor(): EditorCapabilities | undefined {
+    return this.editor;
   }
 
   getThread(id: ThreadId): Readonly<SessionThread> | undefined {

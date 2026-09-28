@@ -13,6 +13,7 @@ import {
   type ArchiveEntry,
   deleteArchivedThread,
   listArchivedThreads,
+  type ServerSessionHost,
   type Session,
   threadCreatedAt,
 } from "@magenta/server";
@@ -32,7 +33,6 @@ import type { HomeDir, NvimCwd } from "../utils/files.ts";
 import { shortenPath } from "../utils/files.ts";
 import { formatTokenCount } from "../utils/tokens.ts";
 import type { CommandRegistry } from "./commands/registry.ts";
-import type { NvimSessionHost } from "./session-host.ts";
 import { NvimThread } from "./thread.ts";
 import { renderYield, view as threadView } from "./thread-view.ts";
 
@@ -287,7 +287,7 @@ export class Chat {
     if (this.wrapper(id)) this.cursorThreadId = id;
   }
   readonly session: Session;
-  readonly host: NvimSessionHost;
+  readonly host: ServerSessionHost;
   /** View-local: the NvimThread wrapper per initialized thread. */
   private threadViews = new Map<ThreadId, NvimThread>();
   /** View-local: when the user last looked at each thread. */
@@ -319,7 +319,7 @@ export class Chat {
     },
     /** The session this view adapts. Magenta owns it; the view cache is
      * seeded from whatever records already exist. */
-    { session, host }: { session: Session; host: NvimSessionHost },
+    { session, host }: { session: Session; host: ServerSessionHost },
   ) {
     this.state = {
       state: "thread-overview",
@@ -410,12 +410,22 @@ export class Chat {
     if (record.state !== "initialized") return;
     let thread = this.threadViews.get(id);
     if (!thread) {
-      const prepared = this.host.contexts.get(id);
+      const prepared = this.host.getPrepared(id);
       // The host records a prepared context before the session registers the
       // thread, so an initialized record always has one.
       if (!prepared) return;
+      const { dispatch, getDisplayWidth, nvim, homeDir, commandRegistry } =
+        this.context;
       thread = new NvimThread(id, record.thread, record.compactor, {
         ...prepared,
+        dispatch,
+        getDisplayWidth,
+        nvim,
+        homeDir,
+        commandRegistry,
+        cwd: prepared.environment.cwd,
+        options: this.context.getOptions(),
+        mcpToolManager: this.host.mcpToolManager,
         chat: this,
       });
       this.threadViews.set(id, thread);

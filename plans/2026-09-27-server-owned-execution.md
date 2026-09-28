@@ -168,7 +168,14 @@ export interface MessageContext {
   - Tier A: deleting a thread rejects its pending approvals, and the tool result reports rejection.
   - A fork of a bypassed root is bypassed. Existing nvim tests for approval keymaps keep passing.
 
-## Server session host and editor attachment
+## Server session host and editor attachment ✅ done
+
+- Progress: `ServerSessionHost` (`node/server/src/server-session-host.ts`) performs all of the former `NvimSessionHost.prepare` (auto context, environments, system info/prompt, MCP manager, agents, fork/reflect handling, delivery-time resolution) and records a per-thread `PreparedThreadInfo` (`getPrepared(id)`) for views. `EditorCapabilities` (`node/server/src/capabilities/editor.ts`: `neovimVersion`, `createLspClient(cwd, homeDir)`, `luaExecutor`, optional `onFileWritten`) is attached with `Session.attachEditor`/`detachEditor` and read via `getEditor()` at preparation time only. `NvimSessionHost` is deleted; `node/nvimclient/chat/nvim-editor.ts` has `createNvimEditor` and the client `resolveSubmission`. `magenta.ts` constructs the server host and attaches the editor right after constructing `Magenta`, before the first thread. `Chat` builds `NvimThreadContext` from `host.getPrepared(id)` plus its own client context (`cwd` is the thread environment's cwd).
+- Decisions:
+  - Things that move in later stages are injected into the host: `getOptions` (typed as the structural `ServerHostOptions` subset, satisfied by `MagentaOptions`), `getProvider` (stage 6) and `resolveSubmission(message, { cwd, homeDir, getContextFiles, canCompact })` (stage 5; the client still runs `CommandRegistry`).
+  - With no editor, the system info reports `neovimVersion: "none (no editor attached)"`. The editor's version is evaluated once at attach time instead of per thread.
+  - Buffer reload after writes (`onFileWritten`) is an optional editor capability, resolved against Neovim's cwd.
+  - Tests: `node/server/src/server-session-host.test.ts` (tmp dir cwd for the real local git client, `InMemoryFileIO` via the `fileIO` thread option): no-editor thread lacks `hover`, edits a file with `edl`; attaching later only affects new threads; detaching mid-stream does not abort the submission.
 
 - Goal: `ServerSessionHost` lives in the server and performs all of today's `prepare` except editor collaborators, which come from `session.attachEditor`. `NvimSessionHost` is deleted; `magenta.ts` constructs the server host and attaches the editor.
 - Tests:

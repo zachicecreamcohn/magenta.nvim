@@ -1,9 +1,10 @@
 import { pendingMessage } from "@magenta/server";
 import { describe, expect, it } from "vitest";
-import { type PreparedNvimContext, resolveSubmission } from "./session-host.ts";
+import { resolveSubmission, type SubmissionCommands } from "./nvim-editor.ts";
 
 const fileContent = { type: "text" as const, text: "contents of foo.ts" };
 const context = {
+  getOptions: () => ({}),
   commandRegistry: {
     processMessage: async (text: string) => ({
       processedText: text,
@@ -11,15 +12,14 @@ const context = {
       reminders: [],
     }),
   },
-  environment: { cwd: "/", homeDir: "/" },
-} as unknown as PreparedNvimContext;
+} as unknown as SubmissionCommands;
 const resolve = (text: string, canCompact: boolean) =>
-  resolveSubmission(
-    pendingMessage(text),
-    context,
-    () => ({}) as never,
+  resolveSubmission(pendingMessage(text), context, {
+    cwd: "/" as never,
+    homeDir: "/" as never,
+    getContextFiles: () => ({}) as never,
     canCompact,
-  );
+  });
 
 describe("resolveSubmission", () => {
   it("expands the rest of an @compact into the compact handoff", async () => {

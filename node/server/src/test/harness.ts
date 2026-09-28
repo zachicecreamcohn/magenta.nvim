@@ -127,7 +127,7 @@ export const defaultHarnessResolve: HarnessResolve = async (
 
 const stubLsp = {} as LspClient;
 
-/** A node-only SessionHost: the same preparation steps as `NvimSessionHost`
+/** A node-only SessionHost: the same preparation steps as `ServerSessionHost`
  * (auto-context, hierarchy discovery, system info/prompt, fork inheritance,
  * delivery-time resolution) over in-memory collaborators. */
 export class TestSessionHost implements SessionHost {

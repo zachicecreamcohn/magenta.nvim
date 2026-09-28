@@ -14,6 +14,7 @@ import {
   renderThreadLogToMarkdown,
   type Sandbox,
   ScriptManager,
+  ServerSessionHost,
   Session,
   StraceUnavailableError,
   type ThreadId,
@@ -30,12 +31,12 @@ import {
 import { Lsp } from "./capabilities/lsp.ts";
 import { Chat } from "./chat/chat.ts";
 import { CommandRegistry } from "./chat/commands/registry.ts";
+import { createNvimEditor, resolveSubmission } from "./chat/nvim-editor.ts";
 import { sliceDisplayBufferSelection } from "./chat/reflect-anchor.ts";
 import {
   ReflectionsOverview,
   reflectionRoot,
 } from "./chat/reflections-overview.ts";
-import { NvimSessionHost } from "./chat/session-host.ts";
 import type { NvimThread } from "./chat/thread.ts";
 import {
   type BufNr,
@@ -72,6 +73,7 @@ import {
   parseOptions,
 } from "./options.ts";
 import { DynamicOptionsLoader } from "./options-loader.ts";
+import { getProvider } from "./providers/provider.ts";
 import type { RootMsg, SidebarMsg } from "./root-msg.ts";
 import { ScriptController } from "./scripts/script-manager.ts";
 import {
@@ -168,8 +170,8 @@ export class Magenta {
   public bufferManager: BufferManager;
   /** The one implicit session: the authoritative thread registry. */
   public session: Session;
-  /** Editor-backed preparation/approval collaborators for that session. */
-  public host: NvimSessionHost;
+  /** Server-side thread preparation for that session. */
+  public host: ServerSessionHost;
   public chat: Chat;
   /** Session-owned script execution. */
   public scripts: ScriptManager;
@@ -323,9 +325,23 @@ export class Magenta {
       lsp: this.lsp,
       sandbox: this.sandbox,
     };
-    this.host = new NvimSessionHost({
-      ...hostContext,
+    this.host = new ServerSessionHost({
+      logger: this.nvim.logger,
       cwd: threadCwdFromNvimCwd(this.cwd),
+      homeDir: this.homeDir,
+      sandbox: this.sandbox,
+      getOptions: () => this.options,
+      getProvider: (profile) => getProvider(this.nvim, profile),
+      resolveSubmission: (message, context) =>
+        resolveSubmission(
+          message,
+          {
+            nvim: this.nvim,
+            commandRegistry: this.commandRegistry,
+            getOptions: () => this.options,
+          },
+          context,
+        ),
     });
     this.session = new Session(this.host);
     this.chat = new Chat(
@@ -1899,6 +1915,9 @@ ${lines.join("\n")}
       optionsLoader,
       sandbox,
       bufferManager,
+    );
+    magenta.session.attachEditor(
+      await createNvimEditor({ nvim, lsp, cwd, homeDir: resolvedHomeDir }),
     );
 
     // Create the first thread eagerly so there's always an active thread

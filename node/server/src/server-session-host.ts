@@ -1,0 +1,377 @@
+import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
+import { loadAgents } from "./agents/agents.ts";
+import { FsFileIO } from "./capabilities/file-io.ts";
+import type { GitState } from "./capabilities/git-client.ts";
+import { NoopLspClient } from "./capabilities/noop-lsp-client.ts";
+import type { SubagentConfig, ThreadId } from "./chat-types.ts";
+import {
+  autoContextFilesToInitialFiles,
+  discoverHierarchyContext,
+  resolveAutoContext,
+} from "./context/auto-context.ts";
+import { buildSystemInfo } from "./context/system-info.ts";
+import {
+  createDockerEnvironment,
+  createLocalEnvironment,
+  type Environment,
+  environmentCapabilities,
+} from "./environment.ts";
+import type { Logger } from "./logger.ts";
+import type { ProviderOptions, ProviderProfile } from "./provider-options.ts";
+import type { Provider } from "./providers/provider-types.ts";
+import {
+  createSystemPrompt,
+  type SystemInfo,
+  type SystemPrompt,
+} from "./providers/system-prompt.ts";
+import type { SandboxConfig } from "./sandbox-config.ts";
+import type { Sandbox } from "./sandbox-manager.ts";
+import type {
+  PreparedThread,
+  Session,
+  SessionHost,
+  ThreadPreparation,
+} from "./session.ts";
+import type { PendingMessage, ResolvedSubmission } from "./submission/index.ts";
+import { buildLoadedFiles, type Files } from "./supervisors/file-supervisor.ts";
+import type { ContextFileAccess, EnvironmentConfig } from "./thread.ts";
+import { ABORTED, type Aborted } from "./thread-api.ts";
+import type { PreparedThreadContext } from "./thread-assembly.ts";
+import { clientToolCreator } from "./tools/create-tool.ts";
+import { MCPToolManager } from "./tools/mcp/manager.ts";
+import type { MCPServersConfig } from "./tools/mcp/options.ts";
+import type { Task } from "./utils/async.ts";
+import type { Cwd, HomeDir } from "./utils/files.ts";
+
+/** The options the server host consumes. */
+export type ServerHostOptions = ProviderOptions & {
+  profiles: ProviderProfile[];
+  activeProfile: string;
+  sandbox: SandboxConfig;
+  autoContext: string[];
+  hierarchyContextFileNames: string[];
+  maxConcurrentSubagents: number;
+  maxConcurrentFastSubagents: number;
+  dockerfile?: string;
+  autoCompactThreshold: number;
+  autoCompactPrompt: string;
+  mcpServers: MCPServersConfig;
+};
+
+export type ResolveSubmissionContext = {
+  cwd: Cwd;
+  homeDir: HomeDir;
+  getContextFiles: () => ContextFileAccess;
+  /** A compact thread has no compactor, so `@compact` is ordinary text. */
+  canCompact: boolean;
+};
+
+export type ServerSessionHostContext = {
+  logger: Logger;
+  /** Default cwd for threads created without an explicit one. */
+  cwd: Cwd;
+  homeDir: HomeDir;
+  sandbox: Sandbox;
+  getOptions: () => ServerHostOptions;
+  getProvider: (profile: ProviderProfile) => Provider;
+  resolveSubmission: (
+    message: PendingMessage,
+    context: ResolveSubmissionContext,
+  ) => Promise<ResolvedSubmission>;
+};
+
+/** What preparation produced for one thread, for views that present it. */
+export type PreparedThreadInfo = {
+  profile: ProviderProfile;
+  environment: Environment;
+  initialFiles?: Files;
+  initialGitState?: GitState | undefined;
+  subagentConfig?: SubagentConfig;
+  systemInfo: SystemInfo;
+  yieldSchema?: JSONSchemaType;
+  scriptName?: string;
+};
+
+/** Auto/hierarchy context is discovered on the host filesystem, independent of
+ * a thread's (possibly sandboxed or docker) fileIO. */
+const hostFileIO = new FsFileIO();
+
+/** Prepares threads with server-owned execution. Editor collaborators (LSP,
+ * lua, buffer reloads) come from whatever editor is attached to the session
+ * at preparation time. */
+export class ServerSessionHost implements SessionHost {
+  private readonly prepared = new Map<ThreadId, PreparedThreadInfo>();
+  readonly mcpToolManager: MCPToolManager;
+
+  constructor(private context: ServerSessionHostContext) {
+    this.mcpToolManager = new MCPToolManager(context.getOptions().mcpServers, {
+      logger: context.logger,
+    });
+  }
+
+  getPrepared(id: ThreadId): PreparedThreadInfo | undefined {
+    return this.prepared.get(id);
+  }
+
+  getActiveProfile(): ProviderProfile {
+    const options = this.context.getOptions();
+    const profile = options.profiles.find(
+      (p) => p.name === options.activeProfile,
+    );
+    if (!profile) {
+      throw new Error(
+        `Profile ${options.activeProfile} not found in profiles: ${JSON.stringify(options.profiles)}`,
+      );
+    }
+    return profile;
+  }
+
+  getAgents() {
+    return loadAgents({
+      cwd: this.context.cwd,
+      logger: this.context.logger,
+      options: this.context.getOptions(),
+    });
+  }
+
+  getProvider(profile: ProviderProfile) {
+    return this.context.getProvider(profile);
+  }
+
+  prepareThread(
+    request: ThreadPreparation,
+    session: Session,
+  ): Task<PreparedThread | Aborted> {
+    let aborted = false;
+    return {
+      promise: this.prepare(request, session, () => aborted),
+      abort: () => {
+        aborted = true;
+      },
+    };
+  }
+
+  /** Aborts are only honored before any resources are acquired; after that the
+   * session discards the prepared thread and calls its `release`. */
+  private async prepare(
+    request: ThreadPreparation,
+    session: Session,
+    isAborted: () => boolean,
+  ): Promise<PreparedThread | Aborted> {
+    const { options } = request;
+    const source = request.type === "fork" ? request.source : undefined;
+    const {
+      threadId,
+      profile,
+      threadType,
+      subagentConfig,
+      fileIO,
+      environmentConfig,
+      yieldSchema,
+      scriptName,
+    } = options;
+    if (isAborted()) return ABORTED;
+    const hostOptions = this.context.getOptions();
+    const { logger, homeDir } = this.context;
+    const editor = session.getEditor();
+    const resolvedConfig: EnvironmentConfig = environmentConfig ?? {
+      type: "local",
+    };
+    const localCwd =
+      resolvedConfig.type === "local"
+        ? (resolvedConfig.cwd ?? this.context.cwd)
+        : this.context.cwd;
+
+    const [autoContextFiles, environment] = await Promise.all([
+      // auto-context is discovered against the host filesystem, so it is
+      // meaningless for a thread whose fileIO is a sandbox that doesn't contain
+      // those paths - they would immediately be reported as deleted. A fork
+      // inherits the source's context instead of resolving its own.
+      fileIO || source || request.type === "reflect"
+        ? Promise.resolve([])
+        : resolveAutoContext({
+            fileIO: hostFileIO,
+            logger,
+            cwd: this.context.cwd,
+            homeDir,
+            globs: hostOptions.autoContext,
+          }),
+      resolvedConfig.type === "docker"
+        ? createDockerEnvironment({
+            container: resolvedConfig.container,
+            cwd: resolvedConfig.cwd,
+            threadId,
+          })
+        : Promise.resolve(
+            createLocalEnvironment({
+              logger,
+              cwd: localCwd,
+              homeDir,
+              getSandboxConfig: () => this.context.getOptions().sandbox,
+              ...(editor
+                ? {
+                    lspClient: editor.createLspClient(localCwd, homeDir),
+                    luaExecutor: editor.luaExecutor,
+                    onFileWritten: editor.onFileWritten?.bind(editor),
+                  }
+                : {}),
+              threadId,
+              sandbox: this.context.sandbox,
+              approvals: session.approvalsFor(threadId),
+              isBypassed: () => session.isSandboxBypassed(threadId),
+            }),
+          ),
+      session.scriptRunner?.discover(),
+    ]);
+
+    if (fileIO) {
+      environment.fileIO = fileIO;
+      environment.sandboxViolationHandler = undefined;
+    }
+
+    const initialGitState = source
+      ? undefined
+      : await environment.gitClient.getState();
+
+    const systemInfo =
+      source?.systemInfo ??
+      buildSystemInfo({
+        cwd: environment.cwd,
+        neovimVersion: editor?.neovimVersion ?? "none (no editor attached)",
+        overrides: {
+          git: initialGitState,
+          ...(resolvedConfig.type === "docker"
+            ? { platform: "linux (docker)", cwd: environment.cwd }
+            : {}),
+        },
+      });
+
+    // A fork continues the source's conversation, so it keeps its prompt.
+    const systemPrompt =
+      source?.systemPrompt ??
+      (await createSystemPrompt(threadType, {
+        logger,
+        cwd: environment.cwd,
+        options: hostOptions,
+        fileIO: environment.fileIO,
+        homeDir: environment.homeDir,
+        ...(subagentConfig ? { subagentConfig } : {}),
+      }));
+
+    const info: PreparedThreadInfo = {
+      profile,
+      environment,
+      initialFiles:
+        request.type === "reflect"
+          ? buildLoadedFiles(
+              request.source.contextFiles.files,
+              request.loadedContextFiles,
+            )
+          : autoContextFilesToInitialFiles(autoContextFiles),
+      initialGitState,
+      systemInfo,
+      ...(subagentConfig ? { subagentConfig } : {}),
+      ...(yieldSchema ? { yieldSchema } : {}),
+      ...(scriptName ? { scriptName } : {}),
+    };
+    this.prepared.set(threadId, info);
+
+    return {
+      context: this.threadContext(
+        threadId,
+        systemPrompt,
+        info,
+        hostOptions,
+        session,
+        threadType !== "compact",
+      ),
+      autoCompactThreshold: hostOptions.autoCompactThreshold,
+      autoCompactPrompt: hostOptions.autoCompactPrompt,
+      release: async () => {
+        environment.sandboxViolationHandler?.rejectAll();
+        this.prepared.delete(threadId);
+      },
+    };
+  }
+
+  /** Server-typed collaborators. Conversation kind, supervisors and the
+   * compactor belong to server-side assembly. */
+  private threadContext(
+    id: ThreadId,
+    systemPrompt: SystemPrompt,
+    info: PreparedThreadInfo,
+    options: ServerHostOptions,
+    session: Session,
+    canCompact: boolean,
+  ): PreparedThreadContext {
+    const { logger } = this.context;
+    const env = info.environment;
+    const { cwd, homeDir } = env;
+    const getAgents = () => loadAgents({ cwd, logger, options });
+    const getScriptRunner = () => session.scriptRunner;
+    return {
+      logger,
+      profile: info.profile,
+      cwd,
+      homeDir,
+      ...(info.initialFiles ? { initialFiles: info.initialFiles } : {}),
+      ...(info.initialGitState
+        ? { initialGitState: info.initialGitState }
+        : {}),
+      ...(info.subagentConfig ? { subagentConfig: info.subagentConfig } : {}),
+      systemPrompt,
+      systemInfo: info.systemInfo,
+      mcpToolManager: this.mcpToolManager,
+      threadManager: session,
+      getScriptRunner,
+      fileIO: env.fileIO,
+      gitClient: env.gitClient,
+      discoverHierarchy: (absFilePath) =>
+        discoverHierarchyContext(absFilePath, {
+          fileIO: hostFileIO,
+          logger,
+          cwd,
+          homeDir,
+          hierarchyContextFileNames: options.hierarchyContextFileNames,
+        }),
+      clientToolCreator: clientToolCreator({
+        logger,
+        lspClient: env.lspClient ?? new NoopLspClient(),
+        ...(env.luaExecutor !== undefined
+          ? { luaExecutor: env.luaExecutor }
+          : {}),
+        mcpToolManager: this.mcpToolManager,
+        cwd,
+        homeDir,
+        maxConcurrentSubagents: options.maxConcurrentSubagents || 3,
+        maxConcurrentFastSubagents: options.maxConcurrentFastSubagents || 8,
+        fileIO: env.fileIO,
+        shell: env.shell,
+        threadManager: session,
+        getScriptRunner,
+        getAgents,
+      }),
+      availableCapabilities: environmentCapabilities(env),
+      environmentConfig: env.environmentConfig,
+      ...(options.dockerfile ? { subagentDockerfile: options.dockerfile } : {}),
+      ...(info.yieldSchema ? { yieldSchema: info.yieldSchema } : {}),
+      getAgents,
+      provider: this.context.getProvider(info.profile),
+      // Resolved at delivery time against the session's current handle, never
+      // a retired core.
+      resolve: (message: PendingMessage) =>
+        this.context.resolveSubmission(message, {
+          cwd,
+          homeDir,
+          canCompact,
+          getContextFiles: () => {
+            const record = session.getThread(id);
+            if (record?.state !== "initialized") {
+              throw new Error(`Thread ${id} is no longer available`);
+            }
+            return record.thread.contextFiles;
+          },
+        }),
+    };
+  }
+}
