@@ -115,12 +115,9 @@ export type MCPServerConfig =
       tools?: MCPMockToolConfig[];
     };
 
-export type CustomCommand = {
-  name: string;
-  text: string;
-  description?: string;
-  systemReminder?: string;
-};
+export type { CustomCommand } from "@magenta/server";
+
+import type { CustomCommand } from "@magenta/server";
 
 export type HSplitWindowDimensions = {
   displayHeightPercentage: number;

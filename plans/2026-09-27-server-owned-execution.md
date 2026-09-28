@@ -184,7 +184,15 @@ export interface MessageContext {
   - Tier A: attaching an editor after creation does not change an existing thread's tool specs, but new threads get the lsp tools.
   - Tier A: detaching the editor mid-turn does not abort the running submission.
 
-## Split submission resolution
+## Split submission resolution ✅ done
+
+- Progress: `CommandRegistry`, `Command`/`MessageContext`/`CustomCommand` types and the `@file:`, `@diff:`, `@staged:`, `@implementplan`, `@compact` commands live in `node/server/src/submission/commands/`; `resolveSubmission` (`node/server/src/submission/resolve.ts`) builds a registry per delivery from `getOptions().customCommands` and is called directly by `ServerSessionHost` (the injected `resolveSubmission` context field is gone; `customCommands` joined `ServerHostOptions`). The client's `expandEditorCommands` (`node/nvimclient/chat/commands/editor-commands.ts`) runs in `Magenta.preprocessAndSend` after `parseDelivery`: it rewrites every `@file:` to an absolute `formatFileRef` path against `NvimCwd` and appends `@buf`/`@buffers`/`@qf`/`@quickfix`/`@diag`/`@diagnostics` expansions (`Current <label>:\n...`) to the submitted text. `CommandRegistry` is gone from `Magenta`, `Chat` and `NvimThread`.
+- Decisions:
+  - Editor expansions are appended to the message text (separated by blank lines) instead of separate content blocks, and are captured at submit time rather than delivery time, since the server cannot reach the editor. Tier-C tests in `chat/thread.test.ts` updated accordingly (3 content blocks; relative `@file:` becomes absolute in the submitted text).
+  - `@file:` type detection uses `detectFileTypeViaFileIO` with the thread's `fileIO` (`MessageContext.fileIO`), so sandbox/docker/in-memory threads resolve through their own fileIO. `MessageContext` carries a `Logger` instead of `nvim`, and no `options`.
+  - `@diff:`/`@staged:` use `execFile("git", ["diff", "--", path])` in the thread cwd instead of `zx` (not a server dependency).
+  - Tests: `registry.test.ts` moved to the server (editor-command cases now use `@implementplan`/custom commands); `server-session-host.test.ts` "submission resolution": `@file:` adds context through `InMemoryFileIO` and custom commands expand, missing file error text, `@diff:` in a real tmp git repo. `chat/resolve-submission.test.ts` was deleted (its `@compact` cases are covered by `thread-compact.test.ts`).
+
 
 - Goal: The fs/git commands and their registry move to the server resolver. The client pre-expands editor commands into text and makes `@file:` paths absolute before submitting.
 - Tests:

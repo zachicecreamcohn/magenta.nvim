@@ -267,6 +267,12 @@ export {
   type SessionThread,
   type ThreadPreparation,
 } from "./session.ts";
+export { CommandRegistry } from "./submission/commands/registry.ts";
+export type {
+  Command,
+  CustomCommand,
+  MessageContext,
+} from "./submission/commands/types.ts";
 export {
   type Delivery,
   type ExpandedPrompt,
@@ -286,6 +292,10 @@ export type {
   QueueEntry,
   Queues,
 } from "./submission/mailbox.ts";
+export {
+  type ResolveSubmissionContext,
+  resolveSubmission,
+} from "./submission/resolve.ts";
 export {
   buildClonedFiles,
   buildLoadedFiles,

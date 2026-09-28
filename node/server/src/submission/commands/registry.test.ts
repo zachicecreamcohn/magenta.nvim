@@ -1,25 +1,11 @@
 import os from "node:os";
-import type { FileSupervisor } from "@magenta/server";
 import { describe, expect, it, vi } from "vitest";
-import type { Nvim } from "../../nvim/nvim-node/index.ts";
-import type { MagentaOptions } from "../../options.ts";
+import { InMemoryFileIO } from "../../edl/in-memory-file-io.ts";
+import { noopLogger } from "../../test-helpers.ts";
+import type { ContextFileAccess } from "../../thread.ts";
 import type { Cwd, HomeDir } from "../../utils/files.ts";
 import { CommandRegistry } from "./registry.ts";
 import type { MessageContext } from "./types.ts";
-
-// Mock the dependencies used by commands
-vi.mock("../../utils/diagnostics.ts", () => ({
-  getDiagnostics: vi.fn().mockResolvedValue("Mock diagnostics content"),
-}));
-
-vi.mock("../../nvim/nvim.ts", () => ({
-  getQuickfixList: vi.fn().mockResolvedValue([]),
-  quickfixListToString: vi.fn().mockResolvedValue("Mock quickfix content"),
-}));
-
-vi.mock("../../utils/listBuffers.ts", () => ({
-  getBuffersList: vi.fn().mockResolvedValue("Mock buffers list"),
-}));
 
 vi.mock("../../utils/files.ts", async (importOriginal) => {
   const actual =
@@ -34,36 +20,20 @@ vi.mock("../../utils/files.ts", async (importOriginal) => {
       .mockImplementation((_cwd, path: string) =>
         path.replace("/resolved/", ""),
       ),
-    detectFileType: vi.fn().mockResolvedValue({ type: "file" }),
+    detectFileTypeViaFileIO: vi.fn().mockResolvedValue({ type: "file" }),
   };
 });
-
-vi.mock("zx", () => ({
-  $: vi.fn(),
-  within: vi.fn().mockImplementation((_fn) => {
-    return {
-      stdout: "Mock diff content",
-      stderr: "",
-    };
-  }),
-}));
 
 const createMockContext = (): MessageContext => {
   const updateFn = vi.fn();
   return {
-    nvim: {
-      logger: {
-        error: vi.fn(),
-      },
-    } as unknown as Nvim,
+    logger: noopLogger,
+    fileIO: new InMemoryFileIO({}),
     cwd: "/test" as Cwd,
     homeDir: os.homedir() as HomeDir,
     fileSupervisor: {
       addFileContext: updateFn,
-    } as unknown as FileSupervisor,
-    options: {
-      customCommands: [],
-    } as unknown as MagentaOptions,
+    } as unknown as ContextFileAccess,
   };
 };
 
@@ -72,25 +42,29 @@ describe("CommandRegistry", () => {
     const registry = new CommandRegistry();
     const context = createMockContext();
 
-    const result = await registry.processMessage("@diag some text", context);
+    const result = await registry.processMessage(
+      "@implementplan some text",
+      context,
+    );
 
     // Commands should NOT be removed from text (preserves original behavior)
-    expect(result.processedText).toBe("@diag some text");
+    expect(result.processedText).toBe("@implementplan some text");
     // Should have added diagnostic content
     expect(result.additionalContent.length).toBeGreaterThan(0);
   });
 
   it("should handle multiple commands in one message", async () => {
     const registry = new CommandRegistry();
+    registry.registerCustomCommand({ name: "@custom", text: "Custom" });
     const context = createMockContext();
 
     const result = await registry.processMessage(
-      "@diag @qf some text",
+      "@implementplan @custom some text",
       context,
     );
 
     // Commands should NOT be removed from text
-    expect(result.processedText).toBe("@diag @qf some text");
+    expect(result.processedText).toBe("@implementplan @custom some text");
     // Should have content from both commands
     expect(result.additionalContent.length).toBeGreaterThan(1);
   });
@@ -149,14 +123,17 @@ describe("CommandRegistry", () => {
 
     // Register a custom command that could overlap
     registry.registerCustomCommand({
-      name: "@di",
+      name: "@impl",
       text: "Short command",
     });
 
-    const result = await registry.processMessage("@diag test", context);
+    const result = await registry.processMessage(
+      "@implementplan test",
+      context,
+    );
 
     // Should match @diag, not @di (commands not removed)
-    expect(result.processedText).toBe("@diag test");
+    expect(result.processedText).toBe("@implementplan test");
     // Should have diagnostic content, not custom command content
     expect(result.additionalContent.length).toBeGreaterThan(0);
     expect(result.additionalContent[0].type).toBe("text");
@@ -164,7 +141,7 @@ describe("CommandRegistry", () => {
       type: string;
       text: string;
     };
-    expect(textContent.text).toContain("diagnostics");
+    expect(textContent.text).toContain("Implement the current plan");
   });
 
   it("should escape special regex characters in custom command names", async () => {
@@ -262,7 +239,10 @@ describe("CommandRegistry", () => {
     const registry = new CommandRegistry();
     const context = createMockContext();
 
-    const result = await registry.processMessage("@diag some text", context);
+    const result = await registry.processMessage(
+      "@file:a.ts some text",
+      context,
+    );
 
     expect(result.reminders).toEqual([]);
   });

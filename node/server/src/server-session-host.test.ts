@@ -1,7 +1,9 @@
+import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { promisify } from "node:util";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EditorCapabilities } from "./capabilities/editor.ts";
 import { NoopLspClient } from "./capabilities/noop-lsp-client.ts";
 import { InMemoryFileIO } from "./edl/in-memory-file-io.ts";
@@ -45,6 +47,7 @@ const options: ServerHostOptions = {
   autoCompactThreshold: 100000,
   autoCompactPrompt: "compact",
   mcpServers: {},
+  customCommands: [{ name: "@hi", text: "custom text" }],
 };
 const editor: EditorCapabilities = {
   neovimVersion: "999",
@@ -69,10 +72,6 @@ beforeEach(async () => {
     sandbox: new MockSandboxManager(),
     getOptions: () => options,
     getProvider: () => provider,
-    resolveSubmission: async (message) => ({
-      type: "send",
-      prompt: { content: [{ type: "text", text: message }], reminders: [] },
-    }),
   });
   session = new Session(host);
 });
@@ -181,4 +180,60 @@ it("wires editor capabilities into threads with the thread's cwd", async () => {
   await runEdit(after.thread, "bye", "again");
   expect(onFileWritten).toHaveBeenCalledWith(file);
   expect(await readFile(file, "utf8")).toBe("again");
+});
+
+describe("submission resolution", () => {
+  const userText = (stream: {
+    messages: { role: string; content: unknown }[];
+  }) => JSON.stringify(stream.messages.filter((m) => m.role === "user"));
+
+  it("adds @file: context through the thread's fileIO and expands custom commands", async () => {
+    const thread = await createThread();
+    const abs = path.join(dir, "a.txt");
+    const done = thread.submit({
+      type: "raw",
+      message: pendingMessage(`look @file:${abs} @hi`),
+    });
+    const stream = await awaitNextStream(mockClient, undefined);
+    expect(thread.contextFiles.files[abs as AbsFilePath]).toBeDefined();
+    expect(userText(stream)).toContain("custom text");
+    stream.finishResponse("end_turn");
+    await done;
+  });
+
+  it("reports a missing @file:", async () => {
+    const thread = await createThread();
+    const missing = path.join(dir, "missing.txt");
+    const done = thread.submit({
+      type: "raw",
+      message: pendingMessage(`@file:${missing}`),
+    });
+    const stream = await awaitNextStream(mockClient, undefined);
+    expect(userText(stream)).toContain(
+      `Error adding file to context for ${missing}: File ${missing} does not exist`,
+    );
+    stream.finishResponse("end_turn");
+    await done;
+  });
+
+  it("expands @diff in a real git repo", async () => {
+    const git = (...args: string[]) =>
+      promisify(execFile)("git", args, { cwd: dir });
+    await git("init", "-q");
+    await git("config", "user.email", "t@t");
+    await git("config", "user.name", "t");
+    await writeFile(path.join(dir, "d.txt"), "one\n");
+    await git("add", ".");
+    await git("commit", "-qm", "init");
+    await writeFile(path.join(dir, "d.txt"), "two\n");
+    const thread = await createThread();
+    const done = thread.submit({
+      type: "raw",
+      message: pendingMessage("@diff:d.txt"),
+    });
+    const stream = await awaitNextStream(mockClient, undefined);
+    expect(userText(stream)).toContain("+two");
+    stream.finishResponse("end_turn");
+    await done;
+  });
 });

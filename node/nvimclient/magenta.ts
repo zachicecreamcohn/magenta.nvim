@@ -7,6 +7,7 @@ import {
   isThreadId,
   type NativeMessageIdx,
   parseDelivery,
+  pendingMessage,
   probeAndSaveClipboardImage,
   type ReflectAnchor,
   readArchivedThreadLog,
@@ -30,8 +31,8 @@ import {
 } from "./buffer-manager.ts";
 import { Lsp } from "./capabilities/lsp.ts";
 import { Chat } from "./chat/chat.ts";
-import { CommandRegistry } from "./chat/commands/registry.ts";
-import { createNvimEditor, resolveSubmission } from "./chat/nvim-editor.ts";
+import { expandEditorCommands } from "./chat/commands/editor-commands.ts";
+import { createNvimEditor } from "./chat/nvim-editor.ts";
 import { sliceDisplayBufferSelection } from "./chat/reflect-anchor.ts";
 import {
   ReflectionsOverview,
@@ -178,7 +179,6 @@ export class Magenta {
   /** The editor-side view of it. */
   public scriptManager: ScriptController;
   public dispatch: Dispatch<RootMsg>;
-  public commandRegistry: CommandRegistry;
   public optionsLoader: DynamicOptionsLoader;
   public activeBuffers: { displayBuffer: NvimBuffer; inputBuffer: NvimBuffer };
   private suppressDispatchRender = false;
@@ -193,12 +193,6 @@ export class Magenta {
     bufferManager: BufferManager,
   ) {
     this.optionsLoader = optionsLoader;
-    this.commandRegistry = new CommandRegistry();
-    if (this.options.customCommands) {
-      for (const customCommand of this.options.customCommands) {
-        this.commandRegistry.registerCustomCommand(customCommand);
-      }
-    }
 
     this.dispatch = (msg: RootMsg) => {
       try {
@@ -310,7 +304,6 @@ export class Magenta {
 
     const hostContext = {
       dispatch: this.dispatch,
-      commandRegistry: this.commandRegistry,
       getDisplayWidth: () => {
         if (this.sidebar.state.state === "visible") {
           return this.sidebar.state.displayWidth;
@@ -332,16 +325,6 @@ export class Magenta {
       sandbox: this.sandbox,
       getOptions: () => this.options,
       getProvider: (profile) => getProvider(this.nvim, profile),
-      resolveSubmission: (message, context) =>
-        resolveSubmission(
-          message,
-          {
-            nvim: this.nvim,
-            commandRegistry: this.commandRegistry,
-            getOptions: () => this.options,
-          },
-          context,
-        ),
     });
     this.session = new Session(this.host);
     this.chat = new Chat(
@@ -1938,17 +1921,26 @@ ${lines.join("\n")}
 
   /** Parse *when* the user's text should go out and hand it to the thread,
    * which resolves the rest of it — `@compact` included — at delivery. */
-  private preprocessAndSend(threadId: ThreadId, text: string): Promise<void> {
-    const submission = parseDelivery(text);
+  private async preprocessAndSend(
+    threadId: ThreadId,
+    text: string,
+  ): Promise<void> {
+    const { delivery, message } = parseDelivery(text);
+    const submission = {
+      delivery,
+      message: pendingMessage(
+        await expandEditorCommands(message, {
+          nvim: this.nvim,
+          cwd: this.cwd,
+          homeDir: this.homeDir,
+        }),
+      ),
+    };
     this.dispatch({
       type: "thread-msg",
       id: threadId,
       msg: { type: "submit-message", submission },
     });
-    // The submission's own work (resolving commands, aborting an in-flight
-    // request) is kicked off by the dispatch; yield a tick so callers see it
-    // started before `send` returns.
-    return Promise.resolve();
   }
 }
 

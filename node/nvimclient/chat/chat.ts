@@ -32,7 +32,6 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { HomeDir, NvimCwd } from "../utils/files.ts";
 import { shortenPath } from "../utils/files.ts";
 import { formatTokenCount } from "../utils/tokens.ts";
-import type { CommandRegistry } from "./commands/registry.ts";
 import { NvimThread } from "./thread.ts";
 import { renderYield, view as threadView } from "./thread-view.ts";
 
@@ -314,8 +313,6 @@ export class Chat {
       sandbox: Sandbox;
       removeThreadBuffers?: (ids: ThreadId[]) => void;
       removeArchivedThreadBuffers: (ids: ThreadId[]) => void;
-      /** Expands `@file:`, `@diff`, ... when a submission is delivered. */
-      commandRegistry: CommandRegistry;
     },
     /** The session this view adapts. Magenta owns it; the view cache is
      * seeded from whatever records already exist. */
@@ -411,15 +408,13 @@ export class Chat {
     let thread = this.threadViews.get(id);
     if (!thread) {
       const prepared = this.host.getPrepared(id);
-      const { dispatch, getDisplayWidth, nvim, homeDir, commandRegistry } =
-        this.context;
+      const { dispatch, getDisplayWidth, nvim, homeDir } = this.context;
       thread = new NvimThread(id, record.thread, record.compactor, {
         ...prepared,
         dispatch,
         getDisplayWidth,
         nvim,
         homeDir,
-        commandRegistry,
         cwd: prepared.environment.cwd,
         options: this.context.getOptions(),
         mcpToolManager: this.host.mcpToolManager,

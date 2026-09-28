@@ -1,16 +1,24 @@
-import type { ContextFileAccess } from "@magenta/server";
-import type { Nvim } from "../../nvim/nvim-node/index.ts";
-import type { MagentaOptions } from "../../options.ts";
+import type { FileIO } from "../../capabilities/file-io.ts";
+import type { Logger } from "../../logger.ts";
 import type { AgentInput } from "../../providers/provider-types.ts";
+import type { ContextFileAccess } from "../../thread.ts";
 import type { Cwd, HomeDir } from "../../utils/files.ts";
 
 export interface MessageContext {
-  nvim: Nvim;
   cwd: Cwd;
   homeDir: HomeDir;
+  /** The thread's (possibly sandboxed or docker) fileIO. */
+  fileIO: FileIO;
   fileSupervisor: ContextFileAccess;
-  options: MagentaOptions;
+  logger: Logger;
 }
+
+export type CustomCommand = {
+  name: string;
+  text: string;
+  description?: string;
+  systemReminder?: string;
+};
 
 export interface Command {
   name: string;

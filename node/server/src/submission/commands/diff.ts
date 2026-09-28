@@ -1,4 +1,5 @@
-import { $, within } from "zx";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import type { AgentInput } from "../../providers/provider-types.ts";
 import type { Cwd, UnresolvedFilePath } from "../../utils/files.ts";
 import type { Command } from "./types.ts";
@@ -8,9 +9,8 @@ async function getGitDiff(
   cwd: Cwd,
 ): Promise<string> {
   try {
-    const result = await within(async () => {
-      $.cwd = cwd;
-      return await $`git diff ${filePath}`;
+    const result = await promisify(execFile)("git", ["diff", "--", filePath], {
+      cwd,
     });
     return result.stdout || "(no unstaged changes)";
   } catch (error) {
@@ -25,10 +25,11 @@ async function getStagedDiff(
   cwd: Cwd,
 ): Promise<string> {
   try {
-    const result = await within(async () => {
-      $.cwd = cwd;
-      return await $`git diff --staged ${filePath}`;
-    });
+    const result = await promisify(execFile)(
+      "git",
+      ["diff", "--staged", "--", filePath],
+      { cwd },
+    );
     return result.stdout || "(no staged changes)";
   } catch (error) {
     throw new Error(
@@ -51,7 +52,7 @@ export const diffCommand: Command = {
         },
       ];
     } catch (error) {
-      context.nvim.logger.error(
+      context.logger.error(
         `Failed to fetch git diff for \`${filePath}\`: ${error instanceof Error ? error.message : String(error)}`,
       );
       return [
@@ -78,7 +79,7 @@ export const stagedCommand: Command = {
         },
       ];
     } catch (error) {
-      context.nvim.logger.error(
+      context.logger.error(
         `Failed to fetch staged diff for \`${filePath}\`: ${error instanceof Error ? error.message : String(error)}`,
       );
       return [

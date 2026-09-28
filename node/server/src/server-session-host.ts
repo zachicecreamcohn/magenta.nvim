@@ -32,9 +32,11 @@ import type {
   SessionHost,
   ThreadPreparation,
 } from "./session.ts";
-import type { PendingMessage, ResolvedSubmission } from "./submission/index.ts";
+import type { CustomCommand } from "./submission/commands/types.ts";
+import type { PendingMessage } from "./submission/index.ts";
+import { resolveSubmission } from "./submission/resolve.ts";
 import { buildLoadedFiles, type Files } from "./supervisors/file-supervisor.ts";
-import type { ContextFileAccess, EnvironmentConfig } from "./thread.ts";
+import type { EnvironmentConfig } from "./thread.ts";
 import { ABORTED, type Aborted } from "./thread-api.ts";
 import type { PreparedThreadContext } from "./thread-assembly.ts";
 import { clientToolCreator } from "./tools/create-tool.ts";
@@ -56,14 +58,7 @@ export type ServerHostOptions = ProviderOptions & {
   autoCompactThreshold: number;
   autoCompactPrompt: string;
   mcpServers: MCPServersConfig;
-};
-
-export type ResolveSubmissionContext = {
-  cwd: Cwd;
-  homeDir: HomeDir;
-  getContextFiles: () => ContextFileAccess;
-  /** A compact thread has no compactor, so `@compact` is ordinary text. */
-  canCompact: boolean;
+  customCommands: CustomCommand[];
 };
 
 export type ServerSessionHostContext = {
@@ -74,10 +69,6 @@ export type ServerSessionHostContext = {
   sandbox: Sandbox;
   getOptions: () => ServerHostOptions;
   getProvider: (profile: ProviderProfile) => Provider;
-  resolveSubmission: (
-    message: PendingMessage,
-    context: ResolveSubmissionContext,
-  ) => Promise<ResolvedSubmission>;
 };
 
 /** What preparation produced for one thread, for views that present it. */
@@ -367,9 +358,12 @@ export class ServerSessionHost implements SessionHost {
       // Resolved at delivery time against the session's current handle, never
       // a retired core.
       resolve: (message: PendingMessage) =>
-        this.context.resolveSubmission(message, {
+        resolveSubmission(message, {
           cwd,
           homeDir,
+          fileIO: env.fileIO,
+          logger: this.context.logger,
+          customCommands: this.context.getOptions().customCommands,
           canCompact,
           getContextFiles: () => {
             const record = session.getThread(id);

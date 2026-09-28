@@ -39,7 +39,6 @@ import type {
 } from "../utils/files.ts";
 import { displayPath } from "../utils/files.ts";
 import type { Chat } from "./chat.ts";
-import type { CommandRegistry } from "./commands/registry.ts";
 import { notifyUser } from "./notify.ts";
 
 /** Trailing-edge coalescing window for Thread updates. Render cadence is a
@@ -219,7 +218,6 @@ export type NvimThreadContext = {
   initialGitState?: GitState | undefined;
   subagentConfig?: SubagentConfig;
   systemInfo: SystemInfo;
-  commandRegistry: CommandRegistry;
 };
 
 export class NvimThread {

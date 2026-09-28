@@ -2,7 +2,7 @@ import type { AgentInput } from "../../providers/provider-types.ts";
 import type { UnresolvedFilePath } from "../../utils/files.ts";
 import {
   AT_FILE_PATTERN,
-  detectFileType,
+  detectFileTypeViaFileIO,
   extractFileRefPath,
   relativePath,
   resolveFilePath,
@@ -25,7 +25,10 @@ export const fileCommand: Command = {
         absFilePath,
         context.homeDir,
       );
-      const fileTypeInfo = await detectFileType(absFilePath);
+      const fileTypeInfo = await detectFileTypeViaFileIO(
+        absFilePath,
+        context.fileIO,
+      );
 
       if (!fileTypeInfo) {
         throw new Error(`File ${filePath} does not exist`);
@@ -39,7 +42,7 @@ export const fileCommand: Command = {
 
       return []; // File context is handled by fileSupervisor
     } catch (error) {
-      context.nvim.logger.error(
+      context.logger.error(
         `Failed to add file to context for ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
       );
       return [
