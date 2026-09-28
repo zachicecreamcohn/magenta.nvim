@@ -1,32 +1,36 @@
 {
-  "blobSha": "efb5816c55d38f6586035a18f4377718e9176d4d",
+  "blobSha": "3aa28a2a34c476df6710d9a26abe4d574dd3aa02",
   "modelName": "voyage-context-4@256",
   "version": 11,
   "chunking": "auto",
   "chunks": [
     {
       "start": 0,
-      "end": 1260
+      "end": 1304
     },
     {
-      "start": 1262,
-      "end": 2818
+      "start": 1306,
+      "end": 2862
     },
     {
-      "start": 2820,
-      "end": 4752
+      "start": 2864,
+      "end": 4796
     },
     {
-      "start": 4754,
-      "end": 6458
+      "start": 4798,
+      "end": 6502
     },
     {
-      "start": 6462,
-      "end": 8046
+      "start": 6506,
+      "end": 8090
     },
     {
-      "start": 8050,
-      "end": 8815
+      "start": 8094,
+      "end": 8859
+    },
+    {
+      "start": 8861,
+      "end": 10410
     }
   ]
 }

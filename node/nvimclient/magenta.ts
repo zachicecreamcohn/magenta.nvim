@@ -1049,7 +1049,7 @@ export class Magenta {
     const { profiles, customCommands } = this.options;
     try {
       await this.nvim.call("nvim_exec_lua", [
-        `require('magenta.options').set_server_options(...)`,
+        `require('magenta.options').setServerOptions(...)`,
         [{ profiles, customCommands }],
       ]);
     } catch (e) {

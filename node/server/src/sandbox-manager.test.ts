@@ -1,7 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { StraceUnavailableError } from "./capabilities/strace.ts";
 import type { SandboxConfig } from "./sandbox-config.ts";
 import { DEFAULT_SANDBOX_CONFIG } from "./sandbox-config.ts";
-import { mergeApprovedDomains, NetworkAskStack } from "./sandbox-manager.ts";
+import {
+  mergeApprovedDomains,
+  type NetworkAskParams,
+  NetworkAskStack,
+  type Sandbox,
+  startSandbox,
+} from "./sandbox-manager.ts";
 import type { Cwd, HomeDir } from "./utils/files.ts";
 
 const mockInitialize = vi.fn().mockResolvedValue(undefined);
@@ -335,5 +342,56 @@ describe("NetworkAskStack", () => {
       false,
     );
     expect(a).toHaveBeenCalledOnce();
+  });
+});
+
+describe("startSandbox", () => {
+  const cfg = {} as SandboxConfig;
+  const cwd = "/tmp" as Cwd;
+  const home = "/home" as HomeDir;
+  it("falls back to an unsupported sandbox when initialization fails", async () => {
+    const warnings: string[] = [];
+    const sandbox = await startSandbox(
+      cfg,
+      cwd,
+      home,
+      { warn: (m) => warnings.push(m) },
+      () => Promise.reject(new Error("boom")),
+    );
+    expect(sandbox.getState()).toMatchObject({ status: "unsupported" });
+    expect(warnings.join("\n")).toContain("boom");
+  });
+  it("rethrows a missing strace", async () => {
+    const err = new StraceUnavailableError("missing");
+    await expect(
+      startSandbox(cfg, cwd, home, { warn: () => {} }, () =>
+        Promise.reject(err),
+      ),
+    ).rejects.toBe(err);
+  });
+  it("denies network asks before initialization and forwards to the ask stack after", async () => {
+    let ask:
+      | ((p: { host: string; port?: number }) => Promise<boolean>)
+      | undefined;
+    const routed: string[] = [];
+    const sandbox = await startSandbox(
+      cfg,
+      cwd,
+      home,
+      { warn: () => {} },
+      async (_c, _w, _h, cb) => {
+        ask = cb as typeof ask;
+        expect(await ask?.({ host: "early.com", port: 443 })).toBe(false);
+        return {
+          routeNetworkAsk: (p: NetworkAskParams) => {
+            routed.push(p.host);
+            return Promise.resolve(true);
+          },
+        } as unknown as Sandbox;
+      },
+    );
+    expect(sandbox).toBeDefined();
+    expect(await ask!({ host: "late.com", port: 443 })).toBe(true);
+    expect(routed).toEqual(["late.com"]);
   });
 });

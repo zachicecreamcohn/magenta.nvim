@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { AuthUI } from "./auth-ui.ts";
 import type { EditorCapabilities } from "./capabilities/editor.ts";
 import { NoopLspClient } from "./capabilities/noop-lsp-client.ts";
 import { InMemoryFileIO } from "./edl/in-memory-file-io.ts";
@@ -236,5 +237,52 @@ describe("submission resolution", () => {
     expect(userText(stream)).toContain("+two");
     stream.finishResponse("end_turn");
     await done;
+  });
+});
+
+describe("auth UI", () => {
+  function makeHost(getAuthUI: () => AuthUI | undefined, logger = noopLogger) {
+    return new ServerSessionHost({
+      logger,
+      cwd: dir as Cwd,
+      homeDir: dir as HomeDir,
+      sandbox: new MockSandboxManager(),
+      getOptions: () => options,
+      getAuthUI,
+    });
+  }
+  it("throws for OAuth and logs errors/progress when no editor is attached", () => {
+    const logged: string[] = [];
+    const h = makeHost(() => undefined, {
+      ...noopLogger,
+      error: (m: string) => logged.push(`error:${m}`),
+      info: (m: string) => logged.push(`info:${m}`),
+    });
+    expect(() => h.authUI.showOAuthFlow("https://x")).toThrow(
+      /attached editor/,
+    );
+    h.authUI.showError("bad");
+    h.authUI.showLoginProgress("step");
+    expect(logged).toEqual(["error:bad", "info:step"]);
+  });
+  it("uses the UI attached at login time, not at construction", () => {
+    let ui: AuthUI | undefined;
+    const h = makeHost(() => ui);
+    const calls: string[] = [];
+    ui = {
+      showOAuthFlow: (url) => {
+        calls.push(url);
+        return Promise.resolve("code");
+      },
+      showError: (m) => calls.push(m),
+      showLoginProgress: (m) => calls.push(m),
+    } as AuthUI;
+    void h.authUI.showOAuthFlow("https://x");
+    h.authUI.showError("e");
+    expect(calls).toEqual(["https://x", "e"]);
+  });
+  it("builds a real provider without the test override", () => {
+    const h = makeHost(() => undefined);
+    expect(h.getProvider({ ...profile, name: "smoke-real" })).toBeDefined();
   });
 });

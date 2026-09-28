@@ -104,7 +104,7 @@ export class ServerSessionHost implements SessionHost {
 
   /** Providers are cached per profile, so they get a stable AuthUI that
    * prompts through whichever editor is attached when a login is needed. */
-  private readonly authUI: AuthUI = {
+  readonly authUI: AuthUI = {
     showOAuthFlow: (authUrl) => this.requireAuthUI().showOAuthFlow(authUrl),
     showError: (message) => {
       const ui = this.context.getAuthUI();

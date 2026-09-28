@@ -71,3 +71,67 @@ it("picks up edits to the project options.json on the next call", () => {
   expect(denyRead).toContain(".other");
   expect(denyRead).not.toContain(".secret");
 });
+it("picks up edits and deletion of the user options.json", () => {
+  const store = new OptionsStore(home, logger);
+  write(
+    home,
+    { profiles: [{ name: "u1", provider: "anthropic", model: "m" }] },
+    1000,
+  );
+  expect(store.getOptions(cwd).profiles.map((p) => p.name)).toEqual(["u1"]);
+  write(
+    home,
+    { profiles: [{ name: "u2", provider: "anthropic", model: "m" }] },
+    2000,
+  );
+  expect(store.getOptions(cwd).profiles.map((p) => p.name)).toEqual(["u2"]);
+  fs.rmSync(path.join(home, ".magenta", "options.json"));
+  expect(store.getOptions(cwd).profiles.map((p) => p.name)).not.toContain("u2");
+});
+it("falls back when a cached project options.json is deleted", () => {
+  const store = new OptionsStore(home, logger);
+  write(cwd, { sandbox: { filesystem: { denyRead: [".secret"] } } }, 1000);
+  expect(store.getOptions(cwd).sandbox.filesystem.denyRead).toContain(
+    ".secret",
+  );
+  fs.rmSync(path.join(cwd, ".magenta", "options.json"));
+  expect(store.getOptions(cwd).sandbox.filesystem.denyRead).not.toContain(
+    ".secret",
+  );
+});
+it("keeps separate cache entries per cwd, each merged with the user file", () => {
+  const other = path.join(root, "other") as Cwd;
+  fs.mkdirSync(path.join(other, ".magenta"), { recursive: true });
+  write(
+    home,
+    { profiles: [{ name: "u", provider: "anthropic", model: "m" }] },
+    1000,
+  );
+  write(cwd, { sandbox: { filesystem: { denyRead: [".a"] } } }, 1000);
+  write(other, { sandbox: { filesystem: { denyRead: [".b"] } } }, 1000);
+  const store = new OptionsStore(home, logger);
+  const a = store.getOptions(cwd);
+  const b = store.getOptions(other);
+  expect(a.sandbox.filesystem.denyRead).toContain(".a");
+  expect(a.sandbox.filesystem.denyRead).not.toContain(".b");
+  expect(b.sandbox.filesystem.denyRead).toContain(".b");
+  expect(a.profiles.map((p) => p.name)).toEqual(["u"]);
+  expect(b.profiles.map((p) => p.name)).toEqual(["u"]);
+});
+it("warns with the Settings prefix on malformed files and returns usable options", () => {
+  const warnings: string[] = [];
+  const log = {
+    ...logger,
+    warn: (m: string) => warnings.push(m),
+    error: (m: string) => warnings.push(m),
+  };
+  fs.writeFileSync(path.join(home, ".magenta", "options.json"), "{ not json");
+  fs.writeFileSync(
+    path.join(cwd, ".magenta", "options.json"),
+    JSON.stringify({ profiles: "bad" }),
+  );
+  const options = new OptionsStore(home, log).getOptions(cwd);
+  expect(options.profiles.length).toBeGreaterThan(0);
+  expect(warnings.length).toBeGreaterThan(0);
+  expect(warnings.every((w) => w.startsWith("Settings: "))).toBe(true);
+});

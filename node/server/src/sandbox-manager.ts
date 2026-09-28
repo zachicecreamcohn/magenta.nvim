@@ -293,13 +293,14 @@ export async function startSandbox(
   cwd: Cwd,
   homeDir: HomeDir,
   logger: { warn(msg: string): void },
+  init: typeof initializeSandbox = initializeSandbox,
 ): Promise<Sandbox> {
   let sandboxRef: Sandbox | undefined;
   const askCallback: SandboxAskCallback = (params) => {
     if (!sandboxRef) return Promise.resolve(false);
     return sandboxRef.routeNetworkAsk({ host: params.host, port: params.port });
   };
-  const sandbox = await initializeSandbox(config, cwd, homeDir, askCallback, {
+  const sandbox = await init(config, cwd, homeDir, askCallback, {
     warn: (msg) => logger.warn(`Sandbox: ${msg}`),
   }).catch((err: unknown): Sandbox => {
     if (err instanceof StraceUnavailableError) {

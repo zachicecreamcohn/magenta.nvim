@@ -41,9 +41,9 @@ local defaults = {
 M.options = defaults
 -- Server configuration lives in ~/.magenta/options.json; the node process
 -- mirrors what lua needs (profile picker, command completion) here.
-M.server_options = { profiles = {}, customCommands = {} }
-M.set_server_options = function(server_options)
-  M.server_options = server_options
+M.serverOptions = { profiles = {}, customCommands = {} }
+M.setServerOptions = function(serverOptions)
+  M.serverOptions = serverOptions
 end
 
 M.set_options = function(opts)
