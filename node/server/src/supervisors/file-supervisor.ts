@@ -533,7 +533,9 @@ export class FileSupervisor implements ContextTracker, ToolLoopSupervisor {
     this.scheduleRefreshPendingUpdates();
   }
 
-  async addFiles(filePaths: UnresolvedFilePath[]): Promise<void> {
+  async addFiles(
+    filePaths: ReadonlyArray<UnresolvedFilePath | AbsFilePath>,
+  ): Promise<void> {
     for (const filePath of filePaths) {
       const absFilePath = resolveFilePath(this.cwd, filePath, this.homeDir);
       const relFilePath = relativePath(this.cwd, absFilePath, this.homeDir);

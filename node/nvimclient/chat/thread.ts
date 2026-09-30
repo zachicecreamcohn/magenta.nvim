@@ -283,23 +283,17 @@ export class NvimThread {
       compactionViewState: {},
     };
 
-    let initial: ProtocolThreadState | undefined;
-    this.unsubscribe = this.context.server.subscribe(
-      { type: "thread", threadId: id },
-      (state) => {
-        if (!state) return;
-        if (!initial) {
-          initial = state;
-          return;
-        }
-        this.threadState = state;
-        this.onThreadUpdate();
-      },
-    );
+    const topic = { type: "thread", threadId: id } as const;
+    const initial = this.context.server.getState(topic);
     if (!initial) {
       throw new Error(`Thread ${id} is not ready`);
     }
     this.threadState = initial;
+    this.unsubscribe = this.context.server.subscribe(topic, (state) => {
+      if (!state || state === this.threadState) return;
+      this.threadState = state;
+      this.onThreadUpdate();
+    });
   }
 
   /** Every thread mutation goes through the server; failures are logged,

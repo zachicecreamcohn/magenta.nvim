@@ -43,6 +43,8 @@ export interface MagentaServer {
     topic: TopicOf<K>,
     listener: (state: StateMap[K] | undefined) => void,
   ): () => void;
+  /** The current state, or `undefined` if the target is gone or not ready. */
+  getState<K extends TopicType>(topic: TopicOf<K>): StateMap[K] | undefined;
   execute(op: Operation): Promise<OperationResult>;
   attachClient(client: ClientEffectHandler): void;
   detachClient(): void;
@@ -203,6 +205,13 @@ export function createInProcessServer({
     return close;
   }
 
+  function getState<K extends TopicType>(
+    topic: TopicOf<K>,
+  ): StateMap[K] | undefined {
+    const state = project(topic);
+    return state === "waiting" ? undefined : state;
+  }
+
   function readyThread(id: ThreadId): Thread {
     const record = session.getThread(id);
     if (record?.state !== "initialized") {
@@ -285,7 +294,7 @@ export function createInProcessServer({
         session.recordActivity(op.threadId);
         return { type: "ok" };
       case "thread.addContextFiles":
-        await readyThread(op.threadId).contextFiles.addFiles([...op.files]);
+        await readyThread(op.threadId).contextFiles.addFiles(op.files);
         return { type: "ok" };
       case "thread.removeContextFile":
         readyThread(op.threadId).contextFiles.removeFileContext(op.file);
@@ -364,6 +373,7 @@ export function createInProcessServer({
 
   return {
     subscribe,
+    getState,
     async execute(op) {
       try {
         return await dispatch(op);

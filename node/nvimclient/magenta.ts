@@ -96,6 +96,7 @@ import { record as recordTiming } from "./timings.ts";
 import { assertUnreachable } from "./utils/assertUnreachable.ts";
 import type { HomeDir } from "./utils/files.ts";
 import {
+  type AbsFilePath,
   detectFileType,
   formatFileRef,
   type NvimCwd,
@@ -1107,7 +1108,7 @@ export class Magenta {
           .map((str) => (str.startsWith("'") ? str.slice(1, -1) : str))
           .map((str) => str.trim());
 
-        const files: UnresolvedFilePath[] = [];
+        const files: AbsFilePath[] = [];
         for (const filePath of paths) {
           const absFilePath = resolveFilePath(
             this.cwd,
@@ -1120,7 +1121,7 @@ export class Magenta {
             continue;
           }
 
-          files.push(absFilePath as string as UnresolvedFilePath);
+          files.push(absFilePath);
         }
         const result = await this.server.execute({
           type: "thread.addContextFiles",

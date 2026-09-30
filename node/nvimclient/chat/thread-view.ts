@@ -352,9 +352,9 @@ function renderCompactionHistory(
 }
 function runningCompaction(thread: NvimThread): RunningCompaction | undefined {
   const run = thread.threadState.compaction.runs.findLast(
-    (r) => r.type === "running",
+    (r): r is RunningCompaction["run"] => r.type === "running",
   );
-  if (!run || run.type !== "running") return undefined;
+  if (!run) return undefined;
   return {
     run,
     onSelectChunk: (threadId) =>

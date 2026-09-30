@@ -343,6 +343,7 @@ Decisions/deviations:
 - `Chat` reads of the wrapper's thread (display name, summary, needs-attention, token count) now use `threadState`; fork still reads `nativeMessageIdx` from the session record, left for the session-view stage. Views still read derived forks/reflections and approvals from `Session` until that stage.
 - Failed submissions carry `{ message }` only, so the status line no longer prints the error stack.
 - Tests reach live server objects through white-box helpers `serverThread`/`serverCompactor` in `test/left-thread.ts`.
+- Review follow-up: `MagentaServer.getState(topic)` returns the current state (or `undefined`); `NvimThread` reads its initial state from it instead of capturing the synchronous first delivery, and ignores an identical re-delivery. `thread.addContextFiles`/`FileSupervisor.addFiles` accept `UnresolvedFilePath | AbsFilePath`, removing the double cast in `magenta.ts`. The running-compaction lookup uses a type-guard predicate.
 
 - Goal: `NvimThread` holds a `ThreadId`, a subscription, and the latest `ProtocolThreadState`. `thread-view.ts` renders from it, so `toolResultMap` rebuilding and the compactor `transition` subscription are gone. Submit/enqueue/retry/tool abort/setTitle/context-file edits go through `execute`. The debounce on re-render is kept.
 - Tests:

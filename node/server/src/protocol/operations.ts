@@ -33,7 +33,7 @@ export type Operation =
   | {
       type: "thread.addContextFiles";
       threadId: ThreadId;
-      files: ReadonlyArray<UnresolvedFilePath>;
+      files: ReadonlyArray<UnresolvedFilePath | AbsFilePath>;
     }
   | { type: "thread.removeContextFile"; threadId: ThreadId; file: AbsFilePath }
   | { type: "tool.abort"; threadId: ThreadId; toolRequestId: ToolRequestId }
