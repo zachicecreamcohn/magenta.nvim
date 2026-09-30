@@ -539,7 +539,10 @@ export async function withDriver(
           dirs.homeDir as import("../utils/files.ts").HomeDir,
           mockSandbox,
         );
-        registerServerSession(magenta.chat, magenta.session);
+        registerServerSession(
+          magenta.chat,
+          magenta.serverInternals.internals.session,
+        );
         await nvim.call("nvim_exec_lua", [
           `\
 -- Set up message interception

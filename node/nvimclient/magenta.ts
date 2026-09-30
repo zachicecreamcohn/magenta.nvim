@@ -2,7 +2,6 @@ import * as os from "node:os";
 import {
   ABORTED,
   type Aborted,
-  createInProcessServer,
   isThreadId,
   type MagentaServer,
   type NativeMessageIdx,
@@ -15,9 +14,8 @@ import {
   readThreadMeta,
   renderThreadLogToMarkdown,
   type Sandbox,
-  ScriptManager,
-  ServerSessionHost,
-  Session,
+  type ServerSessionHost,
+  type SessionId,
   startSandbox,
   type ThreadId,
   threadConversationLogPath,
@@ -40,6 +38,10 @@ import {
   reflectionRoot,
 } from "./chat/reflections-overview.ts";
 import type { NvimThread } from "./chat/thread.ts";
+import {
+  type InProcessServer,
+  startInProcessServer,
+} from "./in-process-server.ts";
 import {
   type BufNr,
   type Line,
@@ -169,15 +171,15 @@ function formatAsQuote(text: string): string {
 export class Magenta {
   public sidebar: Sidebar;
   public bufferManager: BufferManager;
-  /** The one implicit session: the authoritative thread registry. */
-  public session: Session;
+  /** The one implicit session. */
+  public sessionId: SessionId;
+  /** White-box handles from the composition root; tests only. */
+  public serverInternals: InProcessServer;
   /** Server-side thread preparation for that session. */
   public host: ServerSessionHost;
   /** The protocol boundary views read state from and send operations to. */
   public server: MagentaServer;
   public chat: Chat;
-  /** Session-owned script execution. */
-  public scripts: ScriptManager;
   /** The editor-side view of it. */
   public scriptManager: ScriptController;
   public dispatch: Dispatch<RootMsg>;
@@ -319,38 +321,17 @@ export class Magenta {
       lsp: this.lsp,
       sandbox: this.sandbox,
     };
-    this.host = new ServerSessionHost({
+    this.serverInternals = startInProcessServer({
       logger: this.nvim.logger,
       cwd: threadCwdFromNvimCwd(this.cwd),
       homeDir: this.homeDir,
       sandbox: this.sandbox,
-      getOptions: () => this.baseOptions,
-      getClient: () => this.session.getClient(),
-      awaitClient: () => this.session.awaitClient(),
-    });
-    this.session = new Session(this.host);
-    this.scripts = new ScriptManager({
-      session: this.session,
-      logger: this.nvim.logger,
-      cwd: threadCwdFromNvimCwd(this.cwd),
-      homeDir: this.homeDir,
+      getBaseOptions: () => this.baseOptions,
       getScriptsPaths: () => this.options.scriptsPaths,
-      sandbox: {
-        isThreadBypassed: (threadId) =>
-          this.session.isSandboxBypassed(threadId),
-        registerSandboxRoot: (threadId, getSandboxRoot) =>
-          this.session.registerSandboxRoot(threadId, getSandboxRoot),
-        approveAllPendingInSubtree: (threadId) =>
-          this.session.approveAllPendingInSubtree(threadId),
-      },
     });
-    // Wired before any thread exists, so the run_script tool always has a
-    // catalog to read.
-    this.session.scriptRunner = this.scripts;
-    this.server = createInProcessServer({
-      session: this.session,
-      scripts: this.scripts,
-    });
+    this.server = this.serverInternals.server;
+    this.sessionId = this.serverInternals.sessionId;
+    this.host = this.serverInternals.host;
     this.chat = new Chat(
       {
         ...hostContext,
@@ -374,10 +355,10 @@ export class Magenta {
         },
       },
       {
-        sessionId: this.session.id,
+        sessionId: this.sessionId,
         host: this.host,
         server: this.server,
-        scriptRunner: this.scripts,
+        scriptRunner: this.serverInternals.scriptRunner,
       },
     );
     this.chat.getActiveReflectionId = () =>
@@ -386,7 +367,7 @@ export class Magenta {
       dispatch: this.dispatch,
       chat: this.chat,
       server: this.server,
-      sessionId: this.session.id,
+      sessionId: this.sessionId,
       nvim: this.nvim,
       cwd: this.cwd,
       homeDir: this.homeDir,
@@ -461,7 +442,8 @@ export class Magenta {
     const base = this.baseOptions;
     // The session may not exist yet during construction.
     const activeProfile =
-      this.session?.getActiveProfile().name ?? base.activeProfile;
+      this.server?.getState({ type: "session", sessionId: this.sessionId })
+        ?.activeProfile.profile.name ?? base.activeProfile;
     return { ...base, activeProfile };
   }
 
@@ -1667,17 +1649,10 @@ ${lines.join("\n")}
   destroy() {
     this.scriptManager.dispose();
     this.chat.dispose();
-    void this.server.dispose();
-    // The session must be disposed even if script teardown fails, otherwise
-    // in-flight threads never settle.
-    void this.scripts
+    void this.server
       .dispose()
       .catch((e: Error) =>
-        this.nvim.logger.error(`Error disposing scripts: ${e.message}`),
-      )
-      .then(() => this.session.dispose())
-      .catch((e: Error) =>
-        this.nvim.logger.error(`Error disposing session: ${e.message}`),
+        this.nvim.logger.error(`Error disposing server: ${e.message}`),
       );
     // BufferManager's mounted apps will be cleaned up when nvim exits
   }
@@ -1889,7 +1864,7 @@ ${lines.join("\n")}
       sandbox,
       bufferManager,
     );
-    magenta.session.attachClient(
+    magenta.server.attachClient(
       await createNvimClient({ nvim, lsp, cwd, homeDir: resolvedHomeDir }),
     );
 

@@ -395,6 +395,18 @@ Decisions/deviations:
 
 ## Enforce the boundary
 
+Status: done.
+
+- [x] `node/nvimclient/in-process-server.ts` (`startInProcessServer`) is the composition root: it constructs `ServerSessionHost`, `Session`, `ScriptManager` (incl. the `registerSandboxRoot` wiring) and the `MagentaServer`, whose `dispose` also disposes scripts then the session. `Magenta` holds `server`, `sessionId`, `host`; attaches the client via `server.attachClient`; reads the active profile from session state.
+- [x] `server-boundary.node.test.ts` with allowlist `in-process-server.ts` only.
+- [x] `context.md` updated.
+
+Decisions/deviations:
+
+- `createInProcessServer` itself (server package) still does not own disposal; the nvimclient composition root wraps it.
+- `Magenta.host` (`ServerSessionHost`, not a forbidden name) is still passed to `Chat` for `getPrepared`/MCP info.
+- Tests reach live objects via `magenta.serverInternals.internals.{session,scripts}` (white-box).
+
 - Goal: `Magenta` receives a `MagentaServer` from `createInProcessServer`, and only the composition root constructs server objects. Add `node/nvimclient/server-boundary.node.test.ts`, in the style of `fs-boundary`. It fails if nvimclient imports `Session`, `Thread`, `ThreadCore`, `ThreadCompactor`, `ScriptManager`, `FileSupervisor`, or `ToolInvocation` (values or types), with an allowlist containing only the composition root. Update `context.md`: Sessions, Core → Root bridge, and Testing sections.
 - Tests:
   - The boundary test passes with the allowlist fully used and no stale entries. `npx tsc -b` and the full suite pass.

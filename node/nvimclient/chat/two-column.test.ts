@@ -24,11 +24,15 @@ async function setup(
   });
   await driver.assertDisplayBufferContains("Because.");
   const source = driver.magenta.chat.leftThreadId!;
-  const child = await driver.magenta.session.reflectThread(source, {
-    messageIdx: 1 as MessageIdx,
-    contentIdx: 0 as ContentBlockIdx,
-    reflectionText: "Because." as DisplayBufferText,
-  });
+  const child =
+    await driver.magenta.serverInternals.internals.session.reflectThread(
+      source,
+      {
+        messageIdx: 1 as MessageIdx,
+        contentIdx: 0 as ContentBlockIdx,
+        reflectionText: "Because." as DisplayBufferText,
+      },
+    );
   if (child === ABORTED) throw new Error("aborted");
   await driver.magenta.selectThreadEffect(child);
   return { source, child };

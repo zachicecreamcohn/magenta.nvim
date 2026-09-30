@@ -65,7 +65,7 @@ The root project uses a **single-dispatch TEA architecture**:
 
 ## Sessions
 
-**`Session`** (`node/server/src/session.ts`) is the authoritative thread registry. `Magenta` (`node/nvimclient/magenta.ts`) constructs exactly one implicit session, its `NvimSessionHost`, the server `ScriptManager`, and the view adapters; `Magenta.destroy` disposes the script manager and then the session. There is no session picker or global session registry yet, and detach/reattach across processes does not work: the host is in-process.
+**`Session`** (`node/server/src/session.ts`) is the authoritative thread registry. The composition root `startInProcessServer` (`node/nvimclient/in-process-server.ts`) constructs exactly one implicit session, its `ServerSessionHost`, the server `ScriptManager` and the protocol `MagentaServer`; `Magenta` holds only the `MagentaServer` (plus the host for thread preparation info), and `Magenta.destroy` disposes the server, which disposes the script manager and then the session. There is no session picker or global session registry yet, and detach/reattach across processes does not work: the host is in-process.
 
 - Session owns identity, parent/script-invocation associations, pending creation and its cancellation, construction policy (fresh vs. fork), bootstrap submission, labels/title scheduling, lifecycle results, subtree abort, deletion and disposal. It implements `ThreadManager`, so subagent tools and compact children route through it.
 - `assembleThread` (`node/server/src/thread-assembly.ts`) builds the ready `{ thread, compactor }` pair: supervisor ordering, compactor creation and automatic title generation. Session never touches `ThreadCore` or compaction replacement.
@@ -81,7 +81,9 @@ The root project uses a **single-dispatch TEA architecture**:
 
 ## Core → Root bridge
 
-`Chat` (`node/nvimclient/chat/chat.ts`) is a view adapter over the session: selection, expansion, viewed timestamps, archive navigation, buffers and the `NvimThread` wrappers. `threadWrappers` is a read-only projection of `session.listThreads()`; `Chat.dispose()` drops listeners and wrappers without destroying anything server-side. `ScriptController` (`node/nvimclient/scripts/script-manager.ts`) is the equivalent adapter for scripts. `NvimThread` wraps a ready server handle as `thread`; it owns UI state, debounced dispatch, and input/error presentation, not server execution setup.
+The client talks to the server only through the protocol (`node/server/src/protocol/`): it subscribes to serializable state per topic (`global`, `session`, `script`, `thread`) with `MagentaServer.subscribe`/`getState`, sends every mutation as an ID-addressed `Operation` via `execute`, and handles server→client effects as `ClientRequest`/`ClientNotification` data through one `ClientEffectHandler`. `node/nvimclient/server-boundary.node.test.ts` forbids nvimclient imports of `Session`, `Thread`, `ThreadCore`, `ThreadCompactor`, `ScriptManager`, `FileSupervisor`, `ToolInvocation` outside the composition root.
+
+`Chat` (`node/nvimclient/chat/chat.ts`) is a view adapter over the session state (`SessionView`): selection, expansion, viewed timestamps, archive navigation, buffers and the `NvimThread` wrappers. `threadWrappers` is a read-only projection of `session.listThreads()`; `Chat.dispose()` drops listeners and wrappers without destroying anything server-side. `ScriptController` (`node/nvimclient/scripts/script-manager.ts`) is the equivalent adapter for scripts. `NvimThread` wraps a ready server handle as `thread`; it owns UI state, debounced dispatch, and input/error presentation, not server execution setup.
 - `onUpdate` schedules a `tool-progress` dispatch; views read `thread.state`, provider messages, tool results, usage, and edited files directly.
 - Context deliveries are not published: `FileSupervisor`/`GitSupervisor` report the `nativeMessageIdx` they committed into, ThreadCore records the structured update against it, and views read it back through `Thread.getContextDelivery`. Forking filters those records at the fork point like the rest of the supervisor history. Hierarchy discovery is a capability on `ThreadCoreContext` that `FileSupervisor` consults itself when a file starts being tracked, so no parent observes file additions. Thread forwards core notifications only while that core is current, so replacement requires no subscriptions or rewiring by parents.
 - `onSubmission` reports resolved input to the title scheduler in `thread-assembly.ts`, which uses the helper in `tools/thread-title.ts`, guards late results, and lets Thread own title/archive mutation. No view is involved.
@@ -121,6 +123,8 @@ Three tiers, cheapest first:
 - C: nvim process (`withDriver`/`withNvimClient`) — only for buffers, windows, keymaps, TUI rendering, the lua bridge and other nvim machinery.
 
 Vitest projects: `server` (`node/server/**`, `sdk/**`), `node` (`node/nvimclient/**/*.node.test.ts`, tiers A/B in the client), `nvim` (all other nvimclient tests, forks pool capped at 4). Name nvimclient tests that don't start nvim `*.node.test.ts`.
+
+In tier C, reach live server objects only through white-box helpers (`driver.magenta.serverInternals.internals`, `serverSession`/`serverThread` in `test/left-thread.ts`).
 
 Prefer public submissions with mock providers/Defer-controlled boundaries. Server `test-helpers.ts` contains explicit white-box lifecycle helpers (`resetThread`, `getFileSupervisor`) for tests that must inspect core-owned resources; those are not production APIs or exports from the server barrel.
 

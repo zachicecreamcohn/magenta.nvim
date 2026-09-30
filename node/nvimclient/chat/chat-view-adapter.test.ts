@@ -47,7 +47,10 @@ it("rebuilding the view adapter over an existing session makes no new thread or 
       server: chat.server,
       scriptRunner: chat.scriptRunner,
     });
-    registerServerSession(rebuilt, driver.magenta.session);
+    registerServerSession(
+      rebuilt,
+      driver.magenta.serverInternals.internals.session,
+    );
 
     // The rebuilt view sees the same registry, wrapping the same server Thread.
     expect(Object.keys(rebuilt.threadWrappers)).toEqual([threadId]);
@@ -72,7 +75,7 @@ it("a turn completes with no view listener attached to the session", async () =>
     const thread = serverThread(leftThread(chat));
 
     // Detach every observer: execution must not depend on one.
-    driver.magenta.session.removeAllListeners();
+    driver.magenta.serverInternals.internals.session.removeAllListeners();
 
     const submitted = thread.submit({
       type: "resolved",
@@ -116,9 +119,9 @@ it("a thread that fails to construct takes the view out of thread-selected", asy
       promise: Promise.reject(new Error("preparation exploded")),
       abort: () => {},
     });
-    await expect(driver.magenta.session.createRootThread()).rejects.toThrow(
-      "preparation exploded",
-    );
+    await expect(
+      driver.magenta.serverInternals.internals.session.createRootThread(),
+    ).rejects.toThrow("preparation exploded");
     expect(chat.state.state).toBe("thread-overview");
     const failedId = chat.session
       .listThreads()
@@ -132,7 +135,7 @@ it("a disposed view observes no further session events", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
     const chat = driver.magenta.chat;
-    const session = driver.magenta.session;
+    const session = driver.magenta.serverInternals.internals.session;
     const existingId = leftThread(chat).id;
     chat.dispose();
     expect(chat["threadViews"].size).toBe(0);

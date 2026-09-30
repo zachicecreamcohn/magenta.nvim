@@ -24,11 +24,15 @@ async function setupReflection(
   });
   await driver.assertDisplayBufferContains("Because.");
   const source = driver.magenta.chat.leftThreadId!;
-  const created = await driver.magenta.session.reflectThread(source, {
-    messageIdx: 1 as MessageIdx,
-    contentIdx: 0 as ContentBlockIdx,
-    reflectionText: "Because." as DisplayBufferText,
-  });
+  const created =
+    await driver.magenta.serverInternals.internals.session.reflectThread(
+      source,
+      {
+        messageIdx: 1 as MessageIdx,
+        contentIdx: 0 as ContentBlockIdx,
+        reflectionText: "Because." as DisplayBufferText,
+      },
+    );
   if (created === ABORTED) throw new Error("aborted");
   const child = created;
   driver.magenta.dispatch({

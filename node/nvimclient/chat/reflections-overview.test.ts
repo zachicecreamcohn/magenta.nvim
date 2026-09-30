@@ -30,11 +30,14 @@ async function setupThread(driver: Driver): Promise<ThreadId> {
 }
 
 async function reflect(driver: Driver, source: ThreadId, text: string) {
-  return driver.magenta.session.reflectThread(source, {
-    messageIdx: 1 as MessageIdx,
-    contentIdx: 0 as ContentBlockIdx,
-    reflectionText: text as DisplayBufferText,
-  });
+  return driver.magenta.serverInternals.internals.session.reflectThread(
+    source,
+    {
+      messageIdx: 1 as MessageIdx,
+      contentIdx: 0 as ContentBlockIdx,
+      reflectionText: text as DisplayBufferText,
+    },
+  );
 }
 
 async function overviewWindow(driver: Driver): Promise<number> {

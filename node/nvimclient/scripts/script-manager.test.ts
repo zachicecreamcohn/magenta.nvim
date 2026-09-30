@@ -74,7 +74,7 @@ it("renders running invocations, logs, and spawned threads in the Scripts overvi
     },
     async (driver) => {
       await driver.showSidebar();
-      const scriptManager = driver.magenta.scripts;
+      const scriptManager = driver.magenta.serverInternals.internals.scripts;
       await pollUntil(() =>
         scriptManager.getCatalog().some((s) => s.name === "foo"),
       );
@@ -135,7 +135,7 @@ it("toggles sandbox bypass for the whole invocation from the script root row", a
     },
     async (driver) => {
       await driver.showSidebar();
-      const scriptManager = driver.magenta.scripts;
+      const scriptManager = driver.magenta.serverInternals.internals.scripts;
       await pollUntil(() =>
         scriptManager.getCatalog().some((s) => s.name === "foo"),
       );
@@ -193,7 +193,7 @@ it("expands and collapses the script row to show/hide spawned threads", async ()
     },
     async (driver) => {
       await driver.showSidebar();
-      const scriptManager = driver.magenta.scripts;
+      const scriptManager = driver.magenta.serverInternals.internals.scripts;
       await pollUntil(() =>
         scriptManager.getCatalog().some((s) => s.name === "foo"),
       );
@@ -251,7 +251,7 @@ it("surfaces a spawned thread's pending permission under a collapsed script row 
         reason: "disabled",
       });
       await driver.showSidebar();
-      const scriptManager = driver.magenta.scripts;
+      const scriptManager = driver.magenta.serverInternals.internals.scripts;
       await pollUntil(() =>
         scriptManager.getCatalog().some((s) => s.name === "foo"),
       );
@@ -327,7 +327,7 @@ it("toggling the invocation sandbox approves a spawned thread's pending permissi
         reason: "disabled",
       });
       await driver.showSidebar();
-      const scriptManager = driver.magenta.scripts;
+      const scriptManager = driver.magenta.serverInternals.internals.scripts;
       await pollUntil(() =>
         scriptManager.getCatalog().some((s) => s.name === "foo"),
       );
@@ -395,7 +395,7 @@ it("owner shutdown disposes the scripts and the session", async () => {
       },
     },
     async (driver) => {
-      const { scripts, session } = driver.magenta;
+      const { scripts, session } = driver.magenta.serverInternals.internals;
       await pollUntil(() => scripts.getCatalog().some((s) => s.name === "foo"));
       const id = scripts.startScript("foo", {}, { sandboxBypassed: false });
       await pollUntil(() =>
@@ -422,7 +422,7 @@ it("owner shutdown disposes the scripts and the session", async () => {
 });
 it("a failing script disposal still disposes the session", async () => {
   await withDriver({}, async (driver) => {
-    const { scripts, session } = driver.magenta;
+    const { scripts, session } = driver.magenta.serverInternals.internals;
     const realDispose = scripts.dispose.bind(scripts);
     scripts.dispose = async () => {
       await realDispose();

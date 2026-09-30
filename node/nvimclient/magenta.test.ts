@@ -154,7 +154,10 @@ it("can switch profiles", async () => {
       const thread = leftThread(driver.magenta.chat);
       expect(thread.context.profile.name).toEqual("mock");
       expect(driver.magenta.options.activeProfile).toEqual("mock2");
-      expect(driver.magenta.session.getActiveProfile().name).toEqual("mock2");
+      expect(
+        driver.magenta.serverInternals.internals.session.getActiveProfile()
+          .name,
+      ).toEqual("mock2");
       await pollUntil(async () => {
         const active = await driver.nvim.call("nvim_exec_lua", [
           "return require('magenta.options').serverOptions.activeProfile",
