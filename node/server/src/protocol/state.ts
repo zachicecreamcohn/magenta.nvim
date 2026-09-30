@@ -193,7 +193,9 @@ export type ProtocolGlobalState = {
   }>;
 };
 
-function submissionResult(result: SubmissionResult): ProtocolSubmissionResult {
+export function submissionResult(
+  result: SubmissionResult,
+): ProtocolSubmissionResult {
   return result.type === "failed"
     ? { type: "failed", error: { message: result.error.message } }
     : result;

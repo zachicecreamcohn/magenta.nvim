@@ -275,6 +275,22 @@ Decisions/deviations:
 
 ## In-process server: subscribe and execute
 
+Status: done.
+
+- [x] `protocol/operations.ts`: `Operation` and `OperationResult`.
+- [x] `protocol/server.ts`: `MagentaServer`, `Topic`, `StateFor`, `createInProcessServer({ session, scripts? })`.
+- [x] Tier-A tests in `protocol/server.test.ts` (ordering and a final delivery equal to a fresh projection, coalescing, deletion delivering `undefined` once, unsubscribe not affecting runs, `tool.abort`, `approval.approve`, unknown ids, `thread.create`/`session.setActiveProfile`). The `script.run` test is tier B in `nvimclient/scripts/script-manager.node.test.ts` (real script fixture), and also covers `script.delete` delivering `undefined`.
+
+Decisions/deviations:
+
+- Change sources: thread topics listen for session `changed`/`removed` for their id (thread `onUpdate` already emits `changed`), plus the compactor `transition` once the thread is ready. Session/script topics listen to all session events and script manager events. The global topic listens to session events only. Each subscription has its own microtask flag.
+- A thread subscription made while creation is still pending delivers nothing until the thread is ready. A creation error or deletion delivers `undefined`.
+- `thread.fork` takes `nativeMessageIdx?: NativeMessageIdx` (what `Session.forkThread` takes), not `messageIdx`. `thread.addContextFiles` takes `UnresolvedFilePath`s (what `addFiles` takes).
+- `thread.submit` with delivery `now` (or none) awaits the whole submission and returns `submission` as `ProtocolSubmissionResult`. `async`/`next` enqueue and return `ok`. `thread.abort` goes through `Session.abortThread`, and the unsent input is not returned yet.
+- `script.run` starts with `sandboxBypassed: false`.
+- Unknown ids throw internally, and `execute` converts every throw into `{ type: "error", message }`. Approve/reject check that the approval id is pending, and `tool.abort` checks that the tool is running.
+- Until stage 3, `attachClient` takes `ClientCapabilities`. In this stage `dispose()` only closes subscriptions, because the composition root still owns the session and script manager. It isn't exported from the barrel yet.
+
 - Goal: `createInProcessServer` wraps a `Session` and its `ScriptManager`, implements `subscribe` with per-topic microtask coalescing, and dispatches each `Operation` to the existing methods. It returns `OperationResult`s and turns unknown IDs and thrown errors into `{ type: "error" }`.
 - Tests:
   - Tier A: subscribe to a thread, then submit via `execute`. The listener sees `busy`, streaming, and the final state in order, and the last delivered state equals a fresh projection.

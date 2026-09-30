@@ -7,7 +7,10 @@ import {
   type ToolName,
   type ToolRequestId,
 } from "@magenta/server";
+import { createInProcessServer } from "@magenta/server/src/protocol/server.ts";
 import {
+  type ProtocolScriptState,
+  type ProtocolSessionState,
   scriptState,
   sessionState,
 } from "@magenta/server/src/protocol/state.ts";
@@ -478,5 +481,40 @@ it("projects script state with yields only for yielded threads", async () => {
     expect(session.scripts.invocations[0]).not.toHaveProperty("logs");
     expect(session.scripts.invocations[0]).not.toHaveProperty("entries");
     expect(scriptState(scripts, "missing" as typeof id)).toBeUndefined();
+  });
+});
+
+it("reflects script.run in session state and delivers undefined after script.delete", async () => {
+  await withScripts({ project: TWO_THREAD_SCRIPT }, async ({ h, scripts }) => {
+    const server = createInProcessServer({ session: h.session, scripts });
+    let session: ProtocolSessionState | undefined;
+    server.subscribe(
+      { type: "session", sessionId: h.session.id },
+      (s) => (session = s),
+    );
+    expect(session?.scripts.catalog.map((c) => c.name)).toEqual(["two"]);
+    const run = await server.execute({
+      type: "script.run",
+      sessionId: h.session.id,
+      name: "two",
+      parameters: {},
+    });
+    if (run.type !== "ok" || !run.invocationId) throw new Error("no id");
+    const invocationId = run.invocationId;
+    await pollUntil(() => session?.scripts.invocations.length === 1);
+    const scriptStates: (ProtocolScriptState | undefined)[] = [];
+    server.subscribe({ type: "script", invocationId }, (s) =>
+      scriptStates.push(s),
+    );
+    (await h.streamWithText("first task")).respond(yieldOk("yield-1"));
+    await pollUntil(() =>
+      (scriptStates.at(-1)?.logs ?? []).includes("first done"),
+    );
+    expect(
+      await server.execute({ type: "script.delete", invocationId }),
+    ).toEqual({ type: "ok" });
+    await pollUntil(() => scriptStates.at(-1) === undefined);
+    expect(scriptStates.filter((s) => s === undefined)).toHaveLength(1);
+    await server.dispose();
   });
 });
