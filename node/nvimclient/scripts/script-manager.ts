@@ -32,10 +32,12 @@ export type ScriptMsg = {
   msg: Msg;
 };
 
-type InvocationView = {
-  unsubscribe: () => void;
-  state?: ProtocolScriptState;
-};
+/** Before the first script state arrives, `notifyOnFinish` says whether an
+ * already-finished first state is news (true for invocations that appear
+ * after the controller started). */
+type InvocationView =
+  | { type: "pending"; notifyOnFinish: boolean }
+  | { type: "loaded"; state: ProtocolScriptState };
 
 /**
  * The editor-side view of script execution. Invocations, child processes and
@@ -47,6 +49,7 @@ export class ScriptController {
   private expandedInvocations = new Set<ScriptInvocationId>();
   private expandedThreads = new Set<ThreadId>();
   private invocations = new Map<ScriptInvocationId, InvocationView>();
+  private subscriptions = new Map<ScriptInvocationId, () => void>();
   /** Invocations present when the controller started; finishing before we
    * saw them running is not news. */
   private initialized = false;
@@ -96,36 +99,54 @@ export class ScriptController {
   }
 
   private watchInvocation(id: ScriptInvocationId): void {
-    const view: InvocationView = { unsubscribe: () => {} };
-    this.invocations.set(id, view);
-    const notifyOnFinish = this.initialized;
-    view.unsubscribe = this.context.server.subscribe(
+    this.invocations.set(id, {
+      type: "pending",
+      notifyOnFinish: this.initialized,
+    });
+    const unsubscribe = this.context.server.subscribe(
       { type: "script", invocationId: id },
-      (state) => {
-        if (!state) {
-          this.dropInvocation(id);
-          this.myDispatch({ type: "state-updated" });
-          return;
-        }
-        const wasRunning = view.state
-          ? view.state.state.type === "running"
-          : notifyOnFinish;
-        view.state = state;
-        if (wasRunning && state.state.type !== "running") {
-          this.notifyFinished();
-        }
-        this.myDispatch({ type: "state-updated" });
-      },
+      (state) => this.onScriptState(id, state),
     );
+    // The subscription may have delivered `undefined` synchronously.
+    if (this.invocations.has(id)) {
+      this.subscriptions.set(id, unsubscribe);
+    } else {
+      unsubscribe();
+    }
+  }
+
+  private onScriptState(
+    id: ScriptInvocationId,
+    state: ProtocolScriptState | undefined,
+  ): void {
+    const view = this.invocations.get(id);
+    if (!view) return;
+    if (!state) {
+      this.dropInvocation(id);
+      this.myDispatch({ type: "state-updated" });
+      return;
+    }
+    const wasRunning =
+      view.type === "loaded"
+        ? view.state.state.type === "running"
+        : view.notifyOnFinish;
+    this.invocations.set(id, { type: "loaded", state });
+    if (wasRunning && state.state.type !== "running") {
+      this.notifyFinished();
+    }
+    this.myDispatch({ type: "state-updated" });
   }
 
   private dropInvocation(id: ScriptInvocationId): void {
     const view = this.invocations.get(id);
     if (!view) return;
     this.invocations.delete(id);
-    view.unsubscribe();
-    for (const threadId of view.state?.threadIds ?? []) {
-      this.expandedThreads.delete(threadId);
+    this.subscriptions.get(id)?.();
+    this.subscriptions.delete(id);
+    if (view.type === "loaded") {
+      for (const threadId of view.state.threadIds) {
+        this.expandedThreads.delete(threadId);
+      }
     }
     this.expandedInvocations.delete(id);
   }
@@ -133,7 +154,8 @@ export class ScriptController {
   /** Drop every subscription; view state dies with the controller. */
   dispose(): void {
     this.unsubscribeSession();
-    for (const view of this.invocations.values()) view.unsubscribe();
+    for (const unsubscribe of this.subscriptions.values()) unsubscribe();
+    this.subscriptions.clear();
     this.invocations.clear();
   }
 
@@ -145,7 +167,11 @@ export class ScriptController {
           this.context.nvim.logger.error(result.message);
         }
       })
-      .catch((e: Error) => this.context.nvim.logger.error(e.message));
+      .catch((e: unknown) =>
+        this.context.nvim.logger.error(
+          e instanceof Error ? e.message : String(e),
+        ),
+      );
   }
 
   update(msg: RootMsg): void {
@@ -195,7 +221,11 @@ export class ScriptController {
       cwd: this.context.cwd,
       homeDir: this.context.homeDir,
       options: this.context.getOptions(),
-    }).catch((e: Error) => this.context.nvim.logger.error(e.message));
+    }).catch((e: unknown) =>
+      this.context.nvim.logger.error(
+        e instanceof Error ? e.message : String(e),
+      ),
+    );
   }
 
   private renderThreadYield(
@@ -214,7 +244,7 @@ export class ScriptController {
 
   view(): VDOMNode {
     const invocations = [...this.invocations.values()].flatMap((view) =>
-      view.state ? [view.state] : [],
+      view.type === "loaded" ? [view.state] : [],
     );
     if (invocations.length === 0) {
       return d``;

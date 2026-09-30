@@ -386,6 +386,7 @@ Decisions/deviations:
 
 - The controller's unused `getCatalog`/`discover` were removed (no callers; tests read the catalog from the server `ScriptManager` via `driver.magenta.scripts`, which goes away in the boundary stage). `script.run`/`script.discover` have no client callers yet: scripts are started by the `run_script` tool server-side.
 - The session delivery only re-renders when the invocation set changes. Re-rendering on every session change (every thread update) raced display-buffer key triggers in `thread-abort.test.ts`. Script topics still fire on every session event, so each live invocation re-renders on thread updates.
+- Review follow-up: `InvocationView` is a union (`pending` with `notifyOnFinish` | `loaded` with `state`), and unsubscribe functions live in a separate map set only after `subscribe` returns (a synchronous `undefined` delivery unsubscribes immediately). Catch handlers take `unknown`. Tier-A `script-controller.node.test.ts` (fake server, mocked `notifyUser`) covers finish notifications (pre-existing, late-appearing, running→done once), removal via `undefined` and via the session list (unsubscribe, expansion cleared, not rendered), no dispatch for an unchanged invocation set, and `dispose`. The existing tier-C script tests exercise abort/delete/toggle end to end; the `execute` error-logging branch is untested.
 
 - Goal: `ScriptController` renders the catalog from `SessionState.scripts`, and each invocation from a `ScriptState` subscription. Abort/delete/toggle sandbox/discover/run go through `execute`.
 - Tests:
