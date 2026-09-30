@@ -290,6 +290,9 @@ export class ThreadCore {
   ): ContextDelivery | undefined {
     return this.contextDeliveries.get(nativeMessageIdx);
   }
+  get contextDeliveryEntries(): ReadonlyMap<NativeMessageIdx, ContextDelivery> {
+    return this.contextDeliveries;
+  }
 
   private handleUpdate(): void {
     this.callbacks.onUpdate();

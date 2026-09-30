@@ -180,6 +180,8 @@ export interface ThreadCoreView {
   getContextDelivery(
     nativeMessageIdx: NativeMessageIdx,
   ): ContextDelivery | undefined;
+  /** Every structured context delivery, keyed by the message it went into. */
+  readonly contextDeliveries: ReadonlyMap<NativeMessageIdx, ContextDelivery>;
   readonly editedFileGroups: EditedFileGroup[];
   readonly toolSpecs: ReadonlyArray<ProviderToolSpec>;
   getLastStopTokenCount(): number;
@@ -215,6 +217,9 @@ export class Thread implements ThreadCoreView {
     nativeMessageIdx: NativeMessageIdx,
   ): ContextDelivery | undefined {
     return this.core.getContextDelivery(nativeMessageIdx);
+  }
+  get contextDeliveries(): ReadonlyMap<NativeMessageIdx, ContextDelivery> {
+    return this.core.contextDeliveryEntries;
   }
   get editedFileGroups(): EditedFileGroup[] {
     return this.core.editedFilesSupervisor.groups;
