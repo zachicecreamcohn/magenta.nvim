@@ -32,6 +32,7 @@ import {
 } from "./thread-supervisor.ts";
 import type { ToolName, ToolRequestId } from "./tool-types.ts";
 import { Defer } from "./utils/async.ts";
+import type { AbsFilePath } from "./utils/files.ts";
 
 const harnesses: Harness[] = [];
 
@@ -313,7 +314,9 @@ it("rejects approvals on deletion and releases environments even when destructio
     await destroy();
     throw new Error("teardown failed");
   });
-  const approval = session.approvalsFor(id).promptForWriteApproval("/x");
+  const approval = session
+    .approvalsFor(id)
+    .promptForWriteApproval("/x" as AbsFilePath);
   expect(session.getPendingApprovals(id).size).toBe(1);
   session.deleteThread(id);
   await expect(approval).rejects.toThrow("did not allow writing");
@@ -429,7 +432,7 @@ it("aborts the subtree but returns only the requested thread's unsent input", as
   );
   const approval = session
     .approvalsFor(grandchild)
-    .promptForWriteApproval("/x");
+    .promptForWriteApproval("/x" as AbsFilePath);
   const { unsent } = await session.abortThread(root);
   await expect(approval).rejects.toThrow("did not allow writing");
   expect(unsent.map((queued) => renderPending(queued.message))).toEqual([
@@ -734,7 +737,9 @@ it("owns approvals and bypass: toggling a root approves its subtree, forks inher
       threadType: "subagent",
     }),
   );
-  const write = session.approvalsFor(childId).promptForWriteApproval("/x");
+  const write = session
+    .approvalsFor(childId)
+    .promptForWriteApproval("/x" as AbsFilePath);
   expect([...session.getPendingApprovals(childId).values()]).toMatchObject([
     { prompt: { kind: "write-approval", absPath: "/x" } },
   ]);
@@ -771,7 +776,9 @@ it("delegates bypass of an externally owned root to that root", async () => {
     },
     toggle,
   }));
-  const write = session.approvalsFor(childId).promptForWriteApproval("/x");
+  const write = session
+    .approvalsFor(childId)
+    .promptForWriteApproval("/x" as AbsFilePath);
   session.toggleSandboxBypass(childId);
   expect(toggle).toHaveBeenCalledTimes(1);
   await expect(write).resolves.toBeUndefined();

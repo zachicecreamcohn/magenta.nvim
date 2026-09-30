@@ -1,4 +1,5 @@
 import type {
+  ApprovalId,
   PendingViolation,
   SandboxViolation,
 } from "../capabilities/sandbox-violation-handler.ts";
@@ -34,11 +35,7 @@ import type { ProfileSelection, Session, SessionId } from "../session.ts";
 import type { Queues } from "../submission/mailbox.ts";
 import type { FileStat } from "../supervisors/file-supervisor.ts";
 import type { EnvironmentConfig, Thread } from "../thread.ts";
-import type {
-  SubmissionResult,
-  YieldState,
-  YieldValue,
-} from "../thread-api.ts";
+import type { SubmissionResult, YieldValue } from "../thread-api.ts";
 import type { ContextDelivery } from "../thread-core.ts";
 import type { ThreadState } from "../thread-state.ts";
 import type { EditedFileGroup } from "../thread-supervisor.ts";
@@ -48,16 +45,9 @@ import type {
   ToolStructuredResult,
 } from "../tool-types.ts";
 import type { AbsFilePath, Cwd } from "../utils/files.ts";
+import type { JsonValue } from "../utils/json.ts";
 
-/** What survives `JSON.stringify`. `undefined` is allowed as an object value
- * because optional fields are dropped, which deep-equality treats as absent. */
-export type JsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | ReadonlyArray<JsonValue>
-  | { readonly [key: string]: JsonValue | undefined };
+export type { JsonValue };
 
 /** `failed` carries an `Error` in-process; across the boundary only its
  * message is kept. */
@@ -114,10 +104,8 @@ export type ProtocolThreadState = {
   title?: string;
   threadType: ThreadType;
   cwd: Cwd;
+  /** The single source for busy/yielded/lastResult. */
   run: ProtocolRunState;
-  busy: boolean;
-  yielded?: YieldState;
-  lastResult?: ProtocolSubmissionResult;
   messages: ReadonlyArray<ProviderMessage>;
   tools: Readonly<Record<ToolRequestId, ToolState>>;
   queued: Queues;
@@ -127,10 +115,8 @@ export type ProtocolThreadState = {
   contextFiles: ReadonlyArray<TrackedContextFile>;
   contextDeliveries: Readonly<Record<NativeMessageIdx, ContextDelivery>>;
   editedFileGroups: ReadonlyArray<EditedFileGroup>;
-  compaction: {
-    current?: Extract<CompactionRunState, { type: "running" }>;
-    runs: ReadonlyArray<CompactionRunState>;
-  };
+  /** The current run, if any, is the last entry with `type: "running"`. */
+  compaction: { runs: ReadonlyArray<CompactionRunState> };
   derived: {
     forks: ReadonlyArray<ThreadId>;
     reflections: ReadonlyArray<ThreadId>;
@@ -166,11 +152,11 @@ export type PendingApprovalPrompt =
       violations: ReadonlyArray<{ line: string; count: number }>;
       stderr: string;
     }
-  | { kind: "write-approval"; absPath: string }
+  | { kind: "write-approval"; absPath: AbsFilePath }
   | { kind: "network-access"; host: string; port?: number };
 
 export type PendingApproval = {
-  id: string;
+  id: ApprovalId;
   threadId: ThreadId;
   prompt: PendingApprovalPrompt;
 };
@@ -292,8 +278,7 @@ function toolStates(thread: Thread): Record<ToolRequestId, ToolState> {
       tools[id] = {
         request: entry.request,
         status: "running",
-        // Tool progress types are plain data; see protocol/state.test.ts.
-        progress: entry.progress as JsonValue | undefined,
+        progress: entry.progress,
       };
     }
   }
@@ -305,7 +290,6 @@ export function threadState(
   compactor: ThreadCompactor | undefined,
   session: Session,
 ): ProtocolThreadState {
-  const lastResult = thread.lastResult();
   const contextFiles: TrackedContextFile[] = Object.entries(
     thread.contextFiles.files,
   ).map(([absFilePath, file]) => {
@@ -320,16 +304,12 @@ export function threadState(
   for (const [idx, delivery] of thread.contextDeliveries) {
     contextDeliveries[idx] = delivery;
   }
-  const current = compactor?.current;
   return {
     id: thread.id,
     ...(thread.title !== undefined ? { title: thread.title } : {}),
     threadType: thread.threadType,
     cwd: thread.systemInfo.cwd,
     run: runState(thread.state),
-    busy: thread.isBusy,
-    ...(thread.yielded ? { yielded: thread.yielded } : {}),
-    ...(lastResult ? { lastResult: submissionResult(lastResult) } : {}),
     messages: thread.getProviderMessages(),
     tools: toolStates(thread),
     queued: thread.queued,
@@ -339,10 +319,7 @@ export function threadState(
     contextFiles,
     contextDeliveries,
     editedFileGroups: thread.editedFileGroups,
-    compaction: {
-      ...(current ? { current } : {}),
-      runs: compactor?.runs ?? [],
-    },
+    compaction: { runs: compactor?.runs ?? [] },
     derived: {
       forks: session.listDerived(thread.id, "fork").map((d) => d.threadId),
       reflections: session

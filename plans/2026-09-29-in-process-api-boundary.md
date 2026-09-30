@@ -206,7 +206,7 @@ export type ClientResponse<R extends ClientRequest> =
   R extends { type: "lua" } ? JsonValue :
   R extends { type: "expandClientCommand" } ? AgentInput[] :
   R extends { type: "oauth" } ? { code: string } :
-  R extends { type: "fileWritten" } ? null : never;
+  R extends { type: "fileWritten" } ? undefined : never;
 
 export type ClientNotification =
   | { type: "loginProgress"; chunk: string }
@@ -260,6 +260,12 @@ Decisions/deviations:
 - `TrackedContextFile` is `{ absFilePath, relFilePath, fileTypeInfo, agentView, lastStat? }`.
 - The session projection takes the `ScriptManager` as a separate argument (`undefined` when absent), because `session.scriptRunner` is only the `ScriptRunner` interface.
 - The projections are not yet exported from the server barrel. The next stage wires them.
+- Review follow-up: `ProtocolThreadState` dropped `busy`/`yielded`/`lastResult`; `run` is the single source. `compaction` is `{ runs }` only, and the current run is the last entry with `type: "running"` (as `ThreadCompactor.current` already derives it).
+- `JsonValue` lives in `utils/json.ts`. `ExecutingToolInvocation.progress?` and `ActiveToolEntry.progress` are typed `JsonValue`, so tools' progress types are checked where declared and the projection has no cast.
+- Approvals use a branded `ApprovalId` (from `SandboxViolationHandler` through `Session.approve/reject`) and write approvals carry `AbsFilePath` end to end.
+- The `absFilePath as AbsFilePath` cast in `threadState` remains: `FileSupervisor.files` is a string-keyed record, and changing it to a `Map` touches every supervisor consumer. Left for the thread-view stage.
+- Tests added: streaming retry and `failed` projections (`state.test.ts`), `contextDeliveries` following the replacement core after compaction, and a tier-B `scriptState`/`sessionState(scripts)` test in `nvimclient/scripts/script-manager.node.test.ts` (reuses its real-script fixture). The `toolStates` completed-wins rule is defensive for the settlement overlap and not separately tested.
+- For the client-effects stage, `fileWritten` responds with `undefined`, not `null`.
 
 - Goal: Add `protocol/state.ts` with the four state types, and pure projection functions from `Session`/`Thread`/`ThreadCompactor`/`ScriptManager`. Add accessors where the data is private today: context file list, context deliveries as a record, approvals without closures. The client is not changed yet.
 - Tests:

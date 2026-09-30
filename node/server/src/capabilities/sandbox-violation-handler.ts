@@ -1,5 +1,8 @@
 import type { SandboxViolationEvent } from "@anthropic-ai/sandbox-runtime";
+import type { AbsFilePath } from "../utils/files.ts";
 import type { OutputLine, ShellResult } from "./shell.ts";
+
+export type ApprovalId = string & { __approvalId: true };
 
 export type SandboxViolation = {
   command: string;
@@ -22,7 +25,7 @@ type PendingViolationPrompt = {
 
 type PendingWriteApprovalPrompt = {
   kind: "write-approval";
-  absPath: string;
+  absPath: AbsFilePath;
 };
 
 type PendingNetworkAccessPrompt = {
@@ -40,19 +43,19 @@ type PendingShellPrompt = PendingApprovalPrompt | PendingViolationPrompt;
 // (allow/deny the connection).
 export type PendingViolation =
   | {
-      id: string;
+      id: ApprovalId;
       prompt: PendingShellPrompt;
       resolve: (result: ShellResult) => void;
       reject: (err: Error) => void;
     }
   | {
-      id: string;
+      id: ApprovalId;
       prompt: PendingWriteApprovalPrompt;
       resolve: () => void;
       reject: (err: Error) => void;
     }
   | {
-      id: string;
+      id: ApprovalId;
       prompt: PendingNetworkAccessPrompt;
       resolve: (allowed: boolean) => void;
       reject: (err: Error) => void;
@@ -94,7 +97,7 @@ export function deduplicateViolations(
 }
 
 export class SandboxViolationHandler {
-  private pending: Map<string, PendingViolation> = new Map();
+  private pending: Map<ApprovalId, PendingViolation> = new Map();
   private nextId = 0;
 
   constructor(private onPendingChange: () => void) {}
@@ -104,7 +107,7 @@ export class SandboxViolationHandler {
     retryUnsandboxed: () => Promise<ShellResult>,
   ): Promise<ShellResult> {
     return new Promise<ShellResult>((resolve, reject) => {
-      const id = String(this.nextId++);
+      const id = String(this.nextId++) as ApprovalId;
       this.pending.set(id, {
         id,
         prompt: { kind: "violation", violation, retryUnsandboxed },
@@ -120,7 +123,7 @@ export class SandboxViolationHandler {
     execute: () => Promise<ShellResult>,
   ): Promise<ShellResult> {
     return new Promise<ShellResult>((resolve, reject) => {
-      const id = String(this.nextId++);
+      const id = String(this.nextId++) as ApprovalId;
       this.pending.set(id, {
         id,
         prompt: { kind: "approval-prompt", command, execute },
@@ -131,9 +134,9 @@ export class SandboxViolationHandler {
     });
   }
 
-  promptForWriteApproval(absPath: string): Promise<void> {
+  promptForWriteApproval(absPath: AbsFilePath): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-      const id = String(this.nextId++);
+      const id = String(this.nextId++) as ApprovalId;
       this.pending.set(id, {
         id,
         prompt: { kind: "write-approval", absPath },
@@ -149,7 +152,7 @@ export class SandboxViolationHandler {
     port: number | undefined;
   }): Promise<boolean> {
     return new Promise<boolean>((resolve, reject) => {
-      const id = String(this.nextId++);
+      const id = String(this.nextId++) as ApprovalId;
       this.pending.set(id, {
         id,
         prompt: {
@@ -164,7 +167,7 @@ export class SandboxViolationHandler {
     });
   }
 
-  approve(id: string): void {
+  approve(id: ApprovalId): void {
     const entry = this.pending.get(id);
     if (!entry) return;
 
@@ -189,7 +192,7 @@ export class SandboxViolationHandler {
     this.onPendingChange();
   }
 
-  reject(id: string): void {
+  reject(id: ApprovalId): void {
     const entry = this.pending.get(id);
     if (!entry) return;
 
@@ -234,7 +237,7 @@ export class SandboxViolationHandler {
     }
   }
 
-  getPendingViolations(): ReadonlyMap<string, PendingViolation> {
+  getPendingViolations(): ReadonlyMap<ApprovalId, PendingViolation> {
     return this.pending;
   }
 }

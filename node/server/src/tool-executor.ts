@@ -10,7 +10,6 @@ import type {
   CompletedToolInfo,
   ExecutedToolResult,
   ExecutingToolInvocation,
-  ToolInvocation,
   ToolRequest,
   ToolRequestId,
 } from "./tool-types.ts";
@@ -75,7 +74,7 @@ export function executeToolBatch(
         continue;
       }
       const request = requested.request.value;
-      let invocation: ToolInvocation;
+      let invocation: ExecutingToolInvocation;
       try {
         invocation = deps.createTool(request);
       } catch (err) {
@@ -93,7 +92,7 @@ export function executeToolBatch(
       if (aborted) invocation.abort();
       activeTools.set(request.id, {
         handle: invocation,
-        progress: "progress" in invocation ? invocation.progress : undefined,
+        progress: invocation.progress,
         toolName: request.toolName,
         request,
       });

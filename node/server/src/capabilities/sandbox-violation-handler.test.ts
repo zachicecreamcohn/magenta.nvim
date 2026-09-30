@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  type ApprovalId,
   type SandboxViolation,
   SandboxViolationHandler,
 } from "./sandbox-violation-handler.ts";
@@ -239,12 +240,12 @@ describe("SandboxViolationHandler", () => {
 
   describe("operations on non-existent IDs", () => {
     it("approve is a no-op for non-existent ID", () => {
-      handler.approve("non-existent");
+      handler.approve("non-existent" as ApprovalId);
       expect(handler.getPendingViolations().size).toBe(0);
     });
 
     it("reject is a no-op for non-existent ID", () => {
-      handler.reject("non-existent");
+      handler.reject("non-existent" as ApprovalId);
       expect(handler.getPendingViolations().size).toBe(0);
     });
   });

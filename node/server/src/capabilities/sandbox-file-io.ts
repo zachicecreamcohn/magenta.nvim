@@ -22,7 +22,7 @@ export class SandboxFileIO implements FileIO {
       homeDir: HomeDir;
     },
     private sandbox: Sandbox,
-    private promptForWriteApproval: (absPath: string) => Promise<void>,
+    private promptForWriteApproval: (absPath: AbsFilePath) => Promise<void>,
     private isBypassed: () => boolean,
     /** Lets an attached editor refresh its view of a file the agent wrote. */
     private onFileWritten?: (absPath: AbsFilePath) => Promise<void>,

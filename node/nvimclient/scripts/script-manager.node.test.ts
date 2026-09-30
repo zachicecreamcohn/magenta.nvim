@@ -8,6 +8,10 @@ import {
   type ToolRequestId,
 } from "@magenta/server";
 import {
+  scriptState,
+  sessionState,
+} from "@magenta/server/src/protocol/state.ts";
+import {
   createHarness,
   type Harness,
 } from "@magenta/server/src/test/harness.ts";
@@ -83,6 +87,20 @@ registerScript(
 );
 `;
 
+const TWO_THREAD_SCRIPT = `
+import { registerScript } from "./magenta-sdk/index.ts";
+registerScript(
+  "two",
+  "spawns two threads in sequence",
+  { type: "object", properties: {}, required: [] },
+  async (_params, thread, log) => {
+    const schema = { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"] };
+    await thread("first task", schema);
+    log("first done");
+    await thread("second task", schema);
+  },
+);
+`;
 const CONTEXT_SCRIPT = `
 import { registerScript } from "./magenta-sdk/index.ts";
 
@@ -436,5 +454,29 @@ it("dispose terminates running invocations and rejects new ones", async () => {
     ).toThrow("ScriptManager disposed");
     await scripts.discover();
     expect(scripts.getCatalog().length).toBe(0);
+  });
+});
+
+it("projects script state with yields only for yielded threads", async () => {
+  await withScripts({ project: TWO_THREAD_SCRIPT }, async ({ h, scripts }) => {
+    const id = scripts.startScript("two", {}, { sandboxBypassed: false });
+    (await h.streamWithText("first task")).respond(yieldOk("yield-1"));
+    await h.streamWithText("second task");
+    const inv = expectInvocation(scripts, id);
+    await pollUntil(() => inv.threadIds.length === 2);
+    const [first, second] = inv.threadIds;
+    const state = scriptState(scripts, id);
+    expect(JSON.parse(JSON.stringify(state))).toEqual(state);
+    expect(state?.logs).toContain("first done");
+    expect(state?.threadYields).toEqual({
+      [first]: { status: "ok", value: { ok: true } },
+    });
+    expect(second && state?.threadYields[second]).toBeUndefined();
+    const session = sessionState(h.session, scripts);
+    expect(session.scripts.catalog.map((c) => c.name)).toEqual(["two"]);
+    expect(session.scripts.invocations).toHaveLength(1);
+    expect(session.scripts.invocations[0]).not.toHaveProperty("logs");
+    expect(session.scripts.invocations[0]).not.toHaveProperty("entries");
+    expect(scriptState(scripts, "missing" as typeof id)).toBeUndefined();
   });
 });

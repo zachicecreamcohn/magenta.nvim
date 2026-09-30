@@ -4,6 +4,7 @@ import type { AgentsMap } from "./agents/agents.ts";
 import type { ClientCapabilities } from "./capabilities/client.ts";
 import type { FileIO } from "./capabilities/file-io.ts";
 import {
+  type ApprovalId,
   type PendingViolation,
   SandboxViolationHandler,
 } from "./capabilities/sandbox-violation-handler.ts";
@@ -345,15 +346,15 @@ export class Session extends Emitter<SessionEvents> implements ThreadManager {
     return handler;
   }
 
-  getPendingApprovals(id: ThreadId): ReadonlyMap<string, PendingViolation> {
+  getPendingApprovals(id: ThreadId): ReadonlyMap<ApprovalId, PendingViolation> {
     return this.approvals.get(id)?.getPendingViolations() ?? new Map();
   }
 
-  approve(id: ThreadId, approvalId: string): void {
+  approve(id: ThreadId, approvalId: ApprovalId): void {
     this.approvals.get(id)?.approve(approvalId);
   }
 
-  reject(id: ThreadId, approvalId: string): void {
+  reject(id: ThreadId, approvalId: ApprovalId): void {
     this.approvals.get(id)?.reject(approvalId);
   }
 

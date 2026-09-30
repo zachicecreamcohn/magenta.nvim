@@ -1,3 +1,4 @@
+import { APIError } from "@anthropic-ai/sdk";
 import { expect, it } from "vitest";
 import type { ThreadId } from "../chat-types.ts";
 import type { MockStream } from "../providers/mock-anthropic-client.ts";
@@ -7,6 +8,7 @@ import type { ToolName, ToolRequestId } from "../tool-types.ts";
 import type { BashProgress } from "../tools/bashCommand.ts";
 import type { SpawnSubagentsProgress } from "../tools/spawn-subagents.ts";
 import { pollUntil } from "../utils/async.ts";
+import type { AbsFilePath } from "../utils/files.ts";
 import {
   globalState,
   type JsonValue,
@@ -70,7 +72,6 @@ it("projects tools, context, edits and compaction as serializable thread state",
     });
     const running = project(h, id);
     expect(running.run.type).toBe("running");
-    expect(running.busy).toBe(true);
     expect(running.tools["bash1" as ToolRequestId]).toMatchObject({
       status: "running",
       progress: { liveOutput: [] },
@@ -108,7 +109,7 @@ it("projects tools, context, edits and compaction as serializable thread state",
 
     const compacting = h.send(thread, "@compact");
     const chunk = await h.nextStream();
-    expect(project(h, id).compaction.current).toBeDefined();
+    expect(project(h, id).compaction.runs.at(-1)?.type).toBe("running");
     respondTool(chunk, "sum1", "edl", {
       script: "file `/summary.md`\nselect bof-eof\nreplace <<S\n# Summary\nS",
     });
@@ -122,7 +123,8 @@ it("projects tools, context, edits and compaction as serializable thread state",
     });
     await compacting;
     const compacted = project(h, id);
-    expect(compacted.compaction.current).toBeUndefined();
+    // The getter follows the replacement core, not the retired one.
+    expect(compacted.contextDeliveries).not.toEqual(settled.contextDeliveries);
     expect(compacted.compaction.runs.map((r) => r.type)).toEqual(["done"]);
   }));
 
@@ -131,7 +133,7 @@ it("lists pending approvals without closures", () =>
     const { id } = await h.createRoot();
     const approvals = h.session.approvalsFor(id);
     const settled = [
-      approvals.promptForWriteApproval("/etc/x"),
+      approvals.promptForWriteApproval("/etc/x" as AbsFilePath),
       approvals.promptForNetworkAccess({ host: "example.com", port: 443 }),
       approvals.promptForApproval("rm -rf /", async () =>
         shellResult({ exitCode: 0 }),
@@ -179,4 +181,47 @@ it("projects a failed thread creation as an error message", () =>
         error: { message: "no docker" },
       }),
     ]);
+  }));
+
+it("projects retry and failure without Dates or Errors", () =>
+  withHarness({}, async (h) => {
+    const { id, thread } = await h.createRoot();
+    const done = h.send(thread, "hi");
+    (await h.nextStream()).respondWithError(
+      new APIError(
+        529,
+        { type: "error", message: "overloaded" },
+        "overloaded",
+        new Headers(),
+      ),
+    );
+    let run = project(h, id).run;
+    await pollUntil(() => {
+      run = project(h, id).run;
+      if (
+        run.type !== "running" ||
+        run.activity.type !== "streaming" ||
+        !run.activity.retry
+      )
+        throw new Error("waiting for retry");
+    });
+    expect(run).toMatchObject({
+      type: "running",
+      activity: {
+        type: "streaming",
+        startedAt: expect.any(Number),
+        lastEventTime: expect.any(Number),
+        retry: {
+          attempt: 1,
+          nextRetryAt: expect.any(Number),
+          error: { message: expect.stringContaining("overloaded") },
+        },
+      },
+    });
+    (await h.nextStream()).respondWithError(new Error("fatal"));
+    await done;
+    expect(project(h, id).run).toEqual({
+      type: "idle",
+      lastResult: { type: "failed", error: { message: "fatal" } },
+    });
   }));

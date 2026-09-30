@@ -1,3 +1,4 @@
+import type { JsonValue } from "./utils/json.ts";
 export type ToolRequestId = string & { __toolRequestId: true };
 
 /** Opaque toolName type. Internally we'll differentiate between static tools and mcp tools, but external to the tool
@@ -105,6 +106,8 @@ export type ToolInvocation = {
 /** What a tool produces, seen only by the thread. */
 export type ExecutingToolInvocation = Omit<ToolInvocation, "promise"> & {
   promise: Promise<ExecutedToolResult>;
+  /** Mutable progress the view renders; data only, since it crosses the protocol boundary. */
+  progress?: JsonValue;
 };
 
 export type ValidateInput = (
@@ -116,7 +119,7 @@ export type ValidateInput = (
  * latest progress, and its result once it lands. */
 export type ActiveToolEntry = {
   handle: ToolInvocation;
-  progress: unknown;
+  progress: JsonValue | undefined;
   toolName: ToolName;
   request: ToolRequest;
   result?: ToolResultInput;
