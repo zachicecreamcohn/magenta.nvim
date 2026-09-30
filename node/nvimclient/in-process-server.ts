@@ -64,13 +64,16 @@ export function startInProcessServer(deps: {
   const server: MagentaServer = {
     ...inner,
     async dispose() {
-      await inner.dispose();
-      // The session must be disposed even if script teardown fails, otherwise
-      // in-flight threads never settle.
+      // Each teardown runs even if an earlier one fails: the session must be
+      // disposed, otherwise in-flight threads never settle.
       try {
-        await scripts.dispose();
+        await inner.dispose();
       } finally {
-        await session.dispose();
+        try {
+          await scripts.dispose();
+        } finally {
+          await session.dispose();
+        }
       }
     },
   };

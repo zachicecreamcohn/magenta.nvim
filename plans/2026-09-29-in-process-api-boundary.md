@@ -406,6 +406,7 @@ Decisions/deviations:
 - `createInProcessServer` itself (server package) still does not own disposal; the nvimclient composition root wraps it.
 - `Magenta.host` (`ServerSessionHost`, not a forbidden name) is still passed to `Chat` for `getPrepared`/MCP info.
 - Tests reach live objects via `magenta.serverInternals.internals.{session,scripts}` (white-box).
+- Review follow-up: the composed `dispose` runs `inner.dispose()`, `scripts.dispose()` and `session.dispose()` in nested try/finally, so each runs even if an earlier one throws. Tier-A `in-process-server.node.test.ts` checks the session is disposed when script teardown rejects. Profile switching reflected in `options.activeProfile` is already covered by `magenta.test.ts` "can switch profiles".
 
 - Goal: `Magenta` receives a `MagentaServer` from `createInProcessServer`, and only the composition root constructs server objects. Add `node/nvimclient/server-boundary.node.test.ts`, in the style of `fs-boundary`. It fails if nvimclient imports `Session`, `Thread`, `ThreadCore`, `ThreadCompactor`, `ScriptManager`, `FileSupervisor`, or `ToolInvocation` (values or types), with an allowlist containing only the composition root. Update `context.md`: Sessions, Core → Root bridge, and Testing sections.
 - Tests:
