@@ -148,3 +148,36 @@ it("a disposed view observes no further session events", async () => {
     expect(chat["threadViews"].size).toBe(0);
   });
 });
+it("deleting a thread drops its wrapper and view but keeps siblings", async () => {
+  await withDriver({}, async (driver) => {
+    await driver.showSidebar();
+    const chat = driver.magenta.chat;
+    const first = leftThread(chat).id;
+    const second = await chat.createThread({ type: "thread.create" });
+    if (second === ABORTED) throw new Error("aborted");
+    expect(Object.keys(chat.threadWrappers).sort()).toEqual(
+      [first, second].sort(),
+    );
+    await chat.deleteThread(second);
+    expect(Object.keys(chat.threadWrappers)).toEqual([first]);
+    const views = chat["threadViews"];
+    expect(views.has(second)).toBe(false);
+    expect(views.has(first)).toBe(true);
+    expect(chat.threadWrappers[first]?.state).toBe("initialized");
+  });
+});
+it("chat.execute rejects with the message of an error result", async () => {
+  await withDriver({}, async (driver) => {
+    const chat = driver.magenta.chat;
+    await expect(
+      chat.execute({
+        type: "session.setActiveProfile",
+        sessionId: chat.sessionId,
+        name: "missing",
+      }),
+    ).rejects.toThrow('Profile "missing" not found.');
+    await expect(
+      chat.execute({ type: "thread.delete", threadId: "nope" as ThreadId }),
+    ).rejects.toThrow();
+  });
+});

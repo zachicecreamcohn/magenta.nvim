@@ -155,7 +155,12 @@ export type {
   LspRequestKind,
 } from "./protocol/client.ts";
 export { createClientEffectHandler } from "./protocol/client.ts";
-export type { Operation, OperationResult } from "./protocol/operations.ts";
+export type {
+  Operation,
+  OperationResult,
+  OperationResultFor,
+  OperationSuccessMap,
+} from "./protocol/operations.ts";
 export {
   createInProcessServer,
   type MagentaServer,

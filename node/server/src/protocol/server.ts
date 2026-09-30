@@ -5,7 +5,13 @@ import { renderPending } from "../submission/index.ts";
 import type { Thread } from "../thread.ts";
 import { ABORTED, type Aborted } from "../thread-api.ts";
 import type { ClientEffectHandler } from "./client.ts";
-import type { Operation, OperationResult } from "./operations.ts";
+import type {
+  Operation,
+  OperationOf,
+  OperationResultFor,
+  OperationSuccessMap,
+  OperationType,
+} from "./operations.ts";
 import {
   globalState,
   type ProtocolGlobalState,
@@ -46,7 +52,7 @@ export interface MagentaServer {
   ): () => void;
   /** The current state, or `undefined` if the target is gone or not ready. */
   getState<K extends TopicType>(topic: TopicOf<K>): StateMap[K] | undefined;
-  execute(op: Operation): Promise<OperationResult>;
+  execute<O extends Operation>(op: O): Promise<OperationResultFor<O>>;
   attachClient(client: ClientEffectHandler): void;
   detachClient(): void;
   dispose(): Promise<void>;
@@ -242,144 +248,179 @@ export function createInProcessServer({
     return manager;
   }
 
-  function created(id: ThreadId | Aborted): OperationResult {
+  function created(
+    id: ThreadId | Aborted,
+  ): OperationSuccessMap["thread.create"] {
     return id === ABORTED
       ? { type: "aborted" }
       : { type: "created", threadId: id };
   }
 
-  async function dispatch(op: Operation): Promise<OperationResult> {
-    switch (op.type) {
-      case "thread.create":
-        requireSession(op.sessionId);
-        return created(
-          await (op.agent
-            ? session.createAgentThread(op.agent)
-            : session.createRootThread()),
-        );
-      case "thread.fork":
-        return created(
-          await session.forkThread(op.threadId, op.nativeMessageIdx),
-        );
-      case "thread.reflect":
-        return created(await session.reflectThread(op.threadId, op.anchor));
-      case "thread.delete":
-        knownThread(op.threadId);
-        session.deleteThread(op.threadId);
-        return { type: "ok" };
-      case "thread.submit": {
-        const thread = readyThread(op.threadId);
-        if (op.delivery === "async" || op.delivery === "next") {
-          thread.enqueue(op.input, op.delivery);
-          return { type: "queued" };
-        }
-        return {
-          type: "submitted",
-          submission: submissionResult(await thread.submit(op.input)),
-        };
-      }
-      case "thread.retry":
-        return {
-          type: "submitted",
-          submission: submissionResult(await readyThread(op.threadId).retry()),
-        };
-      case "thread.abort": {
-        knownThread(op.threadId);
-        const { unsent } = await session.abortThread(op.threadId);
-        return {
-          type: "threadAborted",
-          unsent: unsent.map((q) => renderPending(q.message)),
-        };
-      }
-      case "thread.setTitle":
-        readyThread(op.threadId).setTitle(op.title);
-        return { type: "ok" };
-      case "thread.recordActivity":
-        knownThread(op.threadId);
-        session.recordActivity(op.threadId);
-        return { type: "ok" };
-      case "thread.addContextFiles":
-        await readyThread(op.threadId).contextFiles.addFiles(op.files);
-        return { type: "ok" };
-      case "thread.removeContextFile":
-        readyThread(op.threadId).contextFiles.removeFileContext(op.file);
-        return { type: "ok" };
-      case "tool.abort": {
-        const state = readyThread(op.threadId).state;
-        const entry =
-          state.type === "running" &&
-          state.activity.type === "running_tools" &&
-          state.activity.tools.type === "running"
-            ? state.activity.tools.activeTools.get(op.toolRequestId)
-            : undefined;
-        if (!entry) {
-          throw new UnknownTarget(`No running tool ${op.toolRequestId}`);
-        }
-        entry.handle.abort();
-        return { type: "ok" };
-      }
-      case "approval.approve":
-      case "approval.reject":
-        if (!session.getPendingApprovals(op.threadId).has(op.approvalId)) {
-          throw new UnknownTarget(`Unknown approval ${op.approvalId}`);
-        }
-        if (op.type === "approval.approve") {
-          session.approve(op.threadId, op.approvalId);
-        } else {
-          session.reject(op.threadId, op.approvalId);
-        }
-        return { type: "ok" };
-      case "approval.approveAll":
-        knownThread(op.threadId);
-        session.approveAll(op.threadId);
-        return { type: "ok" };
-      case "approval.rejectAll":
-        knownThread(op.threadId);
-        session.rejectAll(op.threadId);
-        return { type: "ok" };
-      case "approval.approveAllInSubtree":
-        knownThread(op.threadId);
-        session.approveAllPendingInSubtree(op.threadId);
-        return { type: "ok" };
-      case "sandbox.toggleBypass":
-        knownThread(op.threadId);
-        session.toggleSandboxBypass(op.threadId);
-        return { type: "ok" };
-      case "session.setActiveProfile":
-        requireSession(op.sessionId);
-        session.setActiveProfile(op.name);
-        return { type: "ok" };
-      case "script.run": {
-        requireSession(op.sessionId);
-        const invocationId = requireScripts().startScript(
-          op.name,
-          op.parameters,
-          { sandboxBypassed: false },
-        );
-        return { type: "started", invocationId };
-      }
-      case "script.abort":
-        requireInvocation(op.invocationId).abortInvocation(op.invocationId);
-        return { type: "ok" };
-      case "script.delete":
-        requireInvocation(op.invocationId).deleteInvocation(op.invocationId);
-        return { type: "ok" };
-      case "script.toggleSandbox":
-        requireInvocation(op.invocationId).toggleInvocationSandbox(
-          op.invocationId,
-        );
-        return { type: "ok" };
-      case "script.discover":
-        requireSession(op.sessionId);
-        await requireScripts().discover();
-        return { type: "ok" };
+  const ok = { type: "ok" } as const;
+
+  function approveOrReject(
+    op: OperationOf<"approval.approve" | "approval.reject">,
+  ) {
+    if (!session.getPendingApprovals(op.threadId).has(op.approvalId)) {
+      throw new UnknownTarget(`Unknown approval ${op.approvalId}`);
     }
+    if (op.type === "approval.approve") {
+      session.approve(op.threadId, op.approvalId);
+    } else {
+      session.reject(op.threadId, op.approvalId);
+    }
+    return Promise.resolve(ok);
+  }
+
+  const handlers: {
+    [K in OperationType]: (
+      op: OperationOf<K>,
+    ) => Promise<OperationSuccessMap[K]> | OperationSuccessMap[K];
+  } = {
+    "thread.create": async (op) => {
+      requireSession(op.sessionId);
+      return created(
+        await (op.agent
+          ? session.createAgentThread(op.agent)
+          : session.createRootThread()),
+      );
+    },
+    "thread.fork": async (op) =>
+      created(await session.forkThread(op.threadId, op.nativeMessageIdx)),
+    "thread.reflect": async (op) =>
+      created(await session.reflectThread(op.threadId, op.anchor)),
+    "thread.delete": (op) => {
+      knownThread(op.threadId);
+      session.deleteThread(op.threadId);
+      return ok;
+    },
+    "thread.submit": async (op) => {
+      const thread = readyThread(op.threadId);
+      if (op.delivery === "async" || op.delivery === "next") {
+        thread.enqueue(op.input, op.delivery);
+        return { type: "queued" };
+      }
+      return {
+        type: "submitted",
+        submission: submissionResult(await thread.submit(op.input)),
+      };
+    },
+    "thread.retry": async (op) => ({
+      type: "submitted",
+      submission: submissionResult(await readyThread(op.threadId).retry()),
+    }),
+    "thread.abort": async (op) => {
+      knownThread(op.threadId);
+      const { unsent } = await session.abortThread(op.threadId);
+      return {
+        type: "threadAborted",
+        unsent: unsent.map((q) => renderPending(q.message)),
+      };
+    },
+    "thread.setTitle": (op) => {
+      readyThread(op.threadId).setTitle(op.title);
+      return ok;
+    },
+    "thread.recordActivity": (op) => {
+      knownThread(op.threadId);
+      session.recordActivity(op.threadId);
+      return ok;
+    },
+    "thread.addContextFiles": async (op) => {
+      await readyThread(op.threadId).contextFiles.addFiles(op.files);
+      return ok;
+    },
+    "thread.removeContextFile": (op) => {
+      readyThread(op.threadId).contextFiles.removeFileContext(op.file);
+      return ok;
+    },
+    "tool.abort": (op) => {
+      const state = readyThread(op.threadId).state;
+      const entry =
+        state.type === "running" &&
+        state.activity.type === "running_tools" &&
+        state.activity.tools.type === "running"
+          ? state.activity.tools.activeTools.get(op.toolRequestId)
+          : undefined;
+      if (!entry) {
+        throw new UnknownTarget(`No running tool ${op.toolRequestId}`);
+      }
+      entry.handle.abort();
+      return ok;
+    },
+    "approval.approve": approveOrReject,
+    "approval.reject": approveOrReject,
+    "approval.approveAll": (op) => {
+      knownThread(op.threadId);
+      session.approveAll(op.threadId);
+      return ok;
+    },
+    "approval.rejectAll": (op) => {
+      knownThread(op.threadId);
+      session.rejectAll(op.threadId);
+      return ok;
+    },
+    "approval.approveAllInSubtree": (op) => {
+      knownThread(op.threadId);
+      session.approveAllPendingInSubtree(op.threadId);
+      return ok;
+    },
+    "sandbox.toggleBypass": (op) => {
+      knownThread(op.threadId);
+      session.toggleSandboxBypass(op.threadId);
+      return ok;
+    },
+    "session.setActiveProfile": (op) => {
+      requireSession(op.sessionId);
+      session.setActiveProfile(op.name);
+      return ok;
+    },
+    "script.run": (op) => {
+      requireSession(op.sessionId);
+      const invocationId = requireScripts().startScript(
+        op.name,
+        op.parameters,
+        { sandboxBypassed: false },
+      );
+      return { type: "started", invocationId };
+    },
+    "script.abort": (op) => {
+      requireInvocation(op.invocationId).abortInvocation(op.invocationId);
+      return ok;
+    },
+    "script.delete": (op) => {
+      requireInvocation(op.invocationId).deleteInvocation(op.invocationId);
+      return ok;
+    },
+    "script.toggleSandbox": (op) => {
+      requireInvocation(op.invocationId).toggleInvocationSandbox(
+        op.invocationId,
+      );
+      return ok;
+    },
+    "script.discover": async (op) => {
+      requireSession(op.sessionId);
+      await requireScripts().discover();
+      return ok;
+    },
+  };
+
+  function dispatch<O extends Operation>(
+    op: O,
+  ): Promise<OperationSuccessMap[O["type"]]> {
+    // Correlated lookup: TS can't relate `handlers[op.type]` to `op`.
+    const handler = handlers[op.type] as unknown as (
+      op: O,
+    ) =>
+      | Promise<OperationSuccessMap[O["type"]]>
+      | OperationSuccessMap[O["type"]];
+    return Promise.resolve(handler(op));
   }
 
   return {
     subscribe,
     getState,
-    async execute(op) {
+    async execute<O extends Operation>(op: O): Promise<OperationResultFor<O>> {
       try {
         return await dispatch(op);
       } catch (error) {

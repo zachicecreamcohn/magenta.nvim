@@ -347,3 +347,33 @@ it("script operations without a script runner return errors", () =>
       });
     }
   }));
+it("thread.abort returns the rendered unsent queued input", () =>
+  withHarness({}, async (h) => {
+    const server = createInProcessServer({ session: h.session });
+    const { id } = await h.createRoot();
+    const first = server.execute({
+      type: "thread.submit",
+      threadId: id,
+      input: text("first"),
+    });
+    await h.nextStream();
+    await server.execute({
+      type: "thread.submit",
+      threadId: id,
+      input: text("queued later"),
+      delivery: "next",
+    });
+    const aborted = await server.execute({
+      type: "thread.abort",
+      threadId: id,
+    });
+    expect(aborted.type).toBe("threadAborted");
+    if (aborted.type !== "threadAborted") throw new Error("unreachable");
+    expect(aborted.unsent).toHaveLength(1);
+    expect(aborted.unsent[0]).toContain("queued later");
+    await first;
+
+    expect(
+      await server.execute({ type: "thread.abort", threadId: id }),
+    ).toEqual({ type: "threadAborted", unsent: [] });
+  }));

@@ -63,17 +63,54 @@ export type Operation =
     }
   | { type: "script.discover"; sessionId: SessionId };
 
-/** Each operation returns exactly one success shape: `created` for
- * thread.create/fork/reflect, `started` for script.run, `submitted` for
- * thread.retry and immediate thread.submit, `queued` for async/next
- * thread.submit, `threadAborted` for thread.abort (the thread's unsent
- * queued input, rendered as text), and `ok` otherwise. */
-export type OperationResult =
-  | { type: "ok" }
-  | { type: "created"; threadId: ThreadId }
-  | { type: "started"; invocationId: ScriptInvocationId }
-  | { type: "submitted"; submission: ProtocolSubmissionResult }
-  | { type: "queued" }
-  | { type: "threadAborted"; unsent: ReadonlyArray<string> }
-  | { type: "aborted" }
-  | { type: "error"; message: string };
+type Ok = { type: "ok" };
+type Aborted = { type: "aborted" };
+type Created = { type: "created"; threadId: ThreadId };
+type Submitted = { type: "submitted"; submission: ProtocolSubmissionResult };
+export type OperationError = { type: "error"; message: string };
+
+/** The success result(s) of each operation type. `threadAborted.unsent` is
+ * the thread's unsent queued input, rendered as text. */
+export type OperationSuccessMap = {
+  "thread.create": Created | Aborted;
+  "thread.fork": Created | Aborted;
+  "thread.reflect": Created | Aborted;
+  "thread.delete": Ok;
+  "thread.submit": Submitted | { type: "queued" };
+  "thread.retry": Submitted;
+  "thread.abort": { type: "threadAborted"; unsent: ReadonlyArray<string> };
+  "thread.setTitle": Ok;
+  "thread.recordActivity": Ok;
+  "thread.addContextFiles": Ok;
+  "thread.removeContextFile": Ok;
+  "tool.abort": Ok;
+  "approval.approve": Ok;
+  "approval.reject": Ok;
+  "approval.approveAll": Ok;
+  "approval.rejectAll": Ok;
+  "approval.approveAllInSubtree": Ok;
+  "sandbox.toggleBypass": Ok;
+  "session.setActiveProfile": Ok;
+  "script.run": { type: "started"; invocationId: ScriptInvocationId };
+  "script.abort": Ok;
+  "script.delete": Ok;
+  "script.toggleSandbox": Ok;
+  "script.discover": Ok;
+};
+
+export type OperationType = Operation["type"];
+
+/** The operation variant(s) whose `type` includes `K`. */
+export type OperationOf<K extends OperationType> = Operation extends infer O
+  ? O extends Operation
+    ? K extends O["type"]
+      ? O
+      : never
+    : never
+  : never;
+
+export type OperationResultFor<O extends Operation> =
+  | OperationSuccessMap[O["type"]]
+  | OperationError;
+
+export type OperationResult = OperationResultFor<Operation>;

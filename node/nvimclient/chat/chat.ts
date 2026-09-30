@@ -2,7 +2,7 @@ import type {
   MagentaServer,
   NativeMessageIdx,
   Operation,
-  OperationResult,
+  OperationSuccessMap,
   ProtocolSessionState,
   ReflectAnchor,
   Sandbox,
@@ -794,15 +794,15 @@ export class Chat {
     const result = await this.execute(
       op.type === "thread.create" ? { ...op, sessionId: this.sessionId } : op,
     );
-    if (result.type !== "created") return ABORTED;
+    if (result.type === "aborted") return ABORTED;
     this.refreshSession();
     return result.threadId;
   }
 
   /** Execute an operation, turning an error result into a thrown Error. */
-  async execute(
-    op: Operation,
-  ): Promise<Exclude<OperationResult, { type: "error" }>> {
+  async execute<O extends Operation>(
+    op: O,
+  ): Promise<OperationSuccessMap[O["type"]]> {
     const result = await this.server.execute(op);
     if (result.type === "error") throw new Error(result.message);
     return result;
@@ -853,7 +853,7 @@ export class Chat {
     threadId: ThreadId,
   ): Promise<{ unsent: ReadonlyArray<string> }> {
     const result = await this.execute({ type: "thread.abort", threadId });
-    return { unsent: result.type === "threadAborted" ? result.unsent : [] };
+    return { unsent: result.unsent };
   }
 
   isSandboxBypassed(threadId: ThreadId | undefined): boolean {
@@ -1320,7 +1320,7 @@ ${rows}${loadMore}`;
         ? { nativeMessageIdx: truncateAtMessageIdx }
         : {}),
     });
-    if (result.type !== "created") return ABORTED;
+    if (result.type === "aborted") return ABORTED;
     const newThreadId = result.threadId;
     this.refreshSession();
     const origin = this.session.getOrigin(newThreadId);
