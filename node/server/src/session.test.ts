@@ -27,7 +27,7 @@ import { ABORTED } from "./thread-api.ts";
 import { TitleSupervisor } from "./thread-assembly.ts";
 import {
   MaxTokensSupervisor,
-  SubagentSupervisor,
+  UnsupervisedSupervisor,
 } from "./thread-supervisor.ts";
 import type { ToolName, ToolRequestId } from "./tool-types.ts";
 import { Defer } from "./utils/async.ts";
@@ -263,7 +263,7 @@ it("compact children get no compactor and no auto-compaction policy", async () =
   expect(fork.compactor).toBeUndefined();
   expect(
     fork.thread.submissionSupervisors.map((policy) => policy.constructor),
-  ).toEqual([MaxTokensSupervisor, SubagentSupervisor, TitleSupervisor]);
+  ).toEqual([MaxTokensSupervisor, UnsupervisedSupervisor, TitleSupervisor]);
 });
 
 it("runs bootstrap input and settles a yield with no dispatch involved", async () => {

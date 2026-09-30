@@ -4,7 +4,7 @@ import { ABORTED } from "../thread-api.ts";
 import { TitleSupervisor } from "../thread-assembly.ts";
 import {
   MaxTokensSupervisor,
-  SubagentSupervisor,
+  UnsupervisedSupervisor,
 } from "../thread-supervisor.ts";
 import type { ToolName, ToolRequestId } from "../tool-types.ts";
 import { pollUntil } from "../utils/async.ts";
@@ -74,7 +74,7 @@ it("spawns a subagent through the session", () =>
     // Parity with the nvim host (chat/supervisor-wiring.test.ts).
     expect(
       h.thread(child.id).submissionSupervisors.map((s) => s.constructor),
-    ).toEqual([MaxTokensSupervisor, SubagentSupervisor, TitleSupervisor]);
+    ).toEqual([MaxTokensSupervisor, UnsupervisedSupervisor, TitleSupervisor]);
   }));
 
 it("root supervisor order matches the nvim host", () =>

@@ -6,7 +6,7 @@ import type { MockStream } from "../providers/mock-anthropic-client.ts";
 import { type Harness, withHarness } from "../test/harness.ts";
 import { noopLogger } from "../test-helpers.ts";
 import type { Thread } from "../thread.ts";
-import { SubagentSupervisor } from "../thread-supervisor.ts";
+import { UnsupervisedSupervisor } from "../thread-supervisor.ts";
 import type { ToolName, ToolRequestId } from "../tool-types.ts";
 import { pollUntil } from "../utils/async.ts";
 import type { Cwd } from "../utils/files.ts";
@@ -122,9 +122,9 @@ it("supervisor resultPrefix is prepended to yield response", () =>
     const subagentStream = await h.streamWithText("Do the task");
     const child = childThread(h, thread);
     const supervisor = child.submissionSupervisors.find(
-      (s): s is SubagentSupervisor => s instanceof SubagentSupervisor,
+      (s): s is UnsupervisedSupervisor => s instanceof UnsupervisedSupervisor,
     );
-    if (!supervisor) throw new Error("expected a SubagentSupervisor");
+    if (!supervisor) throw new Error("expected an UnsupervisedSupervisor");
     vi.spyOn(supervisor, "onYield").mockResolvedValue({
       type: "accept",
       resultPrefix: "[Worker branch: magenta/worker-test123]",

@@ -9,7 +9,7 @@ import { created } from "./test-helpers.ts";
 import { TitleSupervisor } from "./thread-assembly.ts";
 import {
   MaxTokensSupervisor,
-  SubagentSupervisor,
+  UnsupervisedSupervisor,
 } from "./thread-supervisor.ts";
 import type { Cwd } from "./utils/files.ts";
 
@@ -79,12 +79,12 @@ it.each([
   {
     threadType: "compact",
     supervised: false,
-    expected: [MaxTokensSupervisor, SubagentSupervisor, TitleSupervisor],
+    expected: [MaxTokensSupervisor, UnsupervisedSupervisor, TitleSupervisor],
   },
   {
     threadType: "docker_root",
     supervised: false,
-    expected: [MaxTokensSupervisor, SubagentSupervisor, TitleSupervisor],
+    expected: [MaxTokensSupervisor, UnsupervisedSupervisor, TitleSupervisor],
   },
   {
     threadType: "subagent",
@@ -151,5 +151,5 @@ it("forks compact threads without a compactor or auto-compaction policy", () =>
     expect(fork.thread["context"].compaction?.compactor).toBeUndefined();
     expect(
       fork.thread.submissionSupervisors.map((policy) => policy.constructor),
-    ).toEqual([MaxTokensSupervisor, SubagentSupervisor, TitleSupervisor]);
+    ).toEqual([MaxTokensSupervisor, UnsupervisedSupervisor, TitleSupervisor]);
   }));

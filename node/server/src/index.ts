@@ -414,7 +414,6 @@ export type {
 export {
   EditedFilesSupervisor,
   MaxTokensSupervisor,
-  SubagentSupervisor,
   SystemInfoSupervisor,
   UnsupervisedSupervisor,
 } from "./thread-supervisor.ts";

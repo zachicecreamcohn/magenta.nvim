@@ -17,8 +17,8 @@ import {
 import { archiveThread, type ThreadLogger } from "./thread-logger.ts";
 import {
   MaxTokensSupervisor,
-  SubagentSupervisor,
   type SubmissionSupervisor,
+  UnsupervisedSupervisor,
 } from "./thread-supervisor.ts";
 import { generateTitle } from "./tools/thread-title.ts";
 
@@ -227,7 +227,7 @@ function buildSubmissionSupervisors(
     conversation.threadType === "docker_root" ||
     conversation.threadType === "compact"
   ) {
-    supervisors.push(SubagentSupervisor.create());
+    supervisors.push(UnsupervisedSupervisor.create());
   }
   return supervisors;
 }

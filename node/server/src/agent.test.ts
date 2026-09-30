@@ -53,7 +53,6 @@ import { activeTools, activityLabel } from "./thread-state.ts";
 import {
   injectText,
   MaxTokensSupervisor,
-  SubagentSupervisor,
   type SubmissionSupervisor,
   type ToolLoopSupervisor,
   UnsupervisedSupervisor,
@@ -1383,7 +1382,7 @@ describe("MaxTokensSupervisor", () => {
     const { core, mockClient } = createAgentWithMock({
       submissionSupervisors: [
         MaxTokensSupervisor.create(),
-        SubagentSupervisor.create(),
+        UnsupervisedSupervisor.create(),
       ],
       threadType: "subagent" as ThreadType,
     });
@@ -1735,10 +1734,10 @@ describe("Agent.abort appends user abort message", () => {
   });
 });
 
-describe("SubagentSupervisor yield tag detection", () => {
+describe("UnsupervisedSupervisor yield tag detection", () => {
   it("nudges agent when it writes a <yield_to_parent> XML tag instead of calling the tool", async () => {
     const { core, mockClient } = createAgentWithMock({
-      submissionSupervisors: [SubagentSupervisor.create()],
+      submissionSupervisors: [UnsupervisedSupervisor.create()],
       threadType: "subagent" as ThreadType,
     });
 
@@ -1778,30 +1777,25 @@ describe("SubagentSupervisor yield tag detection", () => {
     ).toBe(true);
   });
 
-  it("does not intervene when agent stops without a yield tag", async () => {
+  it("restarts the agent when it stops without yielding", async () => {
     const { core, mockClient } = createAgentWithMock({
-      submissionSupervisors: [SubagentSupervisor.create()],
+      submissionSupervisors: [UnsupervisedSupervisor.create()],
       threadType: "subagent" as ThreadType,
     });
 
     void core.submit({
       type: "resolved",
-      messages: [
-        {
-          type: "text",
-          text: "do the task",
-        },
-      ],
+      messages: [{ type: "text", text: "do the task" }],
     });
     const stream = await mockClient.awaitStream();
-
-    // Runner responds with normal text and stops
     stream.streamText("I have completed the task.");
     stream.finishResponse("end_turn");
 
-    // Wait a tick to ensure no new stream is created
-    await new Promise((r) => setTimeout(r, 50));
-    expect(mockClient.streams.length).toBe(1);
+    const restart = await awaitNextStream(mockClient, stream);
+    const lastUser = restart.messages[restart.messages.length - 1];
+    expect(JSON.stringify(lastUser.content)).toContain(
+      "you should use the yield_to_parent tool when you're done",
+    );
   });
 });
 

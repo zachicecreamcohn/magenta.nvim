@@ -25,7 +25,7 @@ import {
 } from "./thread-assembly.ts";
 import {
   MaxTokensSupervisor,
-  SubagentSupervisor,
+  UnsupervisedSupervisor,
 } from "./thread-supervisor.ts";
 import { Defer } from "./utils/async.ts";
 
@@ -191,7 +191,7 @@ describe("assembleThread", () => {
     });
     expect(
       subagent.thread.submissionSupervisors.map((s) => s.constructor),
-    ).toEqual([MaxTokensSupervisor, SubagentSupervisor, TitleSupervisor]);
+    ).toEqual([MaxTokensSupervisor, UnsupervisedSupervisor, TitleSupervisor]);
 
     const dockerRoot = setup({
       initialization: {
@@ -203,7 +203,7 @@ describe("assembleThread", () => {
     });
     expect(
       dockerRoot.thread.submissionSupervisors.map((s) => s.constructor),
-    ).toEqual([MaxTokensSupervisor, SubagentSupervisor, TitleSupervisor]);
+    ).toEqual([MaxTokensSupervisor, UnsupervisedSupervisor, TitleSupervisor]);
 
     const compact = setup({
       initialization: {
@@ -214,7 +214,7 @@ describe("assembleThread", () => {
     });
     expect(
       compact.thread.submissionSupervisors.map((s) => s.constructor),
-    ).toEqual([MaxTokensSupervisor, SubagentSupervisor, TitleSupervisor]);
+    ).toEqual([MaxTokensSupervisor, UnsupervisedSupervisor, TitleSupervisor]);
     expect(compact.compactor).toBeUndefined();
     expect(compact.thread.tokenBudget).toBeUndefined();
 
@@ -280,7 +280,7 @@ describe("assembleThread", () => {
 
     expect(fork.thread.threadType).toEqual("subagent");
     expect(fork.thread.submissionSupervisors.map((s) => s.constructor)).toEqual(
-      [MaxTokensSupervisor, SubagentSupervisor, TitleSupervisor],
+      [MaxTokensSupervisor, UnsupervisedSupervisor, TitleSupervisor],
     );
     const supervisor = fork.thread.tokenBudget;
     expect(budgetSettings(supervisor)).toEqual({

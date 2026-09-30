@@ -415,37 +415,9 @@ export class MaxTokensSupervisor implements SubmissionSupervisor {
     };
   }
 }
-/** For regular subagents. Only intervenes when the agent writes a
- *  `<yield>` XML tag instead of calling the tool. Otherwise allows
- *  the agent to stop normally. */
-export class SubagentSupervisor implements SubmissionSupervisor {
-  static create(): SubagentSupervisor {
-    return new SubagentSupervisor();
-  }
-
-  static clone(_args: { source: SubagentSupervisor }): SubagentSupervisor {
-    return new SubagentSupervisor();
-  }
-
-  private constructor() {}
-  onToolLoopEnd(context: ToolLoopEndContext): ToolLoopEndAction {
-    if (context.stopReason !== "end_turn") return { type: "none" };
-    if (containsYieldTag(context.lastAssistantMessage)) {
-      return {
-        type: "send-message",
-        text: "You wrote a yield XML tag in your text. XML tags in your response are not parsed as tool calls. You must invoke the yield_to_parent tool (via a proper tool call) to return results to the parent agent.",
-      };
-    }
-    return { type: "none" };
-  }
-
-  async onYield(_result: YieldValue): Promise<YieldAction> {
-    return { type: "none" };
-  }
-}
-
-/** For unsupervised threads (e.g. docker_unsupervised). Always prompts
- *  the agent to resume work when it stops without yielding. */
+/** For threads that must end by calling yield_to_parent (subagents, docker
+ *  roots, compact threads). Nobody is watching them, so an end_turn without a
+ *  yield is treated as an accidental stop and the agent is restarted. */
 export class UnsupervisedSupervisor implements SubmissionSupervisor {
   static create(opts?: { maxRestarts?: number }): UnsupervisedSupervisor {
     return new UnsupervisedSupervisor(opts?.maxRestarts ?? 5, 0);
@@ -483,7 +455,7 @@ export class UnsupervisedSupervisor implements SubmissionSupervisor {
 
     return {
       type: "send-message",
-      text: `You stopped without yielding. You must complete your task and call yield_to_parent when done. (auto-restart ${this.restartCount}/${this.maxRestarts})`,
+      text: `You stopped without yielding. You are running unsupervised: nobody will respond to messages. Continue your task, and you should use the yield_to_parent tool when you're done. (auto-restart ${this.restartCount}/${this.maxRestarts})`,
     };
   }
 
