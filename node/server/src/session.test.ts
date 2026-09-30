@@ -1,6 +1,4 @@
 import { afterEach, expect, it, vi } from "vitest";
-import type { ClientCapabilities } from "./capabilities/client.ts";
-import { NoopLspClient } from "./capabilities/noop-lsp-client.ts";
 import type {
   ContentBlockIdx,
   DisplayBufferText,
@@ -12,6 +10,7 @@ import type { NativeMessageIdx } from "./providers/provider-types.ts";
 import { REFLECT_SYSTEM_PROMPT } from "./providers/system-prompt.ts";
 import type { SessionCreateOptions } from "./session.ts";
 import { pendingMessage, renderPending } from "./submission/index.ts";
+import { FakeClient } from "./test/fakes.ts";
 import {
   createHarness,
   type Harness,
@@ -790,12 +789,7 @@ it("delegates bypass of an externally owned root to that root", async () => {
 });
 it("awaitClient resolves on attach, supports abort, and rejects on dispose", async () => {
   const { session } = fixture();
-  const client: ClientCapabilities = {
-    neovimVersion: "test",
-    createLspClient: () => new NoopLspClient(),
-    luaExecutor: { execLua: async () => undefined },
-    expandClientCommand: async () => [],
-  };
+  const client = new FakeClient();
   const waiting = session.awaitClient();
   const aborted = session.awaitClient();
   expect(session.awaitingClient).toBe(2);

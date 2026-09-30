@@ -13,9 +13,11 @@ export {
 export { renderThreadLogToMarkdown } from "./archive-renderer.ts";
 export { anthropicTokenStore } from "./auth/anthropic-tokens.ts";
 export type { AuthUI } from "./auth-ui.ts";
-export type {
-  ClientCapabilities,
-  ClientCommandName,
+export {
+  type ClientCommandName,
+  clientFileWritten,
+  clientLspClient,
+  clientLuaExecutor,
 } from "./capabilities/client.ts";
 export type {
   ContextTracker,
@@ -141,6 +143,15 @@ export * from "./environment.ts";
 export type { Logger } from "./logger.ts";
 export type { OpenAIAuth } from "./openai-auth.ts";
 export type { AbsFilePath, Cwd } from "./paths.ts";
+export type {
+  ClientEffectHandler,
+  ClientInfo,
+  ClientNotification,
+  ClientRequest,
+  ClientResponse,
+  LspRequest,
+  LspRequestKind,
+} from "./protocol/client.ts";
 export type {
   ProviderName,
   ProviderOptions,
@@ -518,6 +529,7 @@ export {
   unescapeFenceBody,
   validateFileSize,
 } from "./utils/files.ts";
+export type { JsonValue } from "./utils/json.ts";
 export {
   extractPDFPage,
   getPDFPageCount,

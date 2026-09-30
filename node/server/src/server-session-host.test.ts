@@ -4,8 +4,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ClientCapabilities } from "./capabilities/client.ts";
-import { NoopLspClient } from "./capabilities/noop-lsp-client.ts";
 import type { ScriptInvocationId } from "./chat-types.ts";
 import { InMemoryFileIO } from "./edl/in-memory-file-io.ts";
 import type { ProviderProfile } from "./provider-options.ts";
@@ -17,6 +15,7 @@ import {
 } from "./server-session-host.ts";
 import { Session } from "./session.ts";
 import { pendingMessage } from "./submission/index.ts";
+import { FakeClient } from "./test/fakes.ts";
 import { MockSandboxManager } from "./test/mock-sandbox-manager.ts";
 import {
   awaitNextStream,
@@ -50,12 +49,7 @@ const options: ServerHostOptions = {
   mcpServers: {},
   customCommands: [{ name: "@hi", text: "custom text" }],
 };
-const editor: ClientCapabilities = {
-  neovimVersion: "999",
-  createLspClient: () => new NoopLspClient(),
-  luaExecutor: { execute: async () => "" } as never,
-  expandClientCommand: async () => [],
-};
+const editor = new FakeClient(undefined, { neovimVersion: "999" });
 
 let dir: string;
 let mockClient: MockAnthropicClient;
@@ -73,7 +67,7 @@ beforeEach(async () => {
     homeDir: dir as HomeDir,
     sandbox: new MockSandboxManager(),
     getOptions: () => options,
-    getAuthUI: () => session.getClient()?.authUI,
+    getClient: () => session.getClient(),
     awaitClient: () => session.awaitClient(),
     getProvider: () => provider,
   });
@@ -137,13 +131,12 @@ it("wires editor capabilities into threads with the thread's cwd", async () => {
   await mkdir(threadCwd);
   const file = path.join(threadCwd, "b.txt");
   await writeFile(file, "hello");
-  const onFileWritten = vi.fn(async (_: AbsFilePath) => {});
-  const createLspClient = vi.fn(() => new NoopLspClient());
-  const spyEditor: ClientCapabilities = {
-    ...editor,
-    createLspClient,
-    onFileWritten,
-  };
+  const spyEditor = new FakeClient(
+    (req) => (req.type === "lsp" ? [null] : undefined),
+    { neovimVersion: "999", notifiesFileWritten: true },
+  );
+  const fileWrites = () =>
+    spyEditor.requests.filter((r) => r.type === "fileWritten");
 
   const create = async () => {
     const id = await session.createThread({
@@ -176,13 +169,24 @@ it("wires editor capabilities into threads with the thread's cwd", async () => {
   const before = await create();
   session.attachClient(spyEditor);
   await runEdit(before.thread, "hello", "bye");
-  expect(onFileWritten).not.toHaveBeenCalled();
+  expect(fileWrites()).toEqual([]);
 
   const after = await create();
-  expect(createLspClient).toHaveBeenCalledWith(threadCwd, dir);
+  const { lspClient } = host.getPrepared(after.id).environment;
+  await lspClient?.requestHover(file as AbsFilePath, { line: 0, character: 1 });
+  const lspRequest = spyEditor.requests.find((r) => r.type === "lsp");
+  expect(lspRequest).toEqual({
+    type: "lsp",
+    kind: "hover",
+    cwd: threadCwd,
+    homeDir: dir,
+    filePath: file,
+    position: { line: 0, character: 1 },
+  });
+  expect(JSON.parse(JSON.stringify(lspRequest))).toEqual(lspRequest);
   expect(host.getPrepared(after.id).systemInfo.neovimVersion).toBe("999");
   await runEdit(after.thread, "bye", "again");
-  expect(onFileWritten).toHaveBeenCalledWith(file);
+  expect(fileWrites()).toEqual([{ type: "fileWritten", absPath: file }]);
   expect(await readFile(file, "utf8")).toBe("again");
 });
 
@@ -287,24 +291,26 @@ describe("auth UI", () => {
       homeDir: dir as HomeDir,
       sandbox: new MockSandboxManager(),
       getOptions: () => options,
-      getAuthUI: () => authSession.getClient()?.authUI,
+      getClient: () => authSession.getClient(),
       awaitClient: () => authSession.awaitClient(),
     });
     const authSession = new Session(authHost);
     return { authHost, authSession };
   }
-  function clientWith(calls: string[]): ClientCapabilities {
-    return {
-      ...editor,
-      authUI: {
-        showOAuthFlow: (url) => {
-          calls.push(`oauth:${url}`);
-          return Promise.resolve("code");
-        },
-        showError: (m) => calls.push(`error:${m}`),
-        showLoginProgress: (m) => calls.push(`progress:${m}`),
+  function clientWith(calls: string[], supportsAuthUI = true) {
+    const client = new FakeClient(
+      (req) => {
+        if (req.type !== "oauth") return undefined;
+        calls.push(`oauth:${req.authUrl}`);
+        return { code: "code" };
       },
-    };
+      { supportsAuthUI },
+    );
+    client.notify = (n) =>
+      calls.push(
+        n.type === "authError" ? `error:${n.message}` : `progress:${n.chunk}`,
+      );
+    return client;
   }
   it("OAuth waits for a client to attach, then prompts it", async () => {
     const { authHost, authSession } = makeAuthSession();
@@ -375,14 +381,28 @@ describe("auth UI", () => {
     const { authHost, authSession } = makeAuthSession();
     authHost.authUI.showLoginProgress("lost");
     const calls: string[] = [];
-    const { authUI: _, ...noAuth } = clientWith(calls);
-    authSession.attachClient(noAuth);
+    authSession.attachClient(clientWith(calls, false));
     await Promise.resolve();
     await Promise.resolve();
     authSession.detachClient();
     authSession.attachClient(clientWith(calls));
     await Promise.resolve();
     expect(calls).toEqual([]);
+  });
+  it("issues OAuth and login output as serializable client effects", async () => {
+    const { authHost, authSession } = makeAuthSession();
+    const client = new FakeClient(() => ({ code: "c" }));
+    authSession.attachClient(client);
+    await expect(authHost.authUI.showOAuthFlow("https://x")).resolves.toBe("c");
+    authHost.authUI.showLoginProgress("p");
+    authHost.authUI.showError("e");
+    expect(client.requests).toEqual([{ type: "oauth", authUrl: "https://x" }]);
+    expect(client.notifications).toEqual([
+      { type: "loginProgress", chunk: "p" },
+      { type: "authError", message: "e" },
+    ]);
+    const effects = [...client.requests, ...client.notifications];
+    expect(JSON.parse(JSON.stringify(effects))).toEqual(effects);
   });
   it("builds a real provider without the test override", () => {
     const { authHost } = makeAuthSession();
@@ -410,7 +430,7 @@ describe("active profile", () => {
       homeDir: dir as HomeDir,
       sandbox: new MockSandboxManager(),
       getOptions: () => currentOptions,
-      getAuthUI: () => undefined,
+      getClient: () => undefined,
       awaitClient: () => profileSession.awaitClient(),
       getProvider: () => provider,
     });

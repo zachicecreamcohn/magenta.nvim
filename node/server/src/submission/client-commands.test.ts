@@ -1,11 +1,8 @@
 import { afterEach, expect, it } from "vitest";
-import type {
-  ClientCapabilities,
-  ClientCommandName,
-} from "../capabilities/client.ts";
-import { NoopLspClient } from "../capabilities/noop-lsp-client.ts";
+import type { ClientCommandName } from "../capabilities/client.ts";
 import { InMemoryFileIO } from "../edl/in-memory-file-io.ts";
 import type { AgentInput } from "../providers/provider-types.ts";
+import { FakeClient } from "../test/fakes.ts";
 import { createHarness, type Harness } from "../test/harness.ts";
 import {
   awaitNextStream,
@@ -25,13 +22,11 @@ afterEach(async () => {
 
 function fakeClient(
   expand: (command: ClientCommandName) => Promise<AgentInput[]>,
-): ClientCapabilities {
-  return {
-    neovimVersion: "test",
-    createLspClient: () => new NoopLspClient(),
-    luaExecutor: { execLua: async () => undefined },
-    expandClientCommand: expand,
-  };
+) {
+  return new FakeClient((req) => {
+    if (req.type !== "expandClientCommand") throw new Error(req.type);
+    return expand(req.command);
+  });
 }
 
 /** A thread whose resolver is the real one, with client commands answered by

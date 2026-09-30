@@ -1,5 +1,12 @@
 import type { GitClient, GitState } from "../capabilities/git-client.ts";
 import type { OutputLine, Shell, ShellResult } from "../capabilities/shell.ts";
+import type {
+  ClientEffectHandler,
+  ClientInfo,
+  ClientNotification,
+  ClientRequest,
+  ClientResponse,
+} from "../protocol/client.ts";
 import { Defer } from "../utils/async.ts";
 
 /** A git client whose state the test sets directly, e.g. to simulate a branch
@@ -73,5 +80,31 @@ export class FakeShell implements Shell {
     for (const { result } of this.pending.splice(0)) {
       result.resolve({ ...shellResult({ exitCode: 143 }), signal: "SIGTERM" });
     }
+  }
+}
+
+/** A client that records every request/notification and answers requests
+ * with `respond` (default: `undefined`). */
+export class FakeClient implements ClientEffectHandler {
+  readonly requests: ClientRequest[] = [];
+  readonly notifications: ClientNotification[] = [];
+  info: ClientInfo;
+  constructor(
+    private respond: (req: ClientRequest) => unknown = () => undefined,
+    info: Partial<ClientInfo> = {},
+  ) {
+    this.info = {
+      neovimVersion: "test",
+      supportsAuthUI: true,
+      notifiesFileWritten: false,
+      ...info,
+    };
+  }
+  request<R extends ClientRequest>(req: R): Promise<ClientResponse<R>> {
+    this.requests.push(req);
+    return Promise.resolve(this.respond(req) as ClientResponse<R>);
+  }
+  notify(n: ClientNotification): void {
+    this.notifications.push(n);
   }
 }

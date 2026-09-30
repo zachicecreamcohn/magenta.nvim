@@ -1,9 +1,9 @@
-import type { ClientCapabilities } from "../capabilities/client.ts";
 import type { ScriptInvocationId, ThreadId } from "../chat-types.ts";
 import type { ScriptManager } from "../scripts/script-manager.ts";
 import type { Session, SessionEvents, SessionId } from "../session.ts";
 import type { Thread } from "../thread.ts";
 import { ABORTED, type Aborted } from "../thread-api.ts";
+import type { ClientEffectHandler } from "./client.ts";
 import type { Operation, OperationResult } from "./operations.ts";
 import {
   globalState,
@@ -44,8 +44,7 @@ export interface MagentaServer {
     listener: (state: StateMap[K] | undefined) => void,
   ): () => void;
   execute(op: Operation): Promise<OperationResult>;
-  // Stage 3 replaces this with ClientEffectHandler.
-  attachClient(client: ClientCapabilities): void;
+  attachClient(client: ClientEffectHandler): void;
   detachClient(): void;
   dispose(): Promise<void>;
 }

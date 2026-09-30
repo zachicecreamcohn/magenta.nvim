@@ -2,7 +2,11 @@ import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
 import { loadAgents } from "./agents/agents.ts";
 import { anthropicTokenStore } from "./auth/anthropic-tokens.ts";
 import type { AuthUI } from "./auth-ui.ts";
-import type { ClientCapabilities } from "./capabilities/client.ts";
+import {
+  clientFileWritten,
+  clientLspClient,
+  clientLuaExecutor,
+} from "./capabilities/client.ts";
 import { FsFileIO } from "./capabilities/file-io.ts";
 import type { GitState } from "./capabilities/git-client.ts";
 import { NoopLspClient } from "./capabilities/noop-lsp-client.ts";
@@ -20,6 +24,10 @@ import {
   environmentCapabilities,
 } from "./environment.ts";
 import type { Logger } from "./logger.ts";
+import type {
+  ClientEffectHandler,
+  ClientNotification,
+} from "./protocol/client.ts";
 import type { ProviderOptions, ProviderProfile } from "./provider-options.ts";
 import { getProvider } from "./providers/provider.ts";
 import type { Provider } from "./providers/provider-types.ts";
@@ -73,10 +81,10 @@ export type ServerSessionHostContext = {
   homeDir: HomeDir;
   sandbox: Sandbox;
   getOptions: () => ServerHostOptions;
-  /** The attached client's login UI, if any. */
-  getAuthUI: () => AuthUI | undefined;
+  /** The attached client, if any. */
+  getClient: () => ClientEffectHandler | undefined;
   /** Resolves with the attached client or the next one to attach. */
-  awaitClient: () => Task<ClientCapabilities | Aborted>;
+  awaitClient: () => Task<ClientEffectHandler | Aborted>;
   /** Overrides server-built providers (tests). */
   getProvider?: (profile: ProviderProfile) => Provider;
 };
@@ -113,14 +121,12 @@ export class ServerSessionHost implements SessionHost {
     showOAuthFlow: (authUrl, abortSignal) =>
       this.showOAuthFlow(authUrl, abortSignal),
     showError: (message) => {
-      const ui = this.context.getAuthUI();
-      if (ui) return ui.showError(message);
+      if (this.notifyAuth({ type: "authError", message })) return;
       this.context.logger.error(message);
       this.bufferForNextClient({ type: "error", text: message });
     },
     showLoginProgress: (chunk) => {
-      const ui = this.context.getAuthUI();
-      if (ui) return ui.showLoginProgress(chunk);
+      if (this.notifyAuth({ type: "loginProgress", chunk })) return;
       this.context.logger.info(chunk);
       this.bufferForNextClient({ type: "progress", text: chunk });
     },
@@ -128,11 +134,17 @@ export class ServerSessionHost implements SessionHost {
   /** Login output produced with no client attached, replayed in order to the
    * next client so it sees e.g. a `codex login` URL. */
   private pendingAuthOutput: BufferedAuthOutput[] = [];
-  private replayTask: Task<ClientCapabilities | Aborted> | undefined;
+  private replayTask: Task<ClientEffectHandler | Aborted> | undefined;
   constructor(private context: ServerSessionHostContext) {
     this.mcpToolManager = new MCPToolManager(context.getOptions().mcpServers, {
       logger: context.logger,
     });
+  }
+  private notifyAuth(n: ClientNotification): boolean {
+    const client = this.context.getClient();
+    if (!client?.info.supportsAuthUI) return false;
+    client.notify(n);
+    return true;
   }
   private bufferForNextClient(output: BufferedAuthOutput): void {
     this.pendingAuthOutput.push(output);
@@ -144,10 +156,13 @@ export class ServerSessionHost implements SessionHost {
         this.replayTask = undefined;
         const output = this.pendingAuthOutput;
         this.pendingAuthOutput = [];
-        if (client === ABORTED || !client.authUI) return;
+        if (client === ABORTED || !client.info.supportsAuthUI) return;
         for (const o of output) {
-          if (o.type === "error") client.authUI.showError(o.text);
-          else client.authUI.showLoginProgress(o.text);
+          client.notify(
+            o.type === "error"
+              ? { type: "authError", message: o.text }
+              : { type: "loginProgress", chunk: o.text },
+          );
         }
       },
       () => {
@@ -164,7 +179,7 @@ export class ServerSessionHost implements SessionHost {
     abortSignal?.throwIfAborted();
     const task = this.context.awaitClient();
     const stopListening = abortTaskOnSignal(task, abortSignal);
-    let client: ClientCapabilities | Aborted;
+    let client: ClientEffectHandler | Aborted;
     try {
       client = await task.promise;
     } finally {
@@ -173,10 +188,20 @@ export class ServerSessionHost implements SessionHost {
     if (client === ABORTED) {
       throw new Error("OAuth login aborted while waiting for a client");
     }
-    if (!client.authUI) {
+    if (!client.info.supportsAuthUI) {
       throw new Error("The attached client cannot prompt for logins");
     }
-    return client.authUI.showOAuthFlow(authUrl, abortSignal);
+    const response = client.request({ type: "oauth", authUrl });
+    if (!abortSignal) return (await response).code;
+    // In-process the client prompt cannot be cancelled; its result is dropped.
+    const aborted = new Promise<never>((_, reject) => {
+      abortSignal.addEventListener(
+        "abort",
+        () => reject(abortSignal.reason ?? new Error("OAuth login aborted")),
+        { once: true },
+      );
+    });
+    return (await Promise.race([response, aborted])).code;
   }
   /** Preparation is recorded before the session registers the thread, so
    * this is defined for every initialized thread until it is released. */
@@ -291,11 +316,9 @@ export class ServerSessionHost implements SessionHost {
               getSandboxConfig: () => this.context.getOptions().sandbox,
               ...(editor
                 ? {
-                    lspClient: editor.createLspClient(localCwd, homeDir),
-                    luaExecutor: editor.luaExecutor,
-                    ...(editor.onFileWritten
-                      ? { onFileWritten: editor.onFileWritten.bind(editor) }
-                      : {}),
+                    lspClient: clientLspClient(editor, localCwd, homeDir),
+                    luaExecutor: clientLuaExecutor(editor),
+                    onFileWritten: clientFileWritten(editor),
                   }
                 : {}),
               threadId,
@@ -320,7 +343,8 @@ export class ServerSessionHost implements SessionHost {
       source?.systemInfo ??
       buildSystemInfo({
         cwd: environment.cwd,
-        neovimVersion: editor?.neovimVersion ?? "none (no client attached)",
+        neovimVersion:
+          editor?.info.neovimVersion ?? "none (no client attached)",
         overrides: {
           git: initialGitState,
           ...(resolvedConfig.type === "docker"

@@ -1,13 +1,11 @@
-import type {
-  ClientCapabilities,
-  ClientCommandName,
-} from "../../capabilities/client.ts";
+import type { ClientCommandName } from "../../capabilities/client.ts";
+import type { ClientEffectHandler } from "../../protocol/client.ts";
 import type { AgentInput } from "../../providers/provider-types.ts";
 import { ABORTED, type Aborted } from "../../thread-api.ts";
 import type { Task } from "../../utils/async.ts";
 import type { Command } from "./types.ts";
 
-export type AwaitClient = () => Task<ClientCapabilities | Aborted>;
+export type AwaitClient = () => Task<ClientEffectHandler | Aborted>;
 
 const CLIENT_COMMANDS: Record<ClientCommandName, { label: string }> = {
   buf: { label: "buffers list" },
@@ -36,7 +34,11 @@ export function clientCommands(
       const client = await task.promise;
       if (client === ABORTED) return [];
       try {
-        return await client.expandClientCommand(name, match[0]);
+        return await client.request({
+          type: "expandClientCommand",
+          command: name,
+          match: match[0],
+        });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         context.logger.error(`Failed to fetch ${label}: ${message}`);

@@ -1,7 +1,6 @@
 import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
 import { v7 as uuidv7 } from "uuid";
 import type { AgentsMap } from "./agents/agents.ts";
-import type { ClientCapabilities } from "./capabilities/client.ts";
 import type { FileIO } from "./capabilities/file-io.ts";
 import {
   type ApprovalId,
@@ -23,6 +22,7 @@ import type {
 } from "./chat-types.ts";
 import type { ThreadCompactor } from "./compaction/compactor.ts";
 import { Emitter } from "./emitter.ts";
+import type { ClientEffectHandler } from "./protocol/client.ts";
 import type { ProviderProfile } from "./provider-options.ts";
 import type {
   AgentInput,
@@ -202,8 +202,8 @@ export class Session extends Emitter<SessionEvents> implements ThreadManager {
   scriptRunner: ScriptRunner | undefined;
   /** The attached client, if any. Read at preparation time, so attaching or
    * detaching never changes existing threads. */
-  private client: ClientCapabilities | undefined;
-  private clientWaiters = new Set<Defer<ClientCapabilities | Aborted>>();
+  private client: ClientEffectHandler | undefined;
+  private clientWaiters = new Set<Defer<ClientEffectHandler | Aborted>>();
 
   /** Pending sandbox approvals per thread. Server state: they outlive any
    * attached view and are rejected when their thread is aborted or deleted. */
@@ -247,7 +247,7 @@ export class Session extends Emitter<SessionEvents> implements ThreadManager {
     return this.getProfileSelection().profile;
   }
 
-  attachClient(client: ClientCapabilities): void {
+  attachClient(client: ClientEffectHandler): void {
     this.client = client;
     const waiters = [...this.clientWaiters];
     this.clientWaiters.clear();
@@ -255,8 +255,8 @@ export class Session extends Emitter<SessionEvents> implements ThreadManager {
   }
   /** Resolves with the attached client, or with the next one to attach.
    * Aborting resolves `ABORTED` and drops the waiter; dispose rejects it. */
-  awaitClient(): Task<ClientCapabilities | Aborted> {
-    const waiter = new Defer<ClientCapabilities | Aborted>();
+  awaitClient(): Task<ClientEffectHandler | Aborted> {
+    const waiter = new Defer<ClientEffectHandler | Aborted>();
     if (this.disposed) {
       waiter.reject(new Error("Session disposed"));
     } else if (this.client) {
@@ -281,7 +281,7 @@ export class Session extends Emitter<SessionEvents> implements ThreadManager {
     this.client = undefined;
   }
 
-  getClient(): ClientCapabilities | undefined {
+  getClient(): ClientEffectHandler | undefined {
     return this.client;
   }
 

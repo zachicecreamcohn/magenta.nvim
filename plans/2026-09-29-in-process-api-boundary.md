@@ -302,6 +302,20 @@ Decisions/deviations:
 
 ## Client effects as data
 
+Status: done.
+
+- [x] `protocol/client.ts`: `ClientInfo`, `ClientRequest`, `ClientResponse`, `ClientNotification`, `ClientEffectHandler`. `ClientCapabilities` is gone; `Session`, `awaitClient`, `MagentaServer.attachClient` and the host take the handler.
+- [x] Server adapters in `capabilities/client.ts`: `clientLspClient(handler, cwd, homeDir)`, `clientLuaExecutor`, `clientFileWritten` (only when `info.notifiesFileWritten`). Client commands issue `expandClientCommand`. The host's `AuthUI` issues `oauth` requests and `loginProgress`/`authError` notifications (gated by `info.supportsAuthUI`, still buffered/replayed when no client).
+- [x] `createNvimClient` is one handler switching on `type`; `NvimLuaExecutor` removed.
+- [x] Tests: `FakeClient` in `test/fakes.ts`; host tests assert the `lsp` request (thread cwd/homeDir/position), `fileWritten`, `oauth` and notifications, with JSON round-trips.
+
+Decisions/deviations:
+
+- `ServerSessionHostContext.getAuthUI` became `getClient`.
+- `LspRequest` has `type: "lsp"` inline and `ClientResponse` maps `kind` to the specific LSP response type. The nvim handler has one cast from its non-generic switch to `ClientResponse<R>`.
+- OAuth abort races the client request against the signal; the in-process client prompt is not cancelled, its result is dropped.
+- `JsonValue` is exported from the server barrel.
+
 - Goal: Replace `ClientCapabilities` with `ClientEffectHandler`, `ClientRequest`, and `ClientNotification`. The server-side adapters (`LspClient`, `LuaExecutor`, `AuthUI`, client command expansion, `onFileWritten`) issue requests and notifications through the attached handler, so `hover`/`find_references`/`nvim_lua`/OAuth/client commands don't change. `createNvimClient` becomes one handler that switches on `type`.
 - Tests:
   - Tier A: a fake handler records the `ClientRequest`s it receives. Running `hover` produces an `lsp` request carrying the thread's `cwd`/`homeDir` and the position. `@qf` produces `expandClientCommand`. An OAuth flow produces `oauth`, then progress arrives as `loginProgress` notifications. All of them round-trip through JSON.

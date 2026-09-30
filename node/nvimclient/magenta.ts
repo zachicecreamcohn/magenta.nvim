@@ -321,7 +321,7 @@ export class Magenta {
       homeDir: this.homeDir,
       sandbox: this.sandbox,
       getOptions: () => this.baseOptions,
-      getAuthUI: () => this.session.getClient()?.authUI,
+      getClient: () => this.session.getClient(),
       awaitClient: () => this.session.awaitClient(),
     });
     this.session = new Session(this.host);
