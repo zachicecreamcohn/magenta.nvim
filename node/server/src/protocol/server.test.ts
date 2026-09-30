@@ -56,7 +56,7 @@ it("delivers thread state in order and the last delivery is current", () =>
     });
     stream.respond({ stopReason: "end_turn", text: "hello", toolRequests: [] });
     expect(await result).toEqual({
-      type: "ok",
+      type: "submitted",
       submission: { type: "completed", stopReason: "end_turn" },
     });
     await Promise.resolve();
@@ -239,10 +239,13 @@ it("session state reflects thread.create and setActiveProfile", () =>
       type: "thread.create",
       sessionId: h.session.id,
     });
-    expect(created).toMatchObject({ type: "ok", threadId: expect.any(String) });
+    expect(created).toMatchObject({
+      type: "created",
+      threadId: expect.any(String),
+    });
     await Promise.resolve();
     expect(states.at(-1)?.threads.map((t) => t.id)).toEqual([
-      created.type === "ok" && created.threadId,
+      created.type === "created" && created.threadId,
     ]);
 
     const profile = h.session.getProfileSelection();
@@ -265,4 +268,52 @@ it("session state reflects thread.create and setActiveProfile", () =>
         name: "missing",
       }),
     ).toEqual({ type: "error", message: 'Profile "missing" not found.' });
+  }));
+it("queues async/next submissions and delivers them at rest", () =>
+  withHarness({}, async (h) => {
+    const server = createInProcessServer({ session: h.session });
+    const { id, thread } = await h.createRoot();
+    const first = server.execute({
+      type: "thread.submit",
+      threadId: id,
+      input: text("first"),
+    });
+    const stream = await h.nextStream();
+    expect(
+      await server.execute({
+        type: "thread.submit",
+        threadId: id,
+        input: text("later"),
+        delivery: "next",
+      }),
+    ).toEqual({ type: "queued" });
+    stream.respond({ stopReason: "end_turn", text: "ok", toolRequests: [] });
+    (await h.nextStream()).respond({
+      stopReason: "end_turn",
+      text: "ok2",
+      toolRequests: [],
+    });
+    await first;
+    await pollUntil(() => {
+      if (thread.state.type === "running") throw new Error("busy");
+    });
+    expect(JSON.stringify(thread.getProviderMessages())).toContain("later");
+  }));
+it("script operations without a script runner return errors", () =>
+  withHarness({}, async (h) => {
+    const server = createInProcessServer({ session: h.session });
+    for (const op of [
+      { type: "script.discover", sessionId: h.session.id },
+      { type: "script.delete", invocationId: "nope" },
+      {
+        type: "script.run",
+        sessionId: h.session.id,
+        name: "x",
+        parameters: {},
+      },
+    ] as const) {
+      expect(await server.execute(op as never)).toMatchObject({
+        type: "error",
+      });
+    }
   }));

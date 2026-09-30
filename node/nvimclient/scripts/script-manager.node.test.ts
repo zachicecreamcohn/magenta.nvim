@@ -499,7 +499,7 @@ it("reflects script.run in session state and delivers undefined after script.del
       name: "two",
       parameters: {},
     });
-    if (run.type !== "ok" || !run.invocationId) throw new Error("no id");
+    if (run.type !== "started") throw new Error("no id");
     const invocationId = run.invocationId;
     await pollUntil(() => session?.scripts.invocations.length === 1);
     const scriptStates: (ProtocolScriptState | undefined)[] = [];

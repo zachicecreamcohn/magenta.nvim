@@ -290,6 +290,7 @@ Decisions/deviations:
 - `script.run` starts with `sandboxBypassed: false`.
 - Unknown ids throw internally, and `execute` converts every throw into `{ type: "error", message }`. Approve/reject check that the approval id is pending, and `tool.abort` checks that the tool is running.
 - Until stage 3, `attachClient` takes `ClientCapabilities`. In this stage `dispose()` only closes subscriptions, because the composition root still owns the session and script manager. It isn't exported from the barrel yet.
+- Review follow-up: `OperationResult` has one success variant per result shape: `created` (thread.create/fork/reflect), `started` (script.run), `submitted` (thread.retry, immediate thread.submit), `queued` (async/next thread.submit), `ok` otherwise. `Topic`/`StateFor` are derived from per-type maps, and both projection and change-source wiring go through per-topic handler maps (`projectors`, `watchers`), so `subscribe` has no casts; `SessionEvents` is exported for typed listeners. Tests added for `next` delivery and script ops without a script runner. Branded profile/script names were not introduced (existing `Session.setActiveProfile`/`startScript` take `string`).
 
 - Goal: `createInProcessServer` wraps a `Session` and its `ScriptManager`, implements `subscribe` with per-topic microtask coalescing, and dispatches each `Operation` to the existing methods. It returns `OperationResult`s and turns unknown IDs and thrown errors into `{ type: "error" }`.
 - Tests:

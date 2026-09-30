@@ -63,12 +63,15 @@ export type Operation =
     }
   | { type: "script.discover"; sessionId: SessionId };
 
+/** Each operation returns exactly one success shape: `created` for
+ * thread.create/fork/reflect, `started` for script.run, `submitted` for
+ * thread.retry and immediate thread.submit, `queued` for async/next
+ * thread.submit, and `ok` otherwise. */
 export type OperationResult =
-  | {
-      type: "ok";
-      threadId?: ThreadId;
-      invocationId?: ScriptInvocationId;
-      submission?: ProtocolSubmissionResult;
-    }
+  | { type: "ok" }
+  | { type: "created"; threadId: ThreadId }
+  | { type: "started"; invocationId: ScriptInvocationId }
+  | { type: "submitted"; submission: ProtocolSubmissionResult }
+  | { type: "queued" }
   | { type: "aborted" }
   | { type: "error"; message: string };

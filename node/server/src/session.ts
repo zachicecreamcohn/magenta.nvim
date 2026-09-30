@@ -150,7 +150,7 @@ export type SessionThread = {
     }
 );
 
-type SessionEvents = {
+export type SessionEvents = {
   /** Invalidation: the record for this id may have changed in any way. */
   changed: [id: ThreadId];
   removed: [id: ThreadId];

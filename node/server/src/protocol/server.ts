@@ -1,7 +1,7 @@
 import type { ClientCapabilities } from "../capabilities/client.ts";
 import type { ScriptInvocationId, ThreadId } from "../chat-types.ts";
 import type { ScriptManager } from "../scripts/script-manager.ts";
-import type { Session, SessionId } from "../session.ts";
+import type { Session, SessionEvents, SessionId } from "../session.ts";
 import type { Thread } from "../thread.ts";
 import { ABORTED, type Aborted } from "../thread-api.ts";
 import type { Operation, OperationResult } from "./operations.ts";
@@ -17,29 +17,31 @@ import {
   threadState,
 } from "./state.ts";
 
-export type Topic =
-  | { type: "global" }
-  | { type: "session"; sessionId: SessionId }
-  | { type: "script"; invocationId: ScriptInvocationId }
-  | { type: "thread"; threadId: ThreadId };
+type TopicFields = {
+  global: object;
+  session: { sessionId: SessionId };
+  script: { invocationId: ScriptInvocationId };
+  thread: { threadId: ThreadId };
+};
+type StateMap = {
+  global: ProtocolGlobalState;
+  session: ProtocolSessionState;
+  script: ProtocolScriptState;
+  thread: ProtocolThreadState;
+};
+type TopicType = keyof StateMap;
+type TopicOf<K extends TopicType> = { type: K } & TopicFields[K];
 
-export type StateFor<T extends Topic> = T extends { type: "global" }
-  ? ProtocolGlobalState
-  : T extends { type: "session" }
-    ? ProtocolSessionState
-    : T extends { type: "script" }
-      ? ProtocolScriptState
-      : T extends { type: "thread" }
-        ? ProtocolThreadState
-        : never;
+export type Topic = { [K in TopicType]: TopicOf<K> }[TopicType];
+export type StateFor<T extends Topic> = StateMap[T["type"]];
 
 export interface MagentaServer {
   /** Delivers the current state immediately and after every change
    * (coalesced per microtask). `undefined` means the target is gone; it is
    * delivered once and the subscription ends. */
-  subscribe<T extends Topic>(
-    topic: T,
-    listener: (state: StateFor<T> | undefined) => void,
+  subscribe<K extends TopicType>(
+    topic: TopicOf<K>,
+    listener: (state: StateMap[K] | undefined) => void,
   ): () => void;
   execute(op: Operation): Promise<OperationResult>;
   // Stage 3 replaces this with ClientEffectHandler.
@@ -66,62 +68,128 @@ export function createInProcessServer({
 }: InProcessServerDeps): MagentaServer {
   const closers = new Set<() => void>();
 
-  function project(topic: Topic): Projection<StateFor<Topic>> {
-    switch (topic.type) {
-      case "global":
-        return globalState(session);
-      case "session":
-        return topic.sessionId === session.id
-          ? sessionState(session, scripts)
-          : undefined;
-      case "script":
-        return scripts ? scriptState(scripts, topic.invocationId) : undefined;
-      case "thread": {
-        const record = session.getThread(topic.threadId);
-        if (!record || record.state === "error") return undefined;
-        if (record.state === "pending") return "waiting";
-        return threadState(record.thread, record.compactor, session);
-      }
-    }
+  const projectors: {
+    [K in TopicType]: (topic: TopicOf<K>) => Projection<StateMap[K]>;
+  } = {
+    global: () => globalState(session),
+    session: (topic) =>
+      topic.sessionId === session.id
+        ? sessionState(session, scripts)
+        : undefined,
+    script: (topic) =>
+      scripts ? scriptState(scripts, topic.invocationId) : undefined,
+    thread: (topic) => {
+      const record = session.getThread(topic.threadId);
+      if (!record || record.state === "error") return undefined;
+      if (record.state === "pending") return "waiting";
+      return threadState(record.thread, record.compactor, session);
+    },
+  };
+
+  function project<K extends TopicType>(
+    topic: TopicOf<K>,
+  ): Projection<StateMap[K]> {
+    return projectors[topic.type](topic);
   }
 
-  function subscribe<T extends Topic>(
-    topic: T,
-    listener: (state: StateFor<T> | undefined) => void,
+  /** Registers the change sources for a topic, returning detach functions. */
+  type Watcher<K extends TopicType> = (
+    topic: TopicOf<K>,
+    schedule: () => void,
+  ) => Array<() => void>;
+
+  function listen<E extends keyof SessionEvents>(
+    event: E,
+    handler: (...args: SessionEvents[E]) => void,
+  ): () => void {
+    session.on(event, handler);
+    return () => session.off(event, handler);
+  }
+
+  function listenScripts(
+    handler: (id?: ScriptInvocationId) => void,
+  ): Array<() => void> {
+    if (!scripts) return [];
+    const events = [
+      "catalogChanged",
+      "invocationChanged",
+      "invocationRemoved",
+    ] as const;
+    return events.map((event) => {
+      scripts.on(event, handler);
+      return () => scripts.off(event, handler);
+    });
+  }
+
+  const sessionWide = (schedule: () => void) => [
+    listen("changed", schedule),
+    listen("removed", schedule),
+    listen("settings-changed", schedule),
+  ];
+
+  const watchers: { [K in TopicType]: Watcher<K> } = {
+    global: (_topic, schedule) => sessionWide(schedule),
+    session: (_topic, schedule) => [
+      ...sessionWide(schedule),
+      ...listenScripts(schedule),
+    ],
+    script: (topic, schedule) => [
+      ...sessionWide(schedule),
+      ...listenScripts((id) => {
+        if (id === topic.invocationId) schedule();
+      }),
+    ],
+    thread: (topic, schedule) => {
+      let detachCompactor: (() => void) | undefined;
+      // The compactor only exists once the thread is ready.
+      const attachCompactor = () => {
+        if (detachCompactor) return;
+        const record = session.getThread(topic.threadId);
+        if (record?.state !== "initialized") return;
+        const compactor = record.compactor;
+        compactor?.on("transition", schedule);
+        detachCompactor = () => compactor?.off("transition", schedule);
+      };
+      const onThread = (id: ThreadId) => {
+        if (id !== topic.threadId) return;
+        attachCompactor();
+        schedule();
+      };
+      attachCompactor();
+      return [
+        listen("changed", onThread),
+        listen("removed", onThread),
+        () => detachCompactor?.(),
+      ];
+    },
+  };
+
+  function watch<K extends TopicType>(
+    topic: TopicOf<K>,
+    schedule: () => void,
+  ): Array<() => void> {
+    return watchers[topic.type](topic, schedule);
+  }
+
+  function subscribe<K extends TopicType>(
+    topic: TopicOf<K>,
+    listener: (state: StateMap[K] | undefined) => void,
   ): () => void {
     let closed = false;
     let scheduled = false;
-    const detach: Array<() => void> = [];
-    let compactorAttached = false;
-
     const close = () => {
       if (closed) return;
       closed = true;
       closers.delete(close);
       for (const d of detach) d();
     };
-
-    const attachCompactor = () => {
-      if (compactorAttached || topic.type !== "thread") return;
-      const record = session.getThread(topic.threadId);
-      if (record?.state !== "initialized") return;
-      compactorAttached = true;
-      const compactor = record.compactor;
-      if (compactor) {
-        compactor.on("transition", schedule);
-        detach.push(() => compactor.off("transition", schedule));
-      }
-    };
-
     const deliver = () => {
       if (closed) return;
       const state = project(topic);
       if (state === "waiting") return;
-      attachCompactor();
-      listener(state as StateFor<T> | undefined);
+      listener(state);
       if (state === undefined) close();
     };
-
     function schedule() {
       if (scheduled || closed) return;
       scheduled = true;
@@ -130,42 +198,7 @@ export function createInProcessServer({
         deliver();
       });
     }
-
-    const listen = <K extends "changed" | "removed" | "settings-changed">(
-      event: K,
-      fn: (...args: never[]) => void,
-    ) => {
-      const handler = fn as () => void;
-      session.on(event, handler);
-      detach.push(() => session.off(event, handler));
-    };
-
-    if (topic.type === "thread") {
-      const onThread = (id: ThreadId) => {
-        if (id === topic.threadId) schedule();
-      };
-      listen("changed", onThread);
-      listen("removed", onThread);
-    } else {
-      listen("changed", schedule);
-      listen("removed", schedule);
-      listen("settings-changed", schedule);
-      if (topic.type !== "global" && scripts) {
-        const onScript = (id?: ScriptInvocationId) => {
-          if (topic.type === "session" || id === topic.invocationId) schedule();
-        };
-        const events = [
-          "catalogChanged",
-          "invocationChanged",
-          "invocationRemoved",
-        ] as const;
-        for (const event of events) {
-          scripts.on(event, onScript);
-          detach.push(() => scripts.off(event, onScript));
-        }
-      }
-    }
-
+    const detach = watch(topic, schedule);
     closers.add(close);
     deliver();
     return close;
@@ -201,7 +234,9 @@ export function createInProcessServer({
   }
 
   function created(id: ThreadId | Aborted): OperationResult {
-    return id === ABORTED ? { type: "aborted" } : { type: "ok", threadId: id };
+    return id === ABORTED
+      ? { type: "aborted" }
+      : { type: "created", threadId: id };
   }
 
   async function dispatch(op: Operation): Promise<OperationResult> {
@@ -227,16 +262,16 @@ export function createInProcessServer({
         const thread = readyThread(op.threadId);
         if (op.delivery === "async" || op.delivery === "next") {
           thread.enqueue(op.input, op.delivery);
-          return { type: "ok" };
+          return { type: "queued" };
         }
         return {
-          type: "ok",
+          type: "submitted",
           submission: submissionResult(await thread.submit(op.input)),
         };
       }
       case "thread.retry":
         return {
-          type: "ok",
+          type: "submitted",
           submission: submissionResult(await readyThread(op.threadId).retry()),
         };
       case "thread.abort":
@@ -308,7 +343,7 @@ export function createInProcessServer({
           op.parameters,
           { sandboxBypassed: false },
         );
-        return { type: "ok", invocationId };
+        return { type: "started", invocationId };
       }
       case "script.abort":
         requireInvocation(op.invocationId).abortInvocation(op.invocationId);
