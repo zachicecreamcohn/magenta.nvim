@@ -376,6 +376,17 @@ Decisions/deviations:
 
 ## Script views on script state
 
+Status: done.
+
+- [x] `ScriptController` takes `{ server, sessionId }` instead of the server `ScriptManager`. It subscribes to the session topic and keeps one `script` subscription per invocation listed in `scripts.invocations`, rendering from the latest `ProtocolScriptState` (entries, `threadYields`). Abort/delete/toggle sandbox go through `execute` (errors are logged).
+- [x] The finished notification is derived from a running → not-running transition in script state (or a first delivery already finished, for invocations appearing after startup).
+- [x] Tests: the existing tier-C script tests pass; the tier-B `script-manager.node.test.ts` tests (from stages 1-2) cover logs arriving through the script subscription, thread yields in `scriptState`, and a single `undefined` after `script.delete`. No separate tier-A test: scripts need a real child process.
+
+Decisions/deviations:
+
+- The controller's unused `getCatalog`/`discover` were removed (no callers; tests read the catalog from the server `ScriptManager` via `driver.magenta.scripts`, which goes away in the boundary stage). `script.run`/`script.discover` have no client callers yet: scripts are started by the `run_script` tool server-side.
+- The session delivery only re-renders when the invocation set changes. Re-rendering on every session change (every thread update) raced display-buffer key triggers in `thread-abort.test.ts`. Script topics still fire on every session event, so each live invocation re-renders on thread updates.
+
 - Goal: `ScriptController` renders the catalog from `SessionState.scripts`, and each invocation from a `ScriptState` subscription. Abort/delete/toggle sandbox/discover/run go through `execute`.
 - Tests:
   - The existing tier-C script tests pass.

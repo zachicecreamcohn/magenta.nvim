@@ -385,7 +385,8 @@ export class Magenta {
     this.scriptManager = new ScriptController({
       dispatch: this.dispatch,
       chat: this.chat,
-      scripts: this.scripts,
+      server: this.server,
+      sessionId: this.session.id,
       nvim: this.nvim,
       cwd: this.cwd,
       homeDir: this.homeDir,

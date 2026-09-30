@@ -1,8 +1,10 @@
 import type {
-  ScriptInvocation,
+  MagentaServer,
+  Operation,
+  ProtocolScriptState,
+  ProtocolSessionState,
   ScriptInvocationId,
-  ScriptMeta,
-  ScriptManager as ServerScriptManager,
+  SessionId,
   ThreadId,
 } from "@magenta/server";
 import type { Chat } from "../chat/chat.ts";
@@ -18,8 +20,7 @@ import type { AbsFilePath, HomeDir, NvimCwd } from "../utils/files.ts";
 export type { ScriptInvocationId };
 
 export type Msg =
-  | { type: "catalog-updated" }
-  | { type: "invocation-updated"; id: ScriptInvocationId }
+  | { type: "state-updated" }
   | { type: "toggle-invocation-expand"; id: ScriptInvocationId }
   | { type: "toggle-thread-yield"; id: ThreadId }
   | { type: "toggle-invocation-sandbox"; id: ScriptInvocationId }
@@ -31,24 +32,33 @@ export type ScriptMsg = {
   msg: Msg;
 };
 
+type InvocationView = {
+  unsubscribe: () => void;
+  state?: ProtocolScriptState;
+};
+
 /**
  * The editor-side view of script execution. Invocations, child processes and
- * their threads are owned by the session's ScriptManager; this controller only
- * renders them, tracks expansion, opens files, and notifies the user.
+ * their threads are owned by the server; this controller renders the session
+ * state's script list and one script-state subscription per invocation,
+ * tracks expansion, opens files, and notifies the user.
  */
 export class ScriptController {
   private expandedInvocations = new Set<ScriptInvocationId>();
   private expandedThreads = new Set<ThreadId>();
-  /** The threads an invocation owned, so their view state can be dropped with
-   * it: the server record is gone by the time removal is observed. */
-  private invocationThreads = new Map<ScriptInvocationId, ThreadId[]>();
+  private invocations = new Map<ScriptInvocationId, InvocationView>();
+  /** Invocations present when the controller started; finishing before we
+   * saw them running is not news. */
+  private initialized = false;
+  private unsubscribeSession: () => void;
   private myDispatch: Dispatch<Msg>;
 
   constructor(
     private context: {
       dispatch: Dispatch<RootMsg>;
       chat: Chat;
-      scripts: ServerScriptManager;
+      server: MagentaServer;
+      sessionId: SessionId;
       nvim: Nvim;
       cwd: NvimCwd;
       homeDir: HomeDir;
@@ -58,48 +68,87 @@ export class ScriptController {
     this.myDispatch = (msg) =>
       this.context.dispatch({ type: "script-msg", msg });
 
-    const { scripts } = context;
-    scripts.on("catalogChanged", this.onCatalogChanged);
-    scripts.on("invocationChanged", this.onInvocationChanged);
-    scripts.on("invocationRemoved", this.onInvocationRemoved);
-    scripts.on("invocationFinished", this.onInvocationFinished);
+    this.unsubscribeSession = context.server.subscribe(
+      { type: "session", sessionId: context.sessionId },
+      (state) => this.onSessionState(state),
+    );
+    this.initialized = true;
   }
 
-  private onCatalogChanged = () => this.myDispatch({ type: "catalog-updated" });
-
-  private onInvocationChanged = (id: ScriptInvocationId) => {
-    // Remember the invocation's threads while the record still exists, so their
-    // view state can be dropped when it is removed.
-    const invocation = this.context.scripts.getInvocation(id);
-    if (invocation) {
-      this.invocationThreads.set(id, [...invocation.threadIds]);
+  private onSessionState(state: ProtocolSessionState | undefined): void {
+    const present = new Set(state?.scripts.invocations.map((i) => i.id) ?? []);
+    let changed = false;
+    for (const id of present) {
+      if (!this.invocations.has(id)) {
+        this.watchInvocation(id);
+        changed = true;
+      }
     }
-    this.myDispatch({ type: "invocation-updated", id });
-  };
+    for (const id of [...this.invocations.keys()]) {
+      if (!present.has(id)) {
+        this.dropInvocation(id);
+        changed = true;
+      }
+    }
+    // Session state changes on every thread update; only re-render when the
+    // invocation set changed (per-invocation changes arrive via their topic).
+    if (changed) this.myDispatch({ type: "state-updated" });
+  }
 
-  private onInvocationRemoved = (id: ScriptInvocationId) => {
-    for (const threadId of this.invocationThreads.get(id) ?? []) {
+  private watchInvocation(id: ScriptInvocationId): void {
+    const view: InvocationView = { unsubscribe: () => {} };
+    this.invocations.set(id, view);
+    const notifyOnFinish = this.initialized;
+    view.unsubscribe = this.context.server.subscribe(
+      { type: "script", invocationId: id },
+      (state) => {
+        if (!state) {
+          this.dropInvocation(id);
+          this.myDispatch({ type: "state-updated" });
+          return;
+        }
+        const wasRunning = view.state
+          ? view.state.state.type === "running"
+          : notifyOnFinish;
+        view.state = state;
+        if (wasRunning && state.state.type !== "running") {
+          this.notifyFinished();
+        }
+        this.myDispatch({ type: "state-updated" });
+      },
+    );
+  }
+
+  private dropInvocation(id: ScriptInvocationId): void {
+    const view = this.invocations.get(id);
+    if (!view) return;
+    this.invocations.delete(id);
+    view.unsubscribe();
+    for (const threadId of view.state?.threadIds ?? []) {
       this.expandedThreads.delete(threadId);
     }
-    this.invocationThreads.delete(id);
     this.expandedInvocations.delete(id);
-    this.myDispatch({ type: "catalog-updated" });
-  };
-
-  private onInvocationFinished = () => this.notifyFinished();
+  }
 
   /** Drop every subscription; view state dies with the controller. */
   dispose(): void {
-    this.context.scripts.off("catalogChanged", this.onCatalogChanged);
-    this.context.scripts.off("invocationChanged", this.onInvocationChanged);
-    this.context.scripts.off("invocationRemoved", this.onInvocationRemoved);
-    this.context.scripts.off("invocationFinished", this.onInvocationFinished);
+    this.unsubscribeSession();
+    for (const view of this.invocations.values()) view.unsubscribe();
+    this.invocations.clear();
+  }
+
+  private execute(op: Operation): void {
+    this.context.server
+      .execute(op)
+      .then((result) => {
+        if (result.type === "error") {
+          this.context.nvim.logger.error(result.message);
+        }
+      })
+      .catch((e: Error) => this.context.nvim.logger.error(e.message));
   }
 
   update(msg: RootMsg): void {
-    // Server-owned state changes arrive as events; script-msg dispatches exist
-    // mainly to trigger a re-render through the central loop. Expansion is the
-    // exception: it is view state, mutated here.
     if (msg.type !== "script-msg") return;
     switch (msg.msg.type) {
       case "toggle-invocation-expand":
@@ -117,26 +166,20 @@ export class ScriptController {
         }
         return;
       case "toggle-invocation-sandbox":
-        this.context.scripts.toggleInvocationSandbox(msg.msg.id);
+        this.execute({
+          type: "script.toggleSandbox",
+          invocationId: msg.msg.id,
+        });
         return;
       case "abort-invocation":
-        this.context.scripts.abortInvocation(msg.msg.id);
+        this.execute({ type: "script.abort", invocationId: msg.msg.id });
         return;
       case "delete-invocation":
-        this.context.scripts.deleteInvocation(msg.msg.id);
+        this.execute({ type: "script.delete", invocationId: msg.msg.id });
         return;
-      case "catalog-updated":
-      case "invocation-updated":
+      case "state-updated":
         return;
     }
-  }
-
-  getCatalog(): ScriptMeta[] {
-    return this.context.scripts.getCatalog();
-  }
-
-  discover(): Promise<void> {
-    return this.context.scripts.discover();
   }
 
   private notifyFinished(): void {
@@ -155,8 +198,11 @@ export class ScriptController {
     }).catch((e: Error) => this.context.nvim.logger.error(e.message));
   }
 
-  private renderThreadYield(threadId: ThreadId): VDOMNode {
-    const result = this.context.scripts.getThreadYield(threadId);
+  private renderThreadYield(
+    inv: ProtocolScriptState,
+    threadId: ThreadId,
+  ): VDOMNode {
+    const result = inv.threadYields[threadId];
     if (!result) {
       return d``;
     }
@@ -167,8 +213,9 @@ export class ScriptController {
   }
 
   view(): VDOMNode {
-    const invocations: ScriptInvocation[] =
-      this.context.scripts.listInvocations();
+    const invocations = [...this.invocations.values()].flatMap((view) =>
+      view.state ? [view.state] : [],
+    );
     if (invocations.length === 0) {
       return d``;
     }
@@ -249,7 +296,7 @@ export class ScriptController {
           });
 
           if (this.expandedThreads.has(threadId)) {
-            invRows.push(this.renderThreadYield(threadId));
+            invRows.push(this.renderThreadYield(inv, threadId));
           }
         }
       } else {
