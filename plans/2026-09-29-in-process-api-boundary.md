@@ -315,6 +315,10 @@ Decisions/deviations:
 - `LspRequest` has `type: "lsp"` inline and `ClientResponse` maps `kind` to the specific LSP response type. The nvim handler has one cast from its non-generic switch to `ClientResponse<R>`.
 - OAuth abort races the client request against the signal; the in-process client prompt is not cancelled, its result is dropped.
 - `JsonValue` is exported from the server barrel.
+- Review follow-up: `createClientEffectHandler({ neovimVersion, handlers, notify })` builds a handler from a per-type map (`ClientRequestHandlers`, each entry typed request→response), with the single correlated-lookup cast inside it. `oauth`/`fileWritten` handlers are optional and `ClientInfo.supportsAuthUI`/`notifiesFileWritten` are derived from their presence. The nvim client and `FakeClient` (which takes partial handlers) both use it.
+- The `lua` response is `JsonValue | undefined`: lua `nil` maps to `undefined`, and the nvim client validates the result with `isJsonValue` (throws otherwise) instead of casting.
+- `clientLspClient` builds requests with one generic `lsp(kind)` helper.
+- Tests: OAuth abort while the client prompt is pending (rejects with the signal reason, late answer ignored); tier-C `chat/nvim-client.test.ts` sends `lua` (table and nil) and `lsp` hover requests through `createNvimClient`.
 
 - Goal: Replace `ClientCapabilities` with `ClientEffectHandler`, `ClientRequest`, and `ClientNotification`. The server-side adapters (`LspClient`, `LuaExecutor`, `AuthUI`, client command expansion, `onFileWritten`) issue requests and notifications through the attached handler, so `hover`/`find_references`/`nvim_lua`/OAuth/client commands don't change. `createNvimClient` becomes one handler that switches on `type`.
 - Tests:

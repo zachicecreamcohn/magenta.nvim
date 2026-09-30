@@ -5,8 +5,10 @@ import type {
   ClientInfo,
   ClientNotification,
   ClientRequest,
+  ClientRequestHandlers,
   ClientResponse,
 } from "../protocol/client.ts";
+import { createClientEffectHandler } from "../protocol/client.ts";
 import { Defer } from "../utils/async.ts";
 
 /** A git client whose state the test sets directly, e.g. to simulate a branch
@@ -85,26 +87,36 @@ export class FakeShell implements Shell {
 
 /** A client that records every request/notification and answers requests
  * with `respond` (default: `undefined`). */
+/** Records requests/notifications; `info` is derived from which of the
+ * optional handlers (`oauth`, `fileWritten`) are supplied. */
 export class FakeClient implements ClientEffectHandler {
   readonly requests: ClientRequest[] = [];
   readonly notifications: ClientNotification[] = [];
-  info: ClientInfo;
+  readonly info: ClientInfo;
+  private inner: ClientEffectHandler;
   constructor(
-    private respond: (req: ClientRequest) => unknown = () => undefined,
-    info: Partial<ClientInfo> = {},
+    handlers: Partial<ClientRequestHandlers> = {},
+    neovimVersion = "test",
   ) {
-    this.info = {
-      neovimVersion: "test",
-      supportsAuthUI: true,
-      notifiesFileWritten: false,
-      ...info,
-    };
+    const unhandled = (req: ClientRequest) =>
+      Promise.reject(new Error(`FakeClient: unhandled ${req.type}`));
+    this.inner = createClientEffectHandler({
+      neovimVersion,
+      handlers: {
+        lsp: unhandled,
+        lua: unhandled,
+        expandClientCommand: unhandled,
+        ...handlers,
+      },
+      notify: (n) => this.notifications.push(n),
+    });
+    this.info = this.inner.info;
   }
   request<R extends ClientRequest>(req: R): Promise<ClientResponse<R>> {
     this.requests.push(req);
-    return Promise.resolve(this.respond(req) as ClientResponse<R>);
+    return this.inner.request(req);
   }
   notify(n: ClientNotification): void {
-    this.notifications.push(n);
+    this.inner.notify(n);
   }
 }

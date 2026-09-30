@@ -1,11 +1,9 @@
 import type {
   ClientEffectHandler,
   ClientNotification,
-  ClientRequest,
-  ClientResponse,
-  JsonValue,
   LspRequest,
 } from "@magenta/server";
+import { createClientEffectHandler, isJsonValue } from "@magenta/server";
 import { NvimAuthUI } from "../auth/auth-ui.ts";
 import type { Lsp } from "../capabilities/lsp.ts";
 import { NvimLspClient } from "../capabilities/lsp-client-adapter.ts";
@@ -43,30 +41,27 @@ export async function createNvimClient({
     }
   }
 
-  async function handle(
-    req: ClientRequest,
-  ): Promise<ClientResponse<ClientRequest>> {
-    switch (req.type) {
-      case "lsp":
-        return lspRequest(req);
-      case "lua":
-        return ((await nvim.call("nvim_exec_lua", [req.code, []])) ??
-          null) as JsonValue;
-      case "expandClientCommand":
-        return expandClientCommand(req.command, { nvim, cwd, homeDir });
-      case "oauth":
-        return { code: await authUI.showOAuthFlow(req.authUrl) };
-      case "fileWritten":
+  return createClientEffectHandler({
+    neovimVersion,
+    handlers: {
+      lsp: lspRequest,
+      async lua(req) {
+        const value: unknown = await nvim.call("nvim_exec_lua", [req.code, []]);
+        // lua `nil` arrives as msgpack nil.
+        if (value === null || value === undefined) return undefined;
+        if (!isJsonValue(value)) {
+          throw new Error("nvim_exec_lua returned a non-JSON value");
+        }
+        return value;
+      },
+      expandClientCommand: (req) =>
+        expandClientCommand(req.command, { nvim, cwd, homeDir }),
+      oauth: async (req) => ({ code: await authUI.showOAuthFlow(req.authUrl) }),
+      async fileWritten(req) {
         await reloadBufferIfOpen({ nvim, cwd, homeDir }, req.absPath);
         return undefined;
-    }
-  }
-
-  return {
-    info: { neovimVersion, supportsAuthUI: true, notifiesFileWritten: true },
-    // `handle` switches on `type`, which fixes the response type per request.
-    request: <R extends ClientRequest>(req: R) =>
-      handle(req) as Promise<ClientResponse<R>>,
+      },
+    },
     notify(n: ClientNotification) {
       switch (n.type) {
         case "loginProgress":
@@ -75,5 +70,5 @@ export async function createNvimClient({
           return authUI.showError(n.message);
       }
     },
-  };
+  });
 }

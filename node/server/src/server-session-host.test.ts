@@ -25,6 +25,7 @@ import {
 import type { Thread } from "./thread.ts";
 import { ABORTED } from "./thread-api.ts";
 import type { ToolName, ToolRequestId } from "./tool-types.ts";
+import { Defer } from "./utils/async.ts";
 import type { AbsFilePath, Cwd, HomeDir } from "./utils/files.ts";
 
 const profile: ProviderProfile = {
@@ -49,7 +50,7 @@ const options: ServerHostOptions = {
   mcpServers: {},
   customCommands: [{ name: "@hi", text: "custom text" }],
 };
-const editor = new FakeClient(undefined, { neovimVersion: "999" });
+const editor = new FakeClient({}, "999");
 
 let dir: string;
 let mockClient: MockAnthropicClient;
@@ -132,8 +133,11 @@ it("wires editor capabilities into threads with the thread's cwd", async () => {
   const file = path.join(threadCwd, "b.txt");
   await writeFile(file, "hello");
   const spyEditor = new FakeClient(
-    (req) => (req.type === "lsp" ? [null] : undefined),
-    { neovimVersion: "999", notifiesFileWritten: true },
+    {
+      lsp: async () => [null],
+      fileWritten: async () => undefined,
+    },
+    "999",
   );
   const fileWrites = () =>
     spyEditor.requests.filter((r) => r.type === "fileWritten");
@@ -299,12 +303,14 @@ describe("auth UI", () => {
   }
   function clientWith(calls: string[], supportsAuthUI = true) {
     const client = new FakeClient(
-      (req) => {
-        if (req.type !== "oauth") return undefined;
-        calls.push(`oauth:${req.authUrl}`);
-        return { code: "code" };
-      },
-      { supportsAuthUI },
+      supportsAuthUI
+        ? {
+            oauth: async (req) => {
+              calls.push(`oauth:${req.authUrl}`);
+              return { code: "code" };
+            },
+          }
+        : {},
     );
     client.notify = (n) =>
       calls.push(
@@ -339,6 +345,19 @@ describe("auth UI", () => {
     const calls: string[] = [];
     authSession.attachClient(clientWith(calls));
     expect(calls).toEqual([]);
+  });
+  it("aborting while the client shows the OAuth prompt rejects and drops its late answer", async () => {
+    const { authHost, authSession } = makeAuthSession();
+    const answer = new Defer<{ code: string }>();
+    authSession.attachClient(new FakeClient({ oauth: () => answer.promise }));
+    const controller = new AbortController();
+    const reason = new Error("user cancelled");
+    const flow = authHost.authUI.showOAuthFlow("https://x", controller.signal);
+    await Promise.resolve();
+    controller.abort(reason);
+    await expect(flow).rejects.toBe(reason);
+    answer.resolve({ code: "late" });
+    await answer.promise;
   });
   it("logs and replays login output from before attach, in order", async () => {
     const logged: string[] = [];
@@ -391,7 +410,7 @@ describe("auth UI", () => {
   });
   it("issues OAuth and login output as serializable client effects", async () => {
     const { authHost, authSession } = makeAuthSession();
-    const client = new FakeClient(() => ({ code: "c" }));
+    const client = new FakeClient({ oauth: async () => ({ code: "c" }) });
     authSession.attachClient(client);
     await expect(authHost.authUI.showOAuthFlow("https://x")).resolves.toBe("c");
     authHost.authUI.showLoginProgress("p");

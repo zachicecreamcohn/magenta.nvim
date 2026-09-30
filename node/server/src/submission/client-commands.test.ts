@@ -23,9 +23,8 @@ afterEach(async () => {
 function fakeClient(
   expand: (command: ClientCommandName) => Promise<AgentInput[]>,
 ) {
-  return new FakeClient((req) => {
-    if (req.type !== "expandClientCommand") throw new Error(req.type);
-    return expand(req.command);
+  return new FakeClient({
+    expandClientCommand: (req) => expand(req.command),
   });
 }
 

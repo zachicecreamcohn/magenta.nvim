@@ -148,10 +148,12 @@ export type {
   ClientInfo,
   ClientNotification,
   ClientRequest,
+  ClientRequestHandlerSet,
   ClientResponse,
   LspRequest,
   LspRequestKind,
 } from "./protocol/client.ts";
+export { createClientEffectHandler } from "./protocol/client.ts";
 export type {
   ProviderName,
   ProviderOptions,
@@ -530,6 +532,7 @@ export {
   validateFileSize,
 } from "./utils/files.ts";
 export type { JsonValue } from "./utils/json.ts";
+export { isJsonValue } from "./utils/json.ts";
 export {
   extractPDFPage,
   getPDFPageCount,

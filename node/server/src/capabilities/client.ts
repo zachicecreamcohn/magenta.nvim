@@ -1,4 +1,8 @@
-import type { ClientEffectHandler } from "../protocol/client.ts";
+import type {
+  ClientEffectHandler,
+  LspRequest,
+  LspRequestKind,
+} from "../protocol/client.ts";
 import type { AbsFilePath, Cwd, HomeDir } from "../utils/files.ts";
 import type { LspClient } from "./lsp-client.ts";
 import type { LuaExecutor } from "./lua-executor.ts";
@@ -18,34 +22,24 @@ export function clientLspClient(
   cwd: Cwd,
   homeDir: HomeDir,
 ): LspClient {
-  const base = { type: "lsp" as const, cwd, homeDir };
+  const lsp =
+    <K extends LspRequestKind>(kind: K) =>
+    (filePath: AbsFilePath, position: LspRequest["position"]) =>
+      client.request<LspRequest & { kind: K }>({
+        type: "lsp",
+        kind,
+        cwd,
+        homeDir,
+        filePath,
+        position,
+      });
   return {
-    requestHover: (filePath, position) =>
-      client.request({ ...base, kind: "hover" as const, filePath, position }),
-    requestReferences: (filePath, position) =>
-      client.request({
-        ...base,
-        kind: "references" as const,
-        filePath,
-        position,
-      }),
-    requestDefinition: (filePath, position) =>
-      client.request({
-        ...base,
-        kind: "definition" as const,
-        filePath,
-        position,
-      }),
-    requestTypeDefinition: (filePath, position) =>
-      client.request({
-        ...base,
-        kind: "typeDefinition" as const,
-        filePath,
-        position,
-      }),
+    requestHover: lsp("hover"),
+    requestReferences: lsp("references"),
+    requestDefinition: lsp("definition"),
+    requestTypeDefinition: lsp("typeDefinition"),
   };
 }
-
 export function clientLuaExecutor(client: ClientEffectHandler): LuaExecutor {
   return { execLua: (code) => client.request({ type: "lua", code }) };
 }
