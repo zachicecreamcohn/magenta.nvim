@@ -1,8 +1,8 @@
 import {
-  type ContextFileAccess,
   type FileUpdates,
   formatGitHead,
   type GitContextUpdate,
+  type TrackedContextFile,
 } from "@magenta/server";
 import open from "open";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
@@ -37,12 +37,20 @@ export type ContextViewContext = {
   options: MagentaOptions;
 };
 
+/** The thread's context files as the view sees them: tracked files, changes
+ * not yet delivered, and the operation that removes a file. */
+export type ContextFilesData = {
+  files: ReadonlyArray<TrackedContextFile>;
+  pending: FileUpdates;
+  remove: (absFilePath: AbsFilePath) => void;
+};
+
 export function openFile(
   absFilePath: AbsFilePath,
-  core: ContextFileAccess,
+  files: ReadonlyArray<TrackedContextFile>,
   context: ContextViewContext,
 ): void {
-  const fileInfo = core.files[absFilePath];
+  const fileInfo = files.find((f) => f.absFilePath === absFilePath);
 
   if (fileInfo && fileInfo.fileTypeInfo.category !== FileCategory.TEXT) {
     open(absFilePath).catch((error: Error) => {
@@ -100,12 +108,12 @@ function renderUpdateIndicator(
 }
 
 export function contextFilesView(
-  core: ContextFileAccess,
+  core: ContextFilesData,
   context: ContextViewContext,
   view: { expanded: boolean; onToggle: () => void },
 ) {
-  const pending = core.getPendingUpdates();
-  const allPaths = Object.keys(core.files) as AbsFilePath[];
+  const pending = core.pending;
+  const allPaths = core.files.map((f) => f.absFilePath);
   if (allPaths.length === 0) {
     return "";
   }
@@ -124,14 +132,14 @@ export function contextFilesView(
       absFilePath,
       context.homeDir,
     );
-    const fileInfo = core.files[absFilePath];
+    const fileInfo = core.files.find((f) => f.absFilePath === absFilePath);
     const summaryBadge =
       fileInfo?.agentView?.type === "summary" ? " (summary)" : "";
     return withBindings(
       d`- ${withInlineCode(d`\`${pathForDisplay}\``)}${summaryBadge}${indicator}\n`,
       {
-        dd: () => core.removeFileContext(absFilePath),
-        "<CR>": () => openFile(absFilePath, core, context),
+        dd: () => core.remove(absFilePath),
+        "<CR>": () => openFile(absFilePath, core.files, context),
       },
     );
   };
@@ -179,7 +187,7 @@ export function renderGitUpdate(
 
 export function renderContextUpdate(
   contextUpdates: FileUpdates | undefined,
-  core: ContextFileAccess,
+  files: ReadonlyArray<TrackedContextFile>,
   context: ContextViewContext,
   view: {
     expandedUpdates: { [absFilePath: string]: boolean };
@@ -274,7 +282,7 @@ export function renderContextUpdate(
       const fileLine = withBindings(
         d`- \`${pathForDisplay}\`${pdfInfo} ${changeIndicator}`,
         {
-          "<CR>": () => openFile(absFilePath, core, context),
+          "<CR>": () => openFile(absFilePath, files, context),
           "=": () => view.onToggle(absFilePath),
         },
       );

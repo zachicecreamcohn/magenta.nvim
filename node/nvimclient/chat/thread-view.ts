@@ -3,11 +3,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { DisplayBufferText, SystemPrompt } from "@magenta/server";
 import {
-  activeTools,
   type CompactionRunState,
   type CompletedToolInfo,
   type ContentBlockIdx,
-  type ContextFileAccess,
   compactionRunChunkIndex,
   compactionRunThreadIds,
   displayPath,
@@ -16,17 +14,19 @@ import {
   formatToolSpecs,
   type MessageIdx,
   type NativeMessageIdx,
+  type ProtocolActivity,
+  type ProtocolRunState,
+  type ProtocolSubmissionResult,
+  type ProtocolThreadState,
   type ProviderToolSpec,
   renderPending,
-  type SubmissionResult,
-  streamingBlock,
   type ThreadId,
-  type ToolLoopActivity,
   type ToolRequestId,
   type YieldState,
 } from "@magenta/server";
 import { renderPendingApprovals } from "../capabilities/render-pending-approvals.ts";
 import {
+  type ContextFilesData,
   type ContextViewContext,
   contextFilesView,
   renderContextUpdate,
@@ -37,7 +37,6 @@ import type {
   ProviderMessage,
   ProviderMessageContent,
   StopReason,
-  ThreadState,
   ToolResultInput,
   Usage,
 } from "../providers/provider.ts";
@@ -80,7 +79,7 @@ function contextViewCtx(thread: NvimThread): ContextViewContext {
 /**
  * Helper function to render the animation frame for in-progress operations
  */
-const shortErrorMessage = (error: Error): string => {
+const shortErrorMessage = (error: { message: string }): string => {
   const msg = error.message.split("\n")[0].trim();
   return msg.length > 80 ? `${msg.slice(0, 77)}...` : msg;
 };
@@ -96,7 +95,9 @@ export type RunningCompaction = {
   onSelectChunk: (threadId: ThreadId) => void;
 };
 
-export function renderYield(yielded: YieldState): string {
+export function renderYield(
+  yielded: Pick<YieldState, "value" | "resultPrefix">,
+): string {
   const body =
     Object.keys(yielded.value).length === 1 &&
     typeof yielded.value.result === "string"
@@ -106,15 +107,13 @@ export function renderYield(yielded: YieldState): string {
 }
 
 export const renderStatus = (
-  loopState: ThreadState,
+  loopState: ProtocolRunState,
   latestUsage: Usage | undefined,
-  lastSubmissionResult: RenderedResult,
   compaction: RunningCompaction | undefined,
   requestTick: () => void,
-  yielded: YieldState | undefined,
 ): VDOMNode => {
-  if (yielded) {
-    return d`↗️ yielded to parent: ${renderYield(yielded)}`;
+  if (loopState.type === "yielded") {
+    return d`↗️ yielded to parent: ${renderYield(loopState)}`;
   }
   if (compaction) {
     const { run, onSelectChunk } = compaction;
@@ -141,37 +140,36 @@ export const renderStatus = (
       }
     }
     case "idle":
-    case "yielded":
     case "destroyed":
-      return renderSubmissionResult(lastSubmissionResult, latestUsage);
+      return renderSubmissionResult(loopState.lastResult, latestUsage);
     default:
       assertUnreachable(loopState);
   }
 };
 function renderStreaming(
-  activity: Extract<ToolLoopActivity, { type: "streaming" }>,
+  activity: Extract<ProtocolActivity, { type: "streaming" }>,
   requestTick: () => void,
 ): VDOMNode {
   requestTick();
   if (activity.retry) {
     const secsLeft = Math.max(
       1,
-      Math.ceil((activity.retry.nextRetryAt.getTime() - Date.now()) / 1000),
+      Math.ceil((activity.retry.nextRetryAt - Date.now()) / 1000),
     );
     const reason = shortErrorMessage(activity.retry.error);
     return d`⏳ Retrying in ${String(secsLeft)}s (attempt ${String(activity.retry.attempt)}) — ${reason}`;
   }
-  const waitedMs = Date.now() - activity.lastEventTime.getTime();
+  const waitedMs = Date.now() - activity.lastEventTime;
   if (waitedMs > 3000) {
     const waitedSecs = Math.floor(waitedMs / 1000);
-    return d`Streaming response ${spinnerFrame(activity.startedAt)} (waiting ${String(waitedSecs)}s)`;
+    return d`Streaming response ${spinnerFrame(new Date(activity.startedAt))} (waiting ${String(waitedSecs)}s)`;
   }
-  return d`Streaming response ${spinnerFrame(activity.startedAt)}`;
+  return d`Streaming response ${spinnerFrame(new Date(activity.startedAt))}`;
 }
 
 /** How the last submission ended, as the view sees it: a suspension is a
  * handoff, never rendered. */
-type RenderedResult = SubmissionResult | undefined;
+type RenderedResult = ProtocolSubmissionResult | undefined;
 function renderSubmissionResult(
   result: RenderedResult,
   usage: Usage | undefined,
@@ -188,9 +186,7 @@ function renderSubmissionResult(
     case "aborted":
       return d`[ABORTED] ${usage ? d` ${renderUsage(usage)}` : d``} `;
     case "failed":
-      return d`Error ${result.error.message}${
-        result.error.stack ? `\n${result.error.stack}` : ""
-      }`;
+      return d`Error ${result.error.message}`;
     default:
       return assertUnreachable(result);
   }
@@ -219,14 +215,23 @@ function renderUsage(usage: Usage): VDOMNode {
 /**
  * Helper function to determine if context manager view should be shown
  */
-const shouldShowContextFiles = (
-  loopState: ThreadState,
-  fileSupervisor: ContextFileAccess,
-): boolean => {
-  return (
-    loopState.type !== "running" && Object.keys(fileSupervisor.files).length > 0
-  );
+const shouldShowContextFiles = (state: ProtocolThreadState): boolean => {
+  return state.run.type !== "running" && state.contextFiles.length > 0;
 };
+
+function contextFilesData(thread: NvimThread): ContextFilesData {
+  const state = thread.threadState;
+  return {
+    files: state.contextFiles,
+    pending: state.pendingContextUpdates,
+    remove: (absFilePath) =>
+      thread.context.dispatch({
+        type: "thread-msg",
+        id: thread.id,
+        msg: { type: "remove-context-file", absFilePath },
+      }),
+  };
+}
 
 /**
  * Helper function to render the system prompt in collapsed/expanded state
@@ -306,7 +311,7 @@ const renderToolDefinitions = (
  * expanded run is a list of threads the user can walk into rather than an
  * inlined transcript. */
 function renderCompactionHistory(
-  runs: CompactionRunState[],
+  runs: ReadonlyArray<CompactionRunState>,
   thread: NvimThread,
   viewState: NvimThread["state"]["compactionViewState"],
   dispatch: Dispatch<Msg>,
@@ -346,8 +351,10 @@ function renderCompactionHistory(
   })}`;
 }
 function runningCompaction(thread: NvimThread): RunningCompaction | undefined {
-  const run = thread.compactor?.current;
-  if (!run) return undefined;
+  const run = thread.threadState.compaction.runs.findLast(
+    (r) => r.type === "running",
+  );
+  if (!run || run.type !== "running") return undefined;
   return {
     run,
     onSelectChunk: (threadId) =>
@@ -464,7 +471,8 @@ export const view: View<{
   thread: NvimThread;
   dispatch: Dispatch<Msg>;
 }> = ({ thread, dispatch }) => {
-  const threadType = thread.thread.threadType;
+  const state = thread.threadState;
+  const threadType = state.threadType;
   const titlePrefix = threadType === "docker_root" ? "🐳 " : "";
   const archiveLink = withBindings(d`[Archive]`, {
     "<CR>": () =>
@@ -473,25 +481,25 @@ export const view: View<{
         id: thread.id,
       }),
   });
-  const titleView = thread.thread.title
-    ? d`# ${titlePrefix}${thread.thread.title} ${archiveLink}`
+  const titleView = state.title
+    ? d`# ${titlePrefix}${state.title} ${archiveLink}`
     : d`# ${titlePrefix}[ Untitled ] ${archiveLink}`;
 
   const systemPromptView = renderSystemPrompt(
-    thread.thread.systemPrompt,
+    state.systemPrompt,
     thread.state.showSystemPrompt,
     dispatch,
   );
 
   const toolDefinitionsView = renderToolDefinitions(
-    thread.thread.toolSpecs,
+    state.toolSpecs,
     thread.state.showToolDefinitions,
     thread.state.expandedToolDefinitions,
     dispatch,
   );
 
-  const messages = thread.thread.getProviderMessages();
-  const loopState = thread.thread.state;
+  const messages = state.messages;
+  const loopState = state.run;
 
   // Show logo when empty and not busy
   const isIdle = loopState.type !== "running";
@@ -505,45 +513,35 @@ ${LOGO}
 
 magenta is for agentic flow
 
-${contextFilesView(thread.thread.contextFiles, contextViewCtx(thread), {
+${contextFilesView(contextFilesData(thread), contextViewCtx(thread), {
   expanded: thread.state.contextFilesExpanded,
   onToggle: () => dispatch({ type: "toggle-context-files-expanded" }),
 })}`;
   }
 
-  const latestUsage = thread.thread.latestUsage;
   const statusView = renderStatus(
     loopState,
-    latestUsage,
-    thread.thread.lastResult(),
+    state.latestUsage,
     runningCompaction(thread),
     thread.requestAnimationTick,
-    thread.thread.yielded,
   );
 
-  const fileSupervisorView = shouldShowContextFiles(
-    loopState,
-    thread.thread.contextFiles,
-  )
-    ? d`\n${contextFilesView(
-        thread.thread.contextFiles,
-        contextViewCtx(thread),
-        {
-          expanded: thread.state.contextFilesExpanded,
-          onToggle: () => dispatch({ type: "toggle-context-files-expanded" }),
-        },
-      )}`
+  const fileSupervisorView = shouldShowContextFiles(state)
+    ? d`\n${contextFilesView(contextFilesData(thread), contextViewCtx(thread), {
+        expanded: thread.state.contextFilesExpanded,
+        onToggle: () => dispatch({ type: "toggle-context-files-expanded" }),
+      })}`
     : d``;
 
   const sandboxView =
     renderPendingApprovals(thread.context.chat.session, thread.id) ?? d``;
   const compactionHistoryView = renderCompactionHistory(
-    thread.compactor?.runs ?? [],
+    state.compaction.runs,
     thread,
     thread.state.compactionViewState,
     dispatch,
   );
-  const editedGroups = thread.thread.editedFileGroups.filter(
+  const editedGroups = state.editedFileGroups.filter(
     (group) =>
       group.endNativeMessageIdx !== undefined && group.files.length > 0,
   );
@@ -568,7 +566,7 @@ ${contextFilesView(thread.thread.contextFiles, contextViewCtx(thread), {
     d`${(editedFilesAtMessage.get(messageIdx) ?? []).map((group) =>
       editedFilesSummaryView(group, thread, dispatch),
     )}`;
-  const { async: pendingAsync, next: pendingNext } = thread.thread.queued;
+  const { async: pendingAsync, next: pendingNext } = state.queued;
   const pendingCount = pendingAsync.length;
   const pendingMessagesView =
     pendingCount > 0
@@ -668,7 +666,7 @@ ${contextFilesView(thread.thread.contextFiles, contextViewCtx(thread), {
     const nativeIdx = message.content[0]?.nativeMessageIdx;
     if (nativeIdx === undefined) return undefined;
     if (deliveryOwner.get(nativeIdx) !== messageIdx) return undefined;
-    return thread.thread.getContextDelivery(nativeIdx);
+    return state.contextDeliveries[nativeIdx];
   };
   // Render messages from provider thread
   const messagesView = messages.map((message, messageIdx) => {
@@ -721,7 +719,7 @@ ${contextFilesView(thread.thread.contextFiles, contextViewCtx(thread), {
     const contextUpdateView = delivery?.files
       ? renderContextUpdate(
           delivery.files,
-          thread.thread.contextFiles,
+          state.contextFiles,
           contextViewCtx(thread),
           {
             expandedUpdates: viewState?.expandedUpdates ?? {},
@@ -1077,11 +1075,16 @@ function renderMessageContentBlock(
       };
 
       // Check if tool is active (still running)
-      const activeEntry = activeTools(thread.thread.state)?.get(request.id);
+      const toolState = thread.threadState.tools[request.id];
+      const activeEntry =
+        toolState?.status === "running" ? toolState : undefined;
 
       const isActive = !!activeEntry;
       const abortBinding = isActive
-        ? { t: () => activeEntry?.handle.abort() }
+        ? {
+            t: () =>
+              dispatch({ type: "abort-tool", toolRequestId: request.id }),
+          }
         : {};
 
       // A tool is "in flight" while its input is still streaming in or while it
@@ -1182,12 +1185,14 @@ function renderMessageContentBlock(
           return d`⚠️ tool result for ${request.id} not found\n`;
         }
 
-        const completedInfo: CompletedToolInfo =
-          thread.thread.completedTools.get(request.id) ?? {
-            request,
-            result: toolResult,
-            structuredResult: undefined,
-          };
+        const completedInfo: CompletedToolInfo = {
+          request: toolState?.request ?? request,
+          result: toolResult,
+          structuredResult:
+            toolState?.status === "done"
+              ? toolState.structuredResult
+              : undefined,
+        };
 
         // Section 5: Result summary. get_files renders its own interactive
         // per-file result in Section 7, so it opts out of the generic summary.
@@ -1355,16 +1360,43 @@ function renderMessageContentBlock(
   }
 }
 
-/** Find the tool result for a given tool request ID using the cached map */
+/** Tool results in the history, indexed once per delivered message list. */
+const historyToolResults = new WeakMap<
+  ReadonlyArray<ProviderMessage>,
+  Map<ToolRequestId, ToolResultInput>
+>();
+
+/** A tool's result from thread state, falling back to the history for tools
+ * this thread did not run itself (e.g. carried over by a fork). */
 export function findToolResult(
   thread: NvimThread,
   toolRequestId: ToolRequestId,
 ): ToolResultInput | undefined {
-  return thread.state.toolResultMap.get(toolRequestId);
+  const tool = thread.threadState.tools[toolRequestId];
+  if (tool?.status === "done") return tool.result;
+  const messages = thread.threadState.messages;
+  let results = historyToolResults.get(messages);
+  if (!results) {
+    results = new Map();
+    for (const message of messages) {
+      if (message.role !== "user") continue;
+      for (const content of message.content) {
+        if (content.type === "tool_result") results.set(content.id, content);
+      }
+    }
+    historyToolResults.set(messages, results);
+  }
+  return results.get(toolRequestId);
+}
+
+function streamingBlock(run: ProtocolRunState) {
+  return run.type === "running" && run.activity.type === "streaming"
+    ? run.activity.block
+    : undefined;
 }
 
 function renderStreamingBlock(thread: NvimThread): string | VDOMNode {
-  const block = streamingBlock(thread.thread.state);
+  const block = streamingBlock(thread.threadState.run);
   if (!block) return d``;
 
   switch (block.type) {

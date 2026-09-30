@@ -329,6 +329,21 @@ Decisions/deviations:
 
 ## Thread view on thread state
 
+Status: done.
+
+- [x] `NvimThread(id, context)` subscribes to its thread topic (the first delivery is synchronous, so construction requires a ready thread) and keeps `threadState`. `thread`/`compactor`, `toolResultMap`, the compactor `transition` listener and `destroy()` are gone. Submit/enqueue/retry/setTitle/reject-on-preempt/tool abort (`abort-tool` msg, `t` binding)/context file removal go through `execute`.
+- [x] `thread-view.ts` renders from `ProtocolThreadState`: `renderStatus(run, usage, compaction, tick)` reads yield/lastResult from `run`; running compaction is the last `running` run; tools come from `tools`; `findToolResult` falls back to `tool_result` blocks in `messages` (forked history), memoized per messages array.
+- [x] `context-manager.ts` takes `ContextFilesData` (`files`, `pending`, `remove`) instead of `ContextFileAccess`.
+- [x] Magenta constructs the in-process server (after the script manager) and passes it to `Chat`; the `context-files` command uses `thread.addContextFiles`.
+- [x] Tier C: `thread-abort.test.ts` "aborting one running tool leaves the rest of the batch running".
+
+Decisions/deviations:
+
+- `ProtocolThreadState` gained `pendingContextUpdates` (the context view shows undelivered changes) and `lastStopTokenCount` (sidebar chrome/thread list). Protocol types and `createInProcessServer` are exported from the server barrel.
+- `Chat` reads of the wrapper's thread (display name, summary, needs-attention, token count) now use `threadState`; fork still reads `nativeMessageIdx` from the session record, left for the session-view stage. Views still read derived forks/reflections and approvals from `Session` until that stage.
+- Failed submissions carry `{ message }` only, so the status line no longer prints the error stack.
+- Tests reach live server objects through white-box helpers `serverThread`/`serverCompactor` in `test/left-thread.ts`.
+
 - Goal: `NvimThread` holds a `ThreadId`, a subscription, and the latest `ProtocolThreadState`. `thread-view.ts` renders from it, so `toolResultMap` rebuilding and the compactor `transition` subscription are gone. Submit/enqueue/retry/tool abort/setTitle/context-file edits go through `execute`. The debounce on re-render is kept.
 - Tests:
   - The existing tier-C `chat/thread.test.ts` and tool view tests pass unchanged, including separate `@buf`/`@diag` blocks, tool progress, structured results, edited files, context file updates, and compaction rendering.

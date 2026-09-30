@@ -1,7 +1,7 @@
 import type { ToolName, ToolRequestId } from "@magenta/server";
 import { expect, it } from "vitest";
 import { getCurrentWindow } from "../nvim/nvim.ts";
-import { leftThread } from "../test/left-thread.ts";
+import { leftThread, serverThread } from "../test/left-thread.ts";
 import { withDriver } from "../test/preamble.ts";
 import { pollUntil } from "../utils/async.ts";
 import type { NvimThread } from "./thread.ts";
@@ -9,14 +9,14 @@ import type { NvimThread } from "./thread.ts";
 /** The fork marker lands in the cloned history at fork time, where it merges
  * into whatever the user sends next. */
 function expectForkNotificationQueued(thread: NvimThread): void {
-  expect(JSON.stringify(thread.thread.getProviderMessages())).toContain(
+  expect(JSON.stringify(serverThread(thread).getProviderMessages())).toContain(
     "<fork-notification>",
   );
 }
 
 /** The cloned history without the seam notice the fork opens with. */
 function forkedMessages(thread: NvimThread) {
-  return thread.thread
+  return serverThread(thread)
     .getProviderMessages()
     .filter(
       (m) =>
@@ -169,7 +169,7 @@ it("normal mode F on assistant message with tool_use extends to keep tool_result
     });
 
     const newThread = leftThread(driver.magenta.chat);
-    const messages = newThread.thread.getProviderMessages();
+    const messages = serverThread(newThread).getProviderMessages();
 
     // Per the truncate algorithm, when forking at the assistant tool_use
     // message, we extend forward through the run of consecutive user

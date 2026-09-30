@@ -3,7 +3,7 @@ import type { ThreadId, ToolName, ToolRequestId } from "@magenta/server";
 import { flushArchive, threadConversationLogPath } from "@magenta/server";
 import { v7 as uuidv7 } from "uuid";
 import { expect, it } from "vitest";
-import { leftThread } from "./test/left-thread.ts";
+import { leftThread, serverThread } from "./test/left-thread.ts";
 import { withDriver } from "./test/preamble.ts";
 import { pollUntil } from "./utils/async.ts";
 
@@ -28,7 +28,7 @@ it("setting a thread title renames both buffers", async () => {
     const threadId = thread.id;
     const buffers = driver.magenta.bufferManager.getThreadBuffers(threadId)!;
 
-    thread.thread.setTitle("My Cool Title");
+    serverThread(thread).setTitle("My Cool Title");
 
     await pollUntil(async () => {
       const displayName = (await driver.nvim.call("nvim_buf_get_name", [
@@ -296,7 +296,7 @@ it.each([
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
     const wrapper = leftThread(driver.magenta.chat);
-    const thread = wrapper.thread;
+    const thread = serverThread(wrapper);
     await driver.inputMagentaText("Explain this project");
     await driver.send();
     const titleRequest =
@@ -327,7 +327,7 @@ it.each([
     await pollUntil(() => expect(thread.isBusy).toBe(false));
     expect(driver.mockAnthropic.forceToolUseRequests).toHaveLength(1);
     if (outcome === "manual") thread.setTitle("Manual title");
-    if (outcome === "destroyed") await wrapper.destroy();
+    if (outcome === "destroyed") await thread.destroy();
     if (outcome === "failed") {
       titleRequest.defer.reject(new Error("Title service unavailable"));
     } else if (outcome === "invalid") {

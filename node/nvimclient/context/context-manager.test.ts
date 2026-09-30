@@ -11,7 +11,7 @@ import {
 import { getFileSupervisor } from "@magenta/server/src/test-helpers.ts";
 import { describe, expect, it } from "vitest";
 import { getAllWindows, getcwd } from "../nvim/nvim.ts";
-import { leftThread } from "../test/left-thread.ts";
+import { leftThread, serverThread } from "../test/left-thread.ts";
 import { withDriver } from "../test/preamble.ts";
 import { sanitizeMessagesForSnapshot } from "../test/sanitize-snapshot.ts";
 
@@ -20,7 +20,7 @@ it("returns diff when disk changes even if buffer has unsaved changes", async ()
     await driver.showSidebar();
 
     const fileSupervisor = getFileSupervisor(
-      leftThread(driver.magenta.chat).thread,
+      serverThread(leftThread(driver.magenta.chat)),
     );
 
     const cwd = await getcwd(driver.nvim);
@@ -289,8 +289,9 @@ it("large context files are summarized and rendered with a (summary) badge", asy
         toolRequests: [],
       });
 
-      const fileSupervisor = leftThread(driver.magenta.chat).thread
-        .contextFiles;
+      const fileSupervisor = serverThread(
+        leftThread(driver.magenta.chat),
+      ).contextFiles;
       const cwd = await getcwd(driver.nvim);
       const absHuge = resolveFilePath(
         cwd,
@@ -335,7 +336,7 @@ it("out-of-process file change surfaces in the pending-context view", async () =
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
     const fileSupervisor = getFileSupervisor(
-      leftThread(driver.magenta.chat).thread,
+      serverThread(leftThread(driver.magenta.chat)),
     );
 
     const cwd = await getcwd(driver.nvim);

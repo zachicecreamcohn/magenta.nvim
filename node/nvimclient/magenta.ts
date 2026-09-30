@@ -2,7 +2,9 @@ import * as os from "node:os";
 import {
   ABORTED,
   type Aborted,
+  createInProcessServer,
   isThreadId,
+  type MagentaServer,
   type NativeMessageIdx,
   OptionsStore,
   parseDelivery,
@@ -97,7 +99,6 @@ import {
   detectFileType,
   formatFileRef,
   type NvimCwd,
-  relativePath,
   resolveFilePath,
   threadCwdFromNvimCwd,
   type UnresolvedFilePath,
@@ -171,6 +172,8 @@ export class Magenta {
   public session: Session;
   /** Server-side thread preparation for that session. */
   public host: ServerSessionHost;
+  /** The protocol boundary views read state from and send operations to. */
+  public server: MagentaServer;
   public chat: Chat;
   /** Session-owned script execution. */
   public scripts: ScriptManager;
@@ -325,6 +328,28 @@ export class Magenta {
       awaitClient: () => this.session.awaitClient(),
     });
     this.session = new Session(this.host);
+    this.scripts = new ScriptManager({
+      session: this.session,
+      logger: this.nvim.logger,
+      cwd: threadCwdFromNvimCwd(this.cwd),
+      homeDir: this.homeDir,
+      getScriptsPaths: () => this.options.scriptsPaths,
+      sandbox: {
+        isThreadBypassed: (threadId) =>
+          this.session.isSandboxBypassed(threadId),
+        registerSandboxRoot: (threadId, getSandboxRoot) =>
+          this.session.registerSandboxRoot(threadId, getSandboxRoot),
+        approveAllPendingInSubtree: (threadId) =>
+          this.session.approveAllPendingInSubtree(threadId),
+      },
+    });
+    // Wired before any thread exists, so the run_script tool always has a
+    // catalog to read.
+    this.session.scriptRunner = this.scripts;
+    this.server = createInProcessServer({
+      session: this.session,
+      scripts: this.scripts,
+    });
     this.chat = new Chat(
       {
         ...hostContext,
@@ -347,28 +372,10 @@ export class Magenta {
           }
         },
       },
-      { session: this.session, host: this.host },
+      { session: this.session, host: this.host, server: this.server },
     );
     this.chat.getActiveReflectionId = () =>
       this.reflectionsOverview?.activeReflectionId ?? this.chat.rightThreadId;
-    this.scripts = new ScriptManager({
-      session: this.session,
-      logger: this.nvim.logger,
-      cwd: threadCwdFromNvimCwd(this.cwd),
-      homeDir: this.homeDir,
-      getScriptsPaths: () => this.options.scriptsPaths,
-      sandbox: {
-        isThreadBypassed: (threadId) =>
-          this.session.isSandboxBypassed(threadId),
-        registerSandboxRoot: (threadId, getSandboxRoot) =>
-          this.session.registerSandboxRoot(threadId, getSandboxRoot),
-        approveAllPendingInSubtree: (threadId) =>
-          this.session.approveAllPendingInSubtree(threadId),
-      },
-    });
-    // Wired before any thread exists, so the run_script tool always has a
-    // catalog to read.
-    this.session.scriptRunner = this.scripts;
     this.scriptManager = new ScriptController({
       dispatch: this.dispatch,
       chat: this.chat,
@@ -462,12 +469,13 @@ export class Magenta {
       wrapper && wrapper.state === "initialized" ? wrapper.thread : undefined;
     return {
       profile: thread ? thread.context.profile : this.getActiveProfile(),
-      tokenCount: thread ? thread.thread.getLastStopTokenCount() : 0,
+      tokenCount: thread ? thread.threadState.lastStopTokenCount : 0,
       status: !thread
         ? "none"
-        : thread.thread.isBusy
+        : thread.isBusy
           ? "busy"
-          : thread.thread.lastResult()?.type === "failed"
+          : thread.threadState.run.type === "idle" &&
+              thread.threadState.run.lastResult?.type === "failed"
             ? "failed"
             : "ok",
       sandboxBypassed:
@@ -1099,26 +1107,27 @@ export class Magenta {
           .map((str) => (str.startsWith("'") ? str.slice(1, -1) : str))
           .map((str) => str.trim());
 
+        const files: UnresolvedFilePath[] = [];
         for (const filePath of paths) {
           const absFilePath = resolveFilePath(
             this.cwd,
             filePath as UnresolvedFilePath,
             this.homeDir,
           );
-          const relFilePath = relativePath(this.cwd, absFilePath, this.homeDir);
           const fileTypeInfo = await detectFileType(absFilePath);
           if (!fileTypeInfo) {
             this.nvim.logger.error(`File ${filePath} does not exist.`);
             continue;
           }
 
-          thread.thread.contextFiles.addFileContext(
-            absFilePath,
-            relFilePath,
-            fileTypeInfo,
-          );
+          files.push(absFilePath as string as UnresolvedFilePath);
         }
-
+        const result = await this.server.execute({
+          type: "thread.addContextFiles",
+          threadId: thread.id,
+          files,
+        });
+        if (result.type === "error") this.nvim.logger.error(result.message);
         break;
       }
 
@@ -1642,6 +1651,7 @@ ${lines.join("\n")}
   destroy() {
     this.scriptManager.dispose();
     this.chat.dispose();
+    void this.server.dispose();
     // The session must be disposed even if script teardown fails, otherwise
     // in-flight threads never settle.
     void this.scripts

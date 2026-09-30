@@ -7,7 +7,7 @@ import {
 } from "@magenta/server";
 import { describe, expect, it } from "vitest";
 import type { Chat } from "../chat/chat.ts";
-import { leftThread } from "../test/left-thread.ts";
+import { leftThread, serverThread } from "../test/left-thread.ts";
 import { withDriver } from "../test/preamble.ts";
 
 type ToolResultBlockParam = Anthropic.Messages.ToolResultBlockParam;
@@ -351,7 +351,9 @@ describe("foreach-style parallel agents", () => {
 
         const childWrapper = findChildThread(driver.magenta.chat);
         await pollUntil(() => {
-          if (childWrapper.thread.thread.lastResult()?.type === "failed") {
+          if (
+            serverThread(childWrapper.thread).lastResult()?.type === "failed"
+          ) {
             return true;
           }
           throw new Error("waiting for child thread to reach error state");
@@ -383,7 +385,7 @@ describe("foreach-style parallel agents", () => {
 
         // A failed thread is parked, with its log already rolled back, so a
         // fresh send is all the recovery it needs.
-        void childWrapper.thread.thread.submit({
+        void serverThread(childWrapper.thread).submit({
           type: "resolved",
           messages: [
             {

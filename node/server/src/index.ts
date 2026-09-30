@@ -154,6 +154,27 @@ export type {
   LspRequestKind,
 } from "./protocol/client.ts";
 export { createClientEffectHandler } from "./protocol/client.ts";
+export type { Operation, OperationResult } from "./protocol/operations.ts";
+export {
+  createInProcessServer,
+  type MagentaServer,
+  type StateFor,
+  type Topic,
+} from "./protocol/server.ts";
+export type {
+  PendingApproval,
+  PendingApprovalPrompt,
+  ProtocolActivity,
+  ProtocolGlobalState,
+  ProtocolRunState,
+  ProtocolScriptState,
+  ProtocolSessionState,
+  ProtocolSubmissionResult,
+  ProtocolThreadState,
+  SessionThreadSummary,
+  ToolState,
+  TrackedContextFile,
+} from "./protocol/state.ts";
 export type {
   ProviderName,
   ProviderOptions,

@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { expect, it } from "vitest";
-import { leftThread } from "../test/left-thread.ts";
+import { leftThread, serverThread } from "../test/left-thread.ts";
 import { withDriver } from "../test/preamble.ts";
 import { pollUntil } from "../utils/async.ts";
 
@@ -22,7 +22,7 @@ it("sandbox bypass and write approvals use the fork owner", async () => {
     const sourceThread = leftThread(driver.magenta.chat);
     driver.magenta.chat.session.toggleSandboxBypass(sourceThreadId);
 
-    const idx = sourceThread.thread.nativeMessageIdx;
+    const idx = serverThread(sourceThread).nativeMessageIdx;
     await driver.magenta.forkAtMessageAndSwitch(sourceThreadId, idx);
 
     const forkThread = leftThread(driver.magenta.chat);
@@ -35,10 +35,10 @@ it("sandbox bypass and write approvals use the fork owner", async () => {
     const destination = path.join(dirs.baseDir, "fork-write.txt");
     driver.mockSandbox.blockWritesTo(destination);
     // biome-ignore lint/complexity/useLiteralKeys: white-box access to a private field
-    const forkIO = forkThread.thread["context"].fileIO;
+    const forkIO = serverThread(forkThread)["context"].fileIO;
     expect(forkIO).toBe(forkThread.context.environment.fileIO);
     // biome-ignore lint/complexity/useLiteralKeys: white-box access to a private field
-    expect(forkIO).not.toBe(sourceThread.thread["context"].fileIO);
+    expect(forkIO).not.toBe(serverThread(sourceThread)["context"].fileIO);
     await forkIO.writeFile(destination, "bypassed fork write");
     expect(
       driver.magenta.chat.session.getPendingApprovals(sourceThread.id).size,
@@ -82,7 +82,7 @@ it("fork appends an id-free fork_notification and records the fork origin", asyn
 
     const sourceThreadId = driver.magenta.chat.state.left!;
     const sourceThread = leftThread(driver.magenta.chat);
-    const idx = sourceThread.thread.nativeMessageIdx;
+    const idx = serverThread(sourceThread).nativeMessageIdx;
 
     await driver.magenta.forkAtMessageAndSwitch(sourceThreadId, idx);
     // The fork notification rides along with the fork's first turn.
@@ -96,7 +96,7 @@ it("fork appends an id-free fork_notification and records the fork origin", asyn
     await driver.assertDisplayBufferContains("sure");
 
     const forkThread = leftThread(driver.magenta.chat);
-    const messages = forkThread.thread.getProviderMessages();
+    const messages = serverThread(forkThread).getProviderMessages();
 
     const markerIdx = messages.findIndex((m) =>
       m.content.some((c) => c.type === "fork_notification"),
@@ -153,7 +153,7 @@ it("child shows 'forked from' and <CR> navigates to parent", async () => {
 
     const sourceThreadId = driver.magenta.chat.state.left!;
     const sourceThread = leftThread(driver.magenta.chat);
-    const idx = sourceThread.thread.nativeMessageIdx;
+    const idx = serverThread(sourceThread).nativeMessageIdx;
 
     await driver.magenta.forkAtMessageAndSwitch(sourceThreadId, idx);
     // The fork notification rides along with the fork's first turn.
@@ -195,14 +195,14 @@ it("parent shows 'forked to' (not in agent messages) and <CR> navigates to child
 
     const sourceThreadId = driver.magenta.chat.state.left!;
     const sourceThread = leftThread(driver.magenta.chat);
-    const idx = sourceThread.thread.nativeMessageIdx;
+    const idx = serverThread(sourceThread).nativeMessageIdx;
 
     const childThreadId = await driver.magenta.forkAtMessageAndSwitch(
       sourceThreadId,
       idx,
     );
 
-    const parentHasMarker = sourceThread.thread
+    const parentHasMarker = serverThread(sourceThread)
       .getProviderMessages()
       .some((m) => m.content.some((c) => c.type === "fork_notification"));
     expect(parentHasMarker).toBe(false);

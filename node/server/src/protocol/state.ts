@@ -33,7 +33,7 @@ import type {
 } from "../scripts/script-manager.ts";
 import type { ProfileSelection, Session, SessionId } from "../session.ts";
 import type { Queues } from "../submission/mailbox.ts";
-import type { FileStat } from "../supervisors/file-supervisor.ts";
+import type { FileStat, FileUpdates } from "../supervisors/file-supervisor.ts";
 import type { EnvironmentConfig, Thread } from "../thread.ts";
 import type { SubmissionResult, YieldValue } from "../thread-api.ts";
 import type { ContextDelivery } from "../thread-core.ts";
@@ -111,8 +111,11 @@ export type ProtocolThreadState = {
   queued: Queues;
   latestUsage?: Usage;
   systemPrompt: SystemPrompt;
+  lastStopTokenCount: number;
   toolSpecs: ReadonlyArray<ProviderToolSpec>;
   contextFiles: ReadonlyArray<TrackedContextFile>;
+  /** File changes not yet delivered to the agent. */
+  pendingContextUpdates: FileUpdates;
   contextDeliveries: Readonly<Record<NativeMessageIdx, ContextDelivery>>;
   editedFileGroups: ReadonlyArray<EditedFileGroup>;
   /** The current run, if any, is the last entry with `type: "running"`. */
@@ -317,8 +320,10 @@ export function threadState(
     queued: thread.queued,
     ...(thread.latestUsage ? { latestUsage: thread.latestUsage } : {}),
     systemPrompt: thread.systemPrompt,
+    lastStopTokenCount: thread.getLastStopTokenCount(),
     toolSpecs: thread.toolSpecs,
     contextFiles,
+    pendingContextUpdates: thread.contextFiles.getPendingUpdates(),
     contextDeliveries,
     editedFileGroups: thread.editedFileGroups,
     compaction: { runs: compactor?.runs ?? [] },

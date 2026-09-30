@@ -5,20 +5,20 @@ import type {
   ScriptSandboxRoot,
   SubagentConfig,
   SystemInfo,
-  ToolResultInput,
 } from "@magenta/server";
 import {
   type AgentInput,
-  activeTools,
   type CompactionRunId,
   type ContextFiles,
+  type MagentaServer,
   type MCPToolManagerImpl,
   type NativeMessageIdx,
+  type Operation,
+  type OperationResult,
+  type ProtocolSubmissionResult,
+  type ProtocolThreadState,
   renderPending,
   type Submission,
-  type SubmissionResult,
-  type Thread,
-  type ThreadCompactor,
   type ThreadId,
   type ToolRequestId,
 } from "@magenta/server";
@@ -77,6 +77,15 @@ export type Msg =
     }
   | {
       type: "abort";
+    }
+  | {
+      /** Abort one running tool, leaving the rest of the batch alone. */
+      type: "abort-tool";
+      toolRequestId: ToolRequestId;
+    }
+  | {
+      type: "remove-context-file";
+      absFilePath: AbsFilePath;
     }
   | {
       type: "toggle-system-prompt";
@@ -202,6 +211,7 @@ export type ToolViewState = {
 export type NvimThreadContext = {
   dispatch: Dispatch<RootMsg>;
   chat: Chat;
+  server: MagentaServer;
   mcpToolManager: MCPToolManagerImpl;
   profile: Profile;
   nvim: Nvim;
@@ -233,8 +243,12 @@ export class NvimThread {
     compactionViewState: {
       [runId: CompactionRunId]: { expanded: boolean };
     };
-    toolResultMap: Map<ToolRequestId, ToolResultInput>;
   };
+
+  /** The latest thread state delivered by the server. After deletion it
+   * keeps the last state seen. */
+  threadState: ProtocolThreadState;
+  private unsubscribe: () => void;
 
   private myDispatch: Dispatch<Msg>;
   private lastAppliedTitle: string | undefined;
@@ -248,8 +262,6 @@ export class NvimThread {
 
   constructor(
     public id: ThreadId,
-    public readonly thread: Thread,
-    public readonly compactor: ThreadCompactor | undefined,
     public context: NvimThreadContext,
   ) {
     this.myDispatch = (msg) =>
@@ -269,14 +281,40 @@ export class NvimThread {
       messageViewState: {},
       toolViewState: {},
       compactionViewState: {},
-      toolResultMap: new Map(),
     };
 
-    // The status line and the history section both read the compactor, so a
-    // chunk boundary has to repaint even though nothing on the thread moved.
-    this.compactor?.on("transition", () => this.onThreadUpdate());
+    let initial: ProtocolThreadState | undefined;
+    this.unsubscribe = this.context.server.subscribe(
+      { type: "thread", threadId: id },
+      (state) => {
+        if (!state) return;
+        if (!initial) {
+          initial = state;
+          return;
+        }
+        this.threadState = state;
+        this.onThreadUpdate();
+      },
+    );
+    if (!initial) {
+      throw new Error(`Thread ${id} is not ready`);
+    }
+    this.threadState = initial;
+  }
 
-    this.rebuildToolResultMap();
+  /** Every thread mutation goes through the server; failures are logged,
+   * since the view has no caller to report them to. */
+  private execute(op: Operation): Promise<OperationResult> {
+    return this.context.server.execute(op).then((result) => {
+      if (result.type === "error") {
+        this.context.nvim.logger.error(`${op.type} failed: ${result.message}`);
+      }
+      return result;
+    });
+  }
+
+  get isBusy(): boolean {
+    return this.threadState.run.type === "running";
   }
 
   /** Coalesce Thread's unthrottled `onUpdate` into at most one dispatch per
@@ -315,13 +353,12 @@ export class NvimThread {
     this.renderDebounceTimer = setTimeout(() => {
       this.renderDebounceTimer = undefined;
       if (this.destroyed) return;
-      this.rebuildToolResultMap();
-      const title = this.thread.title;
+      const title = this.threadState.title;
       if (title !== undefined && title !== this.lastAppliedTitle) {
         this.lastAppliedTitle = title;
         this.context.dispatch({
           type: "set-thread-title-effect",
-          id: this.thread.id,
+          id: this.id,
           title,
         });
       }
@@ -336,7 +373,7 @@ export class NvimThread {
    * failed variant is what the trailing error block renders. */
   submission:
     | { type: "in-flight"; text: string }
-    | { type: "failed"; text: string; error: Error }
+    | { type: "failed"; text: string; error: { message: string } }
     | undefined;
 
   /** The message count when the pending submission was issued, if a send is
@@ -346,9 +383,7 @@ export class NvimThread {
 
   private maybeScrollToSubmission(): void {
     if (this.scrollAfterMessageCount === undefined) return;
-    if (
-      this.thread.getProviderMessages().length <= this.scrollAfterMessageCount
-    ) {
+    if (this.threadState.messages.length <= this.scrollAfterMessageCount) {
       return;
     }
     this.scrollAfterMessageCount = undefined;
@@ -363,9 +398,15 @@ export class NvimThread {
   }
 
   /** Observe one complete submission for UI completion and error presentation. */
-  private observeSubmission(start: () => Promise<SubmissionResult>): void {
-    start().then(
-      (result) => this.handleSendResult(result),
+  private observeSubmission(op: Operation): void {
+    this.execute(op).then(
+      (result) => {
+        if (result.type === "submitted") {
+          this.handleSendResult(result.submission);
+        } else {
+          this.myDispatch({ type: "submission-ended" });
+        }
+      },
       (e: Error) => this.context.nvim.logger.error(e),
     );
   }
@@ -374,7 +415,7 @@ export class NvimThread {
     this.submission = { type: "in-flight", text };
   }
 
-  private handleSendResult(result: SubmissionResult): void {
+  private handleSendResult(result: ProtocolSubmissionResult): void {
     this.myDispatch({ type: "submission-ended" });
     if (result.type === "completed" || result.type === "failed") {
       notifyUser(
@@ -394,34 +435,6 @@ export class NvimThread {
     }
   }
 
-  /** Walks the agent's provider messages and collects the tool results.
-   * Structured (display-only) data is not carried here — it lives in
-   * `thread.completedTools` and is looked up at render time. */
-  rebuildToolResultMap(): void {
-    const next = new Map<ToolRequestId, ToolResultInput>();
-    for (const message of this.thread.getProviderMessages()) {
-      if (message.role !== "user") continue;
-      for (const content of message.content) {
-        if (content.type === "tool_result") {
-          next.set(content.id, content);
-        }
-      }
-    }
-    // Include results from active tool entries whose results haven't yet been
-    // submitted back to the agent (e.g. mid tool_use turn while other tools
-    // are still running). The rendering layer needs these to display custom
-    // result summaries as soon as the tool completes.
-    const active = activeTools(this.thread.state);
-    if (active) {
-      for (const entry of active.values()) {
-        if (entry.result && !next.has(entry.request.id)) {
-          next.set(entry.request.id, entry.result);
-        }
-      }
-    }
-    this.state.toolResultMap = next;
-  }
-
   private destroyed = false;
 
   /** Release view-local resources (render/animation timers). The Thread is
@@ -439,12 +452,7 @@ export class NvimThread {
       clearTimeout(this.animationTimer);
       this.animationTimer = undefined;
     }
-  }
-
-  /** Dispose the view and destroy the underlying Thread. */
-  async destroy(): Promise<void> {
-    this.dispose();
-    await this.thread.destroy();
+    this.unsubscribe();
   }
 
   update(msg: RootMsg): void {
@@ -456,8 +464,8 @@ export class NvimThread {
   /** A send that preempts the tool loop in flight also drops that loop's pending
    * sandbox approvals: they belong to the work being abandoned. */
   private rejectPendingSandboxApprovals(): void {
-    if (this.thread.isBusy) {
-      this.context.chat.session.rejectAll(this.id);
+    if (this.isBusy) {
+      void this.execute({ type: "approval.rejectAll", threadId: this.id });
     }
   }
 
@@ -466,8 +474,7 @@ export class NvimThread {
       case "send-message":
         this.rejectPendingSandboxApprovals();
         if (msg.messages.length) {
-          this.scrollAfterMessageCount =
-            this.thread.getProviderMessages().length;
+          this.scrollAfterMessageCount = this.threadState.messages.length;
         }
         this.beginSubmission(
           msg.messages
@@ -475,47 +482,73 @@ export class NvimThread {
             .map((m) => m.text)
             .join("\n"),
         );
-        this.observeSubmission(() =>
-          this.thread.submit({ type: "resolved", messages: msg.messages }),
-        );
+        this.observeSubmission({
+          type: "thread.submit",
+          threadId: this.id,
+          input: { type: "resolved", messages: msg.messages },
+        });
         return;
 
       case "submit-message": {
         const { delivery, message } = msg.submission;
-        this.scrollAfterMessageCount = this.thread.getProviderMessages().length;
+        this.scrollAfterMessageCount = this.threadState.messages.length;
         // A deferred submission with nothing in flight has no request to ride,
         // so it goes out now; otherwise it is queued and the submission that
         // carries it reports for it.
-        if (delivery !== "now" && this.thread.isBusy) {
-          this.thread.enqueue({ type: "raw", message }, delivery);
+        if (delivery !== "now" && this.isBusy) {
+          void this.execute({
+            type: "thread.submit",
+            threadId: this.id,
+            input: { type: "raw", message },
+            delivery,
+          });
           return;
         }
         this.rejectPendingSandboxApprovals();
         this.beginSubmission(message);
-        this.observeSubmission(() =>
-          this.thread.submit({ type: "raw", message }),
-        );
+        this.observeSubmission({
+          type: "thread.submit",
+          threadId: this.id,
+          input: { type: "raw", message },
+        });
         return;
       }
 
       case "retry": {
         if (this.submission?.type !== "failed") return;
         this.beginSubmission(this.submission.text);
-        this.observeSubmission(() => this.thread.retry());
+        this.observeSubmission({ type: "thread.retry", threadId: this.id });
         return;
       }
       case "abort": {
-        for (const entry of activeTools(this.thread.state)?.values() ?? []) {
-          entry.handle.abort();
-        }
         this.abortAndWait().catch((e: Error) => {
           this.context.nvim.logger.error(`Error during abort: ${e.message}`);
         });
         return;
       }
 
+      case "abort-tool":
+        void this.execute({
+          type: "tool.abort",
+          threadId: this.id,
+          toolRequestId: msg.toolRequestId,
+        });
+        return;
+
+      case "remove-context-file":
+        void this.execute({
+          type: "thread.removeContextFile",
+          threadId: this.id,
+          file: msg.absFilePath,
+        });
+        return;
+
       case "set-title":
-        this.thread.setTitle(msg.title);
+        void this.execute({
+          type: "thread.setTitle",
+          threadId: this.id,
+          title: msg.title,
+        });
         return;
 
       case "toggle-system-prompt":
@@ -628,7 +661,7 @@ export class NvimThread {
           delete this.state.editedFilesExpanded[key];
           return;
         }
-        const entry = this.thread.editedFileGroups
+        const entry = this.threadState.editedFileGroups
           .find((group) => group.id === msg.groupId)
           ?.files.find((file) => file.path === msg.filePath);
         if (!entry) return;
@@ -661,8 +694,8 @@ export class NvimThread {
         return;
       case "tool-progress":
         if (
-          !this.thread.queued.async.length &&
-          !this.thread.queued.next.length
+          !this.threadState.queued.async.length &&
+          !this.threadState.queued.next.length
         ) {
           this.state.pendingMessagesExpanded = {};
         }
@@ -698,9 +731,8 @@ export class NvimThread {
    * resume here. */
   async abortAndWait(): Promise<void> {
     const { unsent } = await this.context.chat.abortThread(this.id);
-    const isUserFacing =
-      this.thread.threadType === "root" ||
-      this.thread.threadType === "docker_root";
+    const { threadType } = this.threadState;
+    const isUserFacing = threadType === "root" || threadType === "docker_root";
     if (!isUserFacing) return;
     const text = unsent.map((q) => renderPending(q.message)).join("\n");
     if (!text) return;

@@ -3,7 +3,7 @@ import { expect, it } from "vitest";
 import type { Line } from "../nvim/buffer.ts";
 import type { Position0Indexed, Row0Indexed } from "../nvim/window.ts";
 import type { NvimDriver } from "../test/driver.ts";
-import { leftThread } from "../test/left-thread.ts";
+import { leftThread, serverThread } from "../test/left-thread.ts";
 import { withDriver } from "../test/preamble.ts";
 import { pollUntil } from "../utils/async.ts";
 
@@ -37,7 +37,7 @@ it("send submits to the invoking input buffer's thread", async () => {
 
     const texts = (id: ThreadId) =>
       JSON.stringify(
-        driver.magenta.chat.getThread(id).thread.getProviderMessages(),
+        serverThread(driver.magenta.chat.getThread(id)).getProviderMessages(),
       );
     expect(texts(a)).toContain("for thread a");
     expect(texts(b)).not.toContain("for thread a");
@@ -100,7 +100,7 @@ it("send from a display buffer does nothing", async () => {
       await driver.magenta.bufferManager.registerThread(a);
     await driver.magenta.command("send", displayBuffer.id);
     expect(
-      driver.magenta.chat.getThread(a).thread.getProviderMessages(),
+      serverThread(driver.magenta.chat.getThread(a)).getProviderMessages(),
     ).toEqual([]);
   });
 });

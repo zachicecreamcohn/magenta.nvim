@@ -1,6 +1,6 @@
 import type { ToolName, ToolRequestId } from "@magenta/server";
 import { describe, expect, it } from "vitest";
-import { leftThread } from "../test/left-thread.ts";
+import { leftThread, serverThread } from "../test/left-thread.ts";
 import { withDriver } from "../test/preamble.ts";
 import { LOGO } from "./thread-view.ts";
 
@@ -40,7 +40,7 @@ describe("node/nvimclient/chat/chat.test.ts", () => {
       await driver.showSidebar();
       const thread = leftThread(driver.magenta.chat);
       expect(
-        await thread.thread.submit({ type: "resolved", messages: [] }),
+        await serverThread(thread).submit({ type: "resolved", messages: [] }),
       ).toEqual({ type: "empty" });
       expect(driver.magenta.chat.getThreadSummary(thread.id).status).toEqual({
         type: "stopped",

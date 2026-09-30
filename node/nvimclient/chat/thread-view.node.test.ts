@@ -1,17 +1,12 @@
-import type {
-  SubmissionResult,
-  ThreadState,
-  ToolLoopActivity,
-} from "@magenta/server";
+import type { ProtocolActivity, ProtocolRunState } from "@magenta/server";
 import { describe, expect, it } from "vitest";
 import { renderToString } from "../tea/view.ts";
 import { renderStatus } from "./thread-view.ts";
 
 function renderStatusToString(
-  state: ThreadState | Extract<ToolLoopActivity, { type: "streaming" }>,
-  lastSubmissionResult?: SubmissionResult,
+  state: ProtocolRunState | Extract<ProtocolActivity, { type: "streaming" }>,
 ): string {
-  const loopState: ThreadState =
+  const loopState: ProtocolRunState =
     state.type === "streaming"
       ? {
           type: "running",
@@ -20,24 +15,17 @@ function renderStatusToString(
         }
       : state;
   return renderToString(
-    renderStatus(
-      loopState,
-      undefined,
-      lastSubmissionResult,
-      undefined,
-      () => {},
-      undefined,
-    ),
+    renderStatus(loopState, undefined, undefined, () => {}),
   );
 }
 
 describe("thread-view renderStatus streaming", () => {
   it("shows no waiting timer when last event was recent", async () => {
-    const now = new Date();
+    const now = Date.now();
     const text = await renderStatusToString({
       type: "streaming",
       startedAt: now,
-      lastEventTime: new Date(now.getTime() - 1000),
+      lastEventTime: now - 1000,
       block: undefined,
       retry: undefined,
     });
@@ -46,11 +34,11 @@ describe("thread-view renderStatus streaming", () => {
   });
 
   it("shows a waiting timer after >3s of dead air", async () => {
-    const now = new Date();
+    const now = Date.now();
     const text = await renderStatusToString({
       type: "streaming",
-      startedAt: new Date(now.getTime() - 4000),
-      lastEventTime: new Date(now.getTime() - 4000),
+      startedAt: now - 4000,
+      lastEventTime: now - 4000,
       block: undefined,
       retry: undefined,
     });
@@ -59,16 +47,16 @@ describe("thread-view renderStatus streaming", () => {
   });
 
   it("shows a retry countdown with attempt and error reason", async () => {
-    const now = new Date();
+    const now = Date.now();
     const text = await renderStatusToString({
       type: "streaming",
-      startedAt: new Date(now.getTime() - 2000),
-      lastEventTime: new Date(now.getTime() - 2000),
+      startedAt: now - 2000,
+      lastEventTime: now - 2000,
       block: undefined,
       retry: {
         attempt: 2,
-        nextRetryAt: new Date(now.getTime() + 5000),
-        error: new Error("API is temporarily overloaded"),
+        nextRetryAt: now + 5000,
+        error: { message: "API is temporarily overloaded" },
       },
     });
     expect(text).toContain("Retrying in");
@@ -86,7 +74,7 @@ describe("thread-view renderStatus streaming", () => {
   });
 
   it("renders aborting ahead of whatever the loop is still doing", async () => {
-    const now = new Date();
+    const now = Date.now();
     const text = await renderStatusToString({
       type: "running",
       activity: {
@@ -103,10 +91,10 @@ describe("thread-view renderStatus streaming", () => {
   });
 
   it("renders an empty submission as a normal stop", async () => {
-    const text = await renderStatusToString(
-      { type: "idle", lastResult: { type: "empty" } },
-      { type: "empty" },
-    );
+    const text = await renderStatusToString({
+      type: "idle",
+      lastResult: { type: "empty" },
+    });
     expect(text).toContain("Stopped (end_turn)");
   });
 });

@@ -1,4 +1,5 @@
 import type {
+  MagentaServer,
   NativeMessageIdx,
   Sandbox,
   ScriptRunner,
@@ -287,6 +288,7 @@ export class Chat {
   }
   readonly session: Session;
   readonly host: ServerSessionHost;
+  readonly server: MagentaServer;
   /** View-local: the NvimThread wrapper per initialized thread. */
   private threadViews = new Map<ThreadId, NvimThread>();
   /** View-local: when the user last looked at each thread. */
@@ -316,8 +318,13 @@ export class Chat {
     },
     /** The session this view adapts. Magenta owns it; the view cache is
      * seeded from whatever records already exist. */
-    { session, host }: { session: Session; host: ServerSessionHost },
+    {
+      session,
+      host,
+      server,
+    }: { session: Session; host: ServerSessionHost; server: MagentaServer },
   ) {
+    this.server = server;
     this.state = {
       state: "thread-overview",
       left: undefined,
@@ -409,7 +416,7 @@ export class Chat {
     if (!thread) {
       const prepared = this.host.getPrepared(id);
       const { dispatch, getDisplayWidth, nvim, homeDir } = this.context;
-      thread = new NvimThread(id, record.thread, record.compactor, {
+      thread = new NvimThread(id, {
         ...prepared,
         dispatch,
         getDisplayWidth,
@@ -419,6 +426,7 @@ export class Chat {
         options: this.context.getOptions(),
         mcpToolManager: this.host.mcpToolManager,
         chat: this,
+        server: this.server,
       });
       this.threadViews.set(id, thread);
     }
@@ -745,7 +753,7 @@ export class Chat {
     if (shown && this.session.getThread(shown)) {
       const threadState = this.wrapper(shown);
       if (threadState?.state === "initialized") {
-        return [...threadState.thread.thread.getProviderMessages()];
+        return [...threadState.thread.threadState.messages];
       }
     }
     return [];
@@ -807,11 +815,10 @@ export class Chat {
   threadNeedsAttention(threadId: ThreadId): boolean {
     const wrapper = this.wrapper(threadId);
     if (wrapper === undefined || wrapper.state !== "initialized") return false;
-    const core = wrapper.thread.thread;
+    const loopState = wrapper.thread.threadState.run;
     // A yielded thread has finished its work; a streaming thread is actively
     // working. Neither needs the user's attention.
-    if (core.yielded) return false;
-    const loopState = core.state;
+    if (loopState.type === "yielded") return false;
     if (loopState.type === "running" && loopState.activity.type === "streaming")
       return false;
     return wrapper.lastActivityTime > wrapper.lastViewedTime;
@@ -902,12 +909,12 @@ export class Chat {
     }
 
     const thread = threadWrapper.thread;
-    if (thread.thread.title) {
-      return thread.thread.title;
+    if (thread.threadState.title) {
+      return thread.threadState.title;
     }
 
     // Find the first user message text
-    const messages = thread.thread.getProviderMessages();
+    const messages = thread.threadState.messages;
     for (const message of messages) {
       if (message.role === "user") {
         for (const content of message.content) {
@@ -942,7 +949,7 @@ export class Chat {
     const threadWrapper = this.wrapper(threadId);
     const threadType =
       threadWrapper?.state === "initialized"
-        ? threadWrapper.thread.thread.threadType
+        ? threadWrapper.thread.threadState.threadType
         : undefined;
     const icon =
       this.session.getOrigin(threadId)?.type === "reflect"
@@ -971,7 +978,7 @@ export class Chat {
 
     let tokenSuffix = "";
     if (extra?.showTokenCount && threadWrapper?.state === "initialized") {
-      const tokenCount = threadWrapper.thread.thread.getLastStopTokenCount();
+      const tokenCount = threadWrapper.thread.threadState.lastStopTokenCount;
       if (tokenCount > 0) {
         tokenSuffix = ` [${formatTokenCount(tokenCount)}]`;
       }
@@ -1227,7 +1234,15 @@ ${rows}${loadMore}`;
       throw new Error(`Thread ${sourceThreadId} not available for forking`);
     }
     const sourceThread = sourceWrapper.thread;
-    const idx = truncateAtMessageIdx ?? sourceThread.thread.nativeMessageIdx;
+    const source = this.session.getThread(sourceThreadId);
+    const idx =
+      truncateAtMessageIdx ??
+      (source?.state === "initialized"
+        ? source.thread.nativeMessageIdx
+        : undefined);
+    if (idx === undefined) {
+      throw new Error(`Thread ${sourceThreadId} not available for forking`);
+    }
 
     const newThreadId = await this.session.forkThread(sourceThreadId, idx);
     if (newThreadId === ABORTED) return ABORTED;
@@ -1297,11 +1312,14 @@ ${rows}${loadMore}`;
 
       case "initialized": {
         const thread = threadWrapper.thread;
-        const loopState = thread.thread.state;
-        const lastSubmissionResult = thread.thread.lastResult();
+        const loopState = thread.threadState.run;
+        const lastSubmissionResult =
+          loopState.type === "idle" || loopState.type === "destroyed"
+            ? loopState.lastResult
+            : undefined;
 
         const summary = {
-          title: thread.thread.title,
+          title: thread.threadState.title,
           status: (() => {
             // Check mode for thread-specific states first
             const teardownMessage = this.session.teardownMessages.get(threadId);
@@ -1311,11 +1329,10 @@ ${rows}${loadMore}`;
                 activity: `🐳 ${teardownMessage}`,
               };
             }
-            const yielded = thread.thread.yielded;
-            if (yielded) {
+            if (loopState.type === "yielded") {
               return {
                 type: "yielded" as const,
-                response: renderYield(yielded),
+                response: renderYield(loopState),
               };
             }
             switch (loopState.type) {
@@ -1344,7 +1361,6 @@ ${rows}${loadMore}`;
                     return assertUnreachable(loopState.activity);
                 }
               case "idle":
-              case "yielded":
               case "destroyed":
                 if (lastSubmissionResult?.type === "failed") {
                   return {

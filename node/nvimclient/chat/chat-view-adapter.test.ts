@@ -3,7 +3,7 @@
 import type { ThreadId, ToolName, ToolRequestId } from "@magenta/server";
 import { ABORTED } from "@magenta/server";
 import { expect, it } from "vitest";
-import { leftThread } from "../test/left-thread.ts";
+import { leftThread, serverThread } from "../test/left-thread.ts";
 import { withDriver } from "../test/preamble.ts";
 import { Chat } from "./chat.ts";
 
@@ -34,12 +34,13 @@ it("rebuilding the view adapter over an existing session makes no new thread or 
     if (chat.state.state !== "thread-selected")
       throw new Error("expected a selected thread");
     const threadId = chat.state.left;
-    const serverThread = leftThread(chat).thread;
+    const liveThread = serverThread(leftThread(chat));
     const titleRequests = driver.mockAnthropic.forceToolUseRequests.length;
 
     const rebuilt = new Chat(chat.context, {
       session: chat.session,
       host: chat.host,
+      server: chat.server,
     });
 
     // The rebuilt view sees the same registry, wrapping the same server Thread.
@@ -47,7 +48,7 @@ it("rebuilding the view adapter over an existing session makes no new thread or 
     const wrapper = rebuilt.threadWrappers[threadId];
     expect(wrapper?.state).toBe("initialized");
     if (wrapper?.state !== "initialized") throw new Error("not initialized");
-    expect(wrapper.thread.thread).toBe(serverThread);
+    expect(serverThread(wrapper.thread)).toBe(liveThread);
     expect(rebuilt.getThreadDisplayName(threadId)).toBe("Solar system");
 
     // No second Thread was constructed, and no second title was requested.
@@ -62,7 +63,7 @@ it("a turn completes with no view listener attached to the session", async () =>
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
     const chat = driver.magenta.chat;
-    const thread = leftThread(chat).thread;
+    const thread = serverThread(leftThread(chat));
 
     // Detach every observer: execution must not depend on one.
     chat.session.removeAllListeners();

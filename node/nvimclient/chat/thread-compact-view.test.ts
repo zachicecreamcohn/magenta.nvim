@@ -1,7 +1,7 @@
 import type { ThreadId, ToolName, ToolRequestId } from "@magenta/server";
 import { expect, it } from "vitest";
 import type { NvimDriver } from "../test/driver.ts";
-import { leftThread } from "../test/left-thread.ts";
+import { leftThread, serverCompactor } from "../test/left-thread.ts";
 import { withDriver } from "../test/preamble.ts";
 import { pollUntil } from "../utils/async.ts";
 import type { NvimThread } from "./thread.ts";
@@ -30,7 +30,7 @@ async function startCompaction(
   await driver.send();
   const chunkThreadId = await pollUntil(
     () => {
-      const current = thread.compactor?.current;
+      const current = serverCompactor(thread)?.current;
       if (!current) throw new Error("waiting for the chunk thread to spawn");
       return current.activeThreadId;
     },
@@ -259,20 +259,20 @@ it("points the live status line at the chunk thread currently running", async ()
 
     const firstChunkThreadId = await pollUntil(
       () => {
-        const current = thread.compactor?.current;
+        const current = serverCompactor(thread)?.current;
         if (!current) throw new Error("waiting for the first chunk thread");
         return current.activeThreadId;
       },
       { timeout: 2000, message: "compaction should start" },
     );
-    const totalChunks = thread.compactor!.current!.totalChunks;
+    const totalChunks = serverCompactor(thread)!.current!.totalChunks;
     expect(totalChunks).toBeGreaterThanOrEqual(2);
 
     await finishChunk(driver);
 
     const secondChunkThreadId = await pollUntil(
       () => {
-        const current = thread.compactor?.current;
+        const current = serverCompactor(thread)?.current;
         if (!current) throw new Error("expected the run to still be going");
         if (current.activeThreadId === firstChunkThreadId)
           throw new Error("waiting for the second chunk thread");

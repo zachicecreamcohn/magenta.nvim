@@ -4,15 +4,20 @@ import type { ToolName, ToolRequestId } from "@magenta/server";
 import { compactionRunThreadIds, type ThreadCompactor } from "@magenta/server";
 import { expect, it } from "vitest";
 import type { MockStream } from "../providers/mock-anthropic-client.ts";
-import { leftThread } from "../test/left-thread.ts";
+import {
+  leftThread,
+  serverCompactor,
+  serverThread,
+} from "../test/left-thread.ts";
 import { withDriver } from "../test/preamble.ts";
 import { pollUntil } from "../utils/async.ts";
 import { notificationLog, resetNotificationLog } from "./notify.ts";
 import type { NvimThread } from "./thread.ts";
 
 function compactorOf(thread: NvimThread): ThreadCompactor {
-  if (!thread.compactor) throw new Error("thread has no compactor");
-  return thread.compactor;
+  const compactor = serverCompactor(thread);
+  if (!compactor) throw new Error("thread has no compactor");
+  return compactor;
 }
 function isCompacting(thread: NvimThread): boolean {
   return compactorOf(thread).current !== undefined;
@@ -76,12 +81,13 @@ it("compact flow: user initiates @compact, spawns compact thread, compacts and c
 
     // Wait for second response to be fully processed
     await pollUntil(() => {
-      if (originalThread.thread.getProviderMessages().length >= 4) return true;
+      if (serverThread(originalThread).getProviderMessages().length >= 4)
+        return true;
       throw new Error("waiting for messages");
     });
 
     await pollUntil(() => {
-      if (originalThread.thread.state.type === "running")
+      if (serverThread(originalThread).state.type === "running")
         throw new Error("waiting for rest");
     });
     resetNotificationLog();
@@ -246,9 +252,9 @@ it("compact flow: user initiates @compact, spawns compact thread, compacts and c
     await fs.writeFile(path.join(nested, "leaf.txt"), "new leaf contents");
     await driver.addContextFiles("after-compact/leaf.txt");
     await pollUntil(() => {
-      expect(Object.keys(originalThread.thread.contextFiles.files)).toContain(
-        path.join(nested, "context.md"),
-      );
+      expect(
+        Object.keys(serverThread(originalThread).contextFiles.files),
+      ).toContain(path.join(nested, "context.md"));
     });
     await driver.inputMagentaText("Read @file:after-compact/leaf.txt");
     await driver.send();
@@ -567,7 +573,7 @@ it("spawns one compact child thread per chunk, carrying the summary forward", as
       const wrapper = driver.magenta.chat.threadWrappers[threadId];
       if (wrapper?.state !== "initialized")
         throw new Error("expected the chunk thread to still be around");
-      expect(wrapper.thread.thread.threadType).toBe("compact");
+      expect(serverThread(wrapper.thread).threadType).toBe("compact");
       expect(wrapper.parentThreadId).toBe(thread.id);
     }
 

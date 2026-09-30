@@ -6,7 +6,7 @@ import lodash from "lodash";
 import { expect, it } from "vitest";
 import { $, within } from "zx";
 import { getcwd } from "../nvim/nvim.ts";
-import { leftThread } from "../test/left-thread.ts";
+import { leftThread, serverThread } from "../test/left-thread.ts";
 import { withDriver } from "../test/preamble.ts";
 import { pollUntil } from "../utils/async.ts";
 import type { HomeDir, UnresolvedFilePath } from "../utils/files.ts";
@@ -128,7 +128,7 @@ it("renders a long pending message trimmed with expand/collapse toggle", async (
     await driver.send();
 
     const thread = leftThread(driver.magenta.chat);
-    expect(thread.thread.queued.async).toHaveLength(1);
+    expect(serverThread(thread).queued.async).toHaveLength(1);
 
     await driver.assertDisplayBufferContains("✉️ queued:");
     await driver.assertDisplayBufferContains("word1");
@@ -141,7 +141,7 @@ it("renders a long pending message trimmed with expand/collapse toggle", async (
     await driver.assertDisplayBufferContains("word60");
     await driver.assertDisplayBufferContains("[collapse]");
     // View-only toggle must not mutate the queue.
-    expect(thread.thread.queued.async).toHaveLength(1);
+    expect(serverThread(thread).queued.async).toHaveLength(1);
 
     await driver.triggerDisplayBufferKeyOnContent("[collapse]", "=");
     await driver.assertDisplayBufferContains("[expand]");
@@ -164,7 +164,7 @@ it("clears pending expand state when the queue drains", async () => {
     await driver.send();
 
     const thread = leftThread(driver.magenta.chat);
-    expect(thread.thread.queued.async).toHaveLength(1);
+    expect(serverThread(thread).queued.async).toHaveLength(1);
 
     // Expand the queued message so index 0 is marked expanded.
     await driver.triggerDisplayBufferKeyOnContent("[expand]", "=");
@@ -180,7 +180,7 @@ it("clears pending expand state when the queue drains", async () => {
 
     const request2 = await driver.mockAnthropic.awaitPendingStream();
     await pollUntil(() => {
-      if (thread.thread.queued.async.length !== 0) {
+      if (serverThread(thread).queued.async.length !== 0) {
         throw new Error("queue not drained yet");
       }
       // The clear rides the debounced re-render, not the drain itself.
@@ -195,7 +195,7 @@ it("clears pending expand state when the queue drains", async () => {
     await driver.inputMagentaText(`@async ${longText}`);
     await driver.send();
 
-    expect(thread.thread.queued.async).toHaveLength(1);
+    expect(serverThread(thread).queued.async).toHaveLength(1);
     // The newly-queued message must render collapsed by default (state was
     // cleared on drain, so index 0 is not stale-expanded).
     await driver.assertDisplayBufferContains("[expand]");
@@ -255,7 +255,7 @@ it("processes @diag keyword to include diagnostics in message", {
 
     // Check the thread message structure
     const thread = leftThread(driver.magenta.chat);
-    const messages = thread.thread.getProviderMessages();
+    const messages = serverThread(thread).getProviderMessages();
 
     // Should have user message and assistant response
     expect(messages.length).toBe(2);
@@ -316,7 +316,7 @@ it("processes @qf keyword to include quickfix list in message", {
 
     // Check the thread message structure
     const thread = leftThread(driver.magenta.chat);
-    const messages = thread.thread.getProviderMessages();
+    const messages = serverThread(thread).getProviderMessages();
 
     // Should have user message and assistant response
     expect(messages.length).toBe(2);
@@ -371,7 +371,7 @@ it("handles empty quickfix list with @qf command", {
 
     // Check the thread message structure
     const thread = leftThread(driver.magenta.chat);
-    const messages = thread.thread.getProviderMessages();
+    const messages = serverThread(thread).getProviderMessages();
 
     // Should have user message and assistant response
     expect(messages.length).toBe(2);
@@ -417,7 +417,7 @@ it("processes @buf keyword to include buffers list in message", {
 
     // Check the thread message structure
     const thread = leftThread(driver.magenta.chat);
-    const messages = thread.thread.getProviderMessages();
+    const messages = serverThread(thread).getProviderMessages();
 
     // Should have user message and assistant response
     expect(messages.length).toBe(2);
@@ -582,7 +582,7 @@ it("handles @file command with non-existent file", {
 
     // Check the thread message structure
     const thread = leftThread(driver.magenta.chat);
-    const messages = thread.thread.getProviderMessages();
+    const messages = serverThread(thread).getProviderMessages();
 
     // Should have user message and assistant response
     expect(messages.length).toBe(2);
@@ -1276,11 +1276,11 @@ it("disposing the view leaves the thread and its in-flight request alone", async
     const stream = await driver.mockAnthropic.awaitPendingStream();
     const wrapper = leftThread(driver.magenta.chat);
     wrapper.dispose();
-    expect(wrapper.thread.isDestroyed).toBe(false);
+    expect(serverThread(wrapper).isDestroyed).toBe(false);
     expect(stream.aborted).toBe(false);
     stream.respond({ stopReason: "end_turn", text: "hi", toolRequests: [] });
     await pollUntil(() => {
-      if (wrapper.thread.isBusy) throw new Error("thread still busy");
+      if (serverThread(wrapper).isBusy) throw new Error("thread still busy");
     });
   });
 });
