@@ -26,7 +26,7 @@ import type { MountedVDOM } from "../tea/view.ts";
 import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import { pollUntil } from "../utils/async.ts";
 import { NvimDriver } from "./driver.ts";
-import { leftThread } from "./left-thread.ts";
+import { leftThread, registerServerSession } from "./left-thread.ts";
 
 type ToolResultBlockParam = Anthropic.Messages.ToolResultBlockParam;
 
@@ -539,6 +539,7 @@ export async function withDriver(
           dirs.homeDir as import("../utils/files.ts").HomeDir,
           mockSandbox,
         );
+        registerServerSession(magenta.chat, magenta.session);
         await nvim.call("nvim_exec_lua", [
           `\
 -- Set up message interception

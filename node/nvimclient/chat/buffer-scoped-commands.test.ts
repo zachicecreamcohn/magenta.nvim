@@ -113,7 +113,7 @@ it("external target forgets a deleted thread and never falls back to a subagent"
     });
     chat.recordCursorThread(a);
     expect(chat.lastCursorThreadId).toBe(a);
-    const sub = await chat.session.spawnThread({
+    const sub = await driver.magenta.session.spawnThread({
       parentThreadId: b,
       prompt: "child work",
       threadType: "subagent",
@@ -121,7 +121,7 @@ it("external target forgets a deleted thread and never falls back to a subagent"
     await pollUntil(() => {
       if (!chat.threadWrappers[sub as ThreadId]) throw new Error("wait");
     });
-    chat.session.deleteThread(a);
+    driver.magenta.session.deleteThread(a);
     await pollUntil(() => {
       if (chat.lastCursorThreadId !== undefined) throw new Error("wait");
     });

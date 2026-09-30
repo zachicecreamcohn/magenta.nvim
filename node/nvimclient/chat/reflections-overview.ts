@@ -1,9 +1,10 @@
-import type { Session, ThreadId, ThreadOrigin } from "@magenta/server";
+import type { ThreadId, ThreadOrigin } from "@magenta/server";
 import { NvimBuffer } from "../nvim/buffer.ts";
 import type { Nvim } from "../nvim/nvim-node/index.ts";
 import type { Row0Indexed } from "../nvim/window.ts";
 import * as TEA from "../tea/tea.ts";
 import { d, pos, type VDOMNode, withBindings } from "../tea/view.ts";
+import type { SessionView } from "./session-view.ts";
 
 export type ReflectionEntry = {
   threadId: ThreadId;
@@ -13,7 +14,7 @@ export type ReflectionTreeEntry = ReflectionEntry & { depth: number };
 
 /** The thread at the top of `threadId`'s reflection chain. */
 export function reflectionRoot(
-  session: Pick<Session, "getOrigin">,
+  session: Pick<SessionView, "getOrigin">,
   threadId: ThreadId,
 ): ThreadId {
   let id = threadId;
@@ -27,7 +28,7 @@ export function reflectionRoot(
 /** Every reflection below `rootId`, depth-first, each followed by its own
  * reflections. */
 export function reflectionTree(
-  session: Pick<Session, "listDerived">,
+  session: Pick<SessionView, "listDerived">,
   rootId: ThreadId,
   depth = 0,
 ): ReflectionTreeEntry[] {
@@ -39,7 +40,7 @@ export function reflectionTree(
 
 /** The source's reflections in anchor order (creation order breaks ties). */
 export function orderedReflections(
-  session: Pick<Session, "listDerived">,
+  session: Pick<SessionView, "listDerived">,
   threadId: ThreadId,
 ): ReflectionEntry[] {
   return session
@@ -103,7 +104,7 @@ export class ReflectionsOverview {
 
   private constructor(
     readonly threadId: ThreadId,
-    private session: Session,
+    private session: SessionView,
     readonly buffer: NvimBuffer,
     private app: TEA.App<undefined>,
     readonly mountedApp: TEA.MountedApp,
@@ -119,7 +120,7 @@ export class ReflectionsOverview {
   }: {
     nvim: Nvim;
     threadId: ThreadId;
-    session: Session;
+    session: SessionView;
     label: (childId: ThreadId) => string;
     onOpen: (childId: ThreadId) => void;
     onDelete: (childId: ThreadId) => void;

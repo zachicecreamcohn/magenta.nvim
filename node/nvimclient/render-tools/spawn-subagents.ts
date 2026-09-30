@@ -201,7 +201,11 @@ function resolveAgentRowFromThread(
       assertUnreachable(summary.status);
   }
 
-  const pendingApprovals = renderPendingApprovals(chat.session, threadId);
+  const pendingApprovals = renderPendingApprovals(
+    chat.session,
+    chat.server,
+    threadId,
+  );
   return { entry, statusIcon, statusDetail, threadId, pendingApprovals };
 }
 

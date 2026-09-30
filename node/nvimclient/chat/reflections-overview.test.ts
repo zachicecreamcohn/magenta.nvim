@@ -30,7 +30,7 @@ async function setupThread(driver: Driver): Promise<ThreadId> {
 }
 
 async function reflect(driver: Driver, source: ThreadId, text: string) {
-  return driver.magenta.chat.session.reflectThread(source, {
+  return driver.magenta.session.reflectThread(source, {
     messageIdx: 1 as MessageIdx,
     contentIdx: 0 as ContentBlockIdx,
     reflectionText: text as DisplayBufferText,

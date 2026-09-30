@@ -51,6 +51,7 @@ export { NoopLspClient } from "./capabilities/noop-lsp-client.ts";
 export { SandboxFileIO } from "./capabilities/sandbox-file-io.ts";
 export { SandboxShell } from "./capabilities/sandbox-shell.ts";
 export {
+  type ApprovalId,
   deduplicateViolations,
   type PendingViolation,
   type SandboxViolation,
@@ -175,6 +176,7 @@ export type {
   ToolState,
   TrackedContextFile,
 } from "./protocol/state.ts";
+export { pendingApproval } from "./protocol/state.ts";
 export type {
   ProviderName,
   ProviderOptions,

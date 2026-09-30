@@ -3,7 +3,11 @@
 import type { ThreadId, ToolName, ToolRequestId } from "@magenta/server";
 import { ABORTED } from "@magenta/server";
 import { expect, it } from "vitest";
-import { leftThread, serverThread } from "../test/left-thread.ts";
+import {
+  leftThread,
+  registerServerSession,
+  serverThread,
+} from "../test/left-thread.ts";
 import { withDriver } from "../test/preamble.ts";
 import { Chat } from "./chat.ts";
 
@@ -38,10 +42,12 @@ it("rebuilding the view adapter over an existing session makes no new thread or 
     const titleRequests = driver.mockAnthropic.forceToolUseRequests.length;
 
     const rebuilt = new Chat(chat.context, {
-      session: chat.session,
+      sessionId: chat.sessionId,
       host: chat.host,
       server: chat.server,
+      scriptRunner: chat.scriptRunner,
     });
+    registerServerSession(rebuilt, driver.magenta.session);
 
     // The rebuilt view sees the same registry, wrapping the same server Thread.
     expect(Object.keys(rebuilt.threadWrappers)).toEqual([threadId]);
@@ -66,7 +72,7 @@ it("a turn completes with no view listener attached to the session", async () =>
     const thread = serverThread(leftThread(chat));
 
     // Detach every observer: execution must not depend on one.
-    chat.session.removeAllListeners();
+    driver.magenta.session.removeAllListeners();
 
     const submitted = thread.submit({
       type: "resolved",
@@ -83,9 +89,7 @@ it("a turn completes with no view listener attached to the session", async () =>
 
     const result = await submitted;
     expect(result.type).toBe("completed");
-    expect(chat.session.getThread(thread.id as ThreadId)?.state).toBe(
-      "initialized",
-    );
+    expect(chat.session.getThread(thread.id as ThreadId)?.state).toBe("ready");
   });
 });
 
@@ -112,7 +116,7 @@ it("a thread that fails to construct takes the view out of thread-selected", asy
       promise: Promise.reject(new Error("preparation exploded")),
       abort: () => {},
     });
-    await expect(chat.session.createRootThread()).rejects.toThrow(
+    await expect(driver.magenta.session.createRootThread()).rejects.toThrow(
       "preparation exploded",
     );
     expect(chat.state.state).toBe("thread-overview");
@@ -128,7 +132,7 @@ it("a disposed view observes no further session events", async () => {
   await withDriver({}, async (driver) => {
     await driver.showSidebar();
     const chat = driver.magenta.chat;
-    const session = chat.session;
+    const session = driver.magenta.session;
     const existingId = leftThread(chat).id;
     chat.dispose();
     expect(chat["threadViews"].size).toBe(0);

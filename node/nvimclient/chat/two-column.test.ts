@@ -24,7 +24,7 @@ async function setup(
   });
   await driver.assertDisplayBufferContains("Because.");
   const source = driver.magenta.chat.leftThreadId!;
-  const child = await driver.magenta.chat.session.reflectThread(source, {
+  const child = await driver.magenta.session.reflectThread(source, {
     messageIdx: 1 as MessageIdx,
     contentIdx: 0 as ContentBlockIdx,
     reflectionText: "Because." as DisplayBufferText,

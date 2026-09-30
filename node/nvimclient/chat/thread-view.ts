@@ -534,7 +534,11 @@ ${contextFilesView(contextFilesData(thread), contextViewCtx(thread), {
     : d``;
 
   const sandboxView =
-    renderPendingApprovals(thread.context.chat.session, thread.id) ?? d``;
+    renderPendingApprovals(
+      thread.context.chat.session,
+      thread.context.server,
+      thread.id,
+    ) ?? d``;
   const compactionHistoryView = renderCompactionHistory(
     state.compaction.runs,
     thread,
@@ -880,11 +884,14 @@ function renderMessageContent(
 
 function reflectionLabel(thread: NvimThread, childId: ThreadId): string {
   const record = thread.context.chat.session.getThread(childId);
-  if (record?.state !== "initialized") return record?.state ?? "missing";
-  const child = record.thread;
-  if (child.state.type === "running") return "streaming…";
-  if (child.title) return child.title;
-  const n = child.getProviderMessages().length;
+  if (record?.state !== "ready") return record?.state ?? "missing";
+  if (record.run.type === "running") return "streaming…";
+  if (record.title) return record.title;
+  const child = thread.context.chat.threadWrappers[childId];
+  const n =
+    child?.state === "initialized"
+      ? child.thread.threadState.messages.length
+      : 0;
   return `${n} message${n === 1 ? "" : "s"}`;
 }
 

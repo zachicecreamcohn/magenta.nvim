@@ -1,4 +1,4 @@
-import type { Thread, ThreadCompactor } from "@magenta/server";
+import type { Session, Thread, ThreadCompactor } from "@magenta/server";
 import type { Chat } from "../chat/chat.ts";
 import type { NvimThread } from "../chat/thread.ts";
 
@@ -10,8 +10,20 @@ export function leftThread(chat: Chat): NvimThread {
   return chat.getThread(id);
 }
 
+/** White-box: the live session behind a Chat, registered by the test driver.
+ * Chat itself only sees session state. */
+const sessions = new WeakMap<Chat, Session>();
+export function registerServerSession(chat: Chat, session: Session): void {
+  sessions.set(chat, session);
+}
+export function serverSession(chat: Chat): Session {
+  const session = sessions.get(chat);
+  if (!session) throw new Error("No server session registered for this chat");
+  return session;
+}
+
 function serverRecord(view: NvimThread) {
-  const record = view.context.chat.session.getThread(view.id);
+  const record = serverSession(view.context.chat).getThread(view.id);
   if (record?.state !== "initialized") {
     throw new Error(`Thread ${view.id} is not ready`);
   }

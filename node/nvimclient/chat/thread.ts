@@ -1,26 +1,23 @@
 import type {
+  AgentInput,
+  CompactionRunId,
+  ContextFiles,
   Environment,
   GitState,
+  MagentaServer,
+  MCPToolManagerImpl,
+  NativeMessageIdx,
+  Operation,
+  OperationResult,
+  ProtocolSubmissionResult,
+  ProtocolThreadState,
   ReflectAnchor,
   ScriptSandboxRoot,
   SubagentConfig,
+  Submission,
   SystemInfo,
-} from "@magenta/server";
-import {
-  type AgentInput,
-  type CompactionRunId,
-  type ContextFiles,
-  type MagentaServer,
-  type MCPToolManagerImpl,
-  type NativeMessageIdx,
-  type Operation,
-  type OperationResult,
-  type ProtocolSubmissionResult,
-  type ProtocolThreadState,
-  renderPending,
-  type Submission,
-  type ThreadId,
-  type ToolRequestId,
+  ThreadId,
+  ToolRequestId,
 } from "@magenta/server";
 import * as diff from "diff";
 import type { JSONSchemaType } from "openai/lib/jsonschema.mjs";
@@ -335,7 +332,7 @@ export class NvimThread {
   onThreadUpdate(): void {
     const approvals = this.context.chat.session.getPendingApprovals(
       this.id,
-    ).size;
+    ).length;
     if (approvals > this.seenApprovals) {
       notifyUser(
         { nvim: this.context.nvim, options: this.context.options },
@@ -707,7 +704,7 @@ export class NvimThread {
         return;
       }
       case "toggle-sandbox-bypass":
-        this.context.chat.toggleSandboxBypass(this.id);
+        void this.context.chat.toggleSandboxBypass(this.id);
         return;
 
       case "fork-message":
@@ -728,7 +725,7 @@ export class NvimThread {
     const { threadType } = this.threadState;
     const isUserFacing = threadType === "root" || threadType === "docker_root";
     if (!isUserFacing) return;
-    const text = unsent.map((q) => renderPending(q.message)).join("\n");
+    const text = unsent.join("\n");
     if (!text) return;
     this.context.dispatch({
       type: "sidebar-msg",

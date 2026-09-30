@@ -1,6 +1,7 @@
 import type { ScriptInvocationId, ThreadId } from "../chat-types.ts";
 import type { ScriptManager } from "../scripts/script-manager.ts";
 import type { Session, SessionEvents, SessionId } from "../session.ts";
+import { renderPending } from "../submission/index.ts";
 import type { Thread } from "../thread.ts";
 import { ABORTED, type Aborted } from "../thread-api.ts";
 import type { ClientEffectHandler } from "./client.ts";
@@ -282,10 +283,14 @@ export function createInProcessServer({
           type: "submitted",
           submission: submissionResult(await readyThread(op.threadId).retry()),
         };
-      case "thread.abort":
+      case "thread.abort": {
         knownThread(op.threadId);
-        await session.abortThread(op.threadId);
-        return { type: "ok" };
+        const { unsent } = await session.abortThread(op.threadId);
+        return {
+          type: "threadAborted",
+          unsent: unsent.map((q) => renderPending(q.message)),
+        };
+      }
       case "thread.setTitle":
         readyThread(op.threadId).setTitle(op.title);
         return { type: "ok" };

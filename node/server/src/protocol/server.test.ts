@@ -5,6 +5,7 @@ import type { MockStream } from "../providers/mock-anthropic-client.ts";
 import type { SessionId } from "../session.ts";
 import { shellResult } from "../test/fakes.ts";
 import { withHarness } from "../test/harness.ts";
+import { ABORTED } from "../thread-api.ts";
 import type { ToolName, ToolRequestId } from "../tool-types.ts";
 import { pollUntil } from "../utils/async.ts";
 import { createInProcessServer } from "./server.ts";
@@ -225,6 +226,35 @@ it("approves a pending prompt by id and rejects unknown ids", () =>
         type: "error",
       });
     }
+  }));
+
+it("approval.approveAllInSubtree resolves approvals of child threads", () =>
+  withHarness({}, async (h) => {
+    const server = createInProcessServer({ session: h.session });
+    const { id: root } = await h.createRoot();
+    const child = await h.session.spawnThread({
+      parentThreadId: root,
+      prompt: "child work",
+      threadType: "subagent",
+    });
+    if (child === ABORTED) throw new Error("aborted");
+    const prompts = [root, child].map((threadId) =>
+      h.session
+        .approvalsFor(threadId)
+        .promptForApproval("rm x", async () => shellResult({ stdout: "ran" })),
+    );
+    const topic = { type: "session", sessionId: h.session.id } as const;
+    expect(server.getState(topic)?.pendingApprovals).toHaveLength(2);
+    expect(
+      await server.execute({
+        type: "approval.approveAllInSubtree",
+        threadId: root,
+      }),
+    ).toEqual({ type: "ok" });
+    for (const prompt of prompts) {
+      await expect(prompt).resolves.toMatchObject({ exitCode: 0 });
+    }
+    expect(server.getState(topic)?.pendingApprovals).toEqual([]);
   }));
 
 it("session state reflects thread.create and setActiveProfile", () =>

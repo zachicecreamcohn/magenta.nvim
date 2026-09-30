@@ -24,7 +24,7 @@ async function setupReflection(
   });
   await driver.assertDisplayBufferContains("Because.");
   const source = driver.magenta.chat.leftThreadId!;
-  const created = await driver.magenta.chat.session.reflectThread(source, {
+  const created = await driver.magenta.session.reflectThread(source, {
     messageIdx: 1 as MessageIdx,
     contentIdx: 0 as ContentBlockIdx,
     reflectionText: "Because." as DisplayBufferText,
@@ -42,7 +42,7 @@ it("deleting the shown reflection collapses to the left thread", async () => {
     const { source, child } = await setupReflection(driver);
     const chat = driver.magenta.chat;
     expect(chat.rightThreadId).toBe(child);
-    chat.session.deleteThread(child);
+    await chat.deleteThread(child);
     expect(chat.state).toEqual({
       state: "thread-selected",
       left: source,
@@ -55,7 +55,7 @@ it("deleting the left thread returns to the overview", async () => {
   await withDriver({}, async (driver) => {
     const { source } = await setupReflection(driver);
     const chat = driver.magenta.chat;
-    chat.session.deleteThread(source);
+    await chat.deleteThread(source);
     expect(chat.state.state).toBe("thread-overview");
     expect(chat.leftThreadId).toBeUndefined();
   });

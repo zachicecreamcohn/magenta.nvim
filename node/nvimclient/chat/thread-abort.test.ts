@@ -38,7 +38,7 @@ it("clears pending file permission checks when aborting", async () => {
 
     // Verify we have a pending permission
     expect(
-      driver.magenta.chat.session.getPendingApprovals(thread.id).size,
+      driver.magenta.chat.session.getPendingApprovals(thread.id).length,
     ).toBe(1);
 
     // Abort the thread
@@ -47,7 +47,7 @@ it("clears pending file permission checks when aborting", async () => {
 
     // Verify pending permissions are cleared
     expect(
-      driver.magenta.chat.session.getPendingApprovals(thread.id).size,
+      driver.magenta.chat.session.getPendingApprovals(thread.id).length,
     ).toBe(0);
 
     // Verify the approval dialog is no longer displayed
@@ -87,7 +87,7 @@ it("clears pending permissions when sending a new message during tool_use", asyn
 
     // Verify we have a pending permission
     expect(
-      driver.magenta.chat.session.getPendingApprovals(thread.id).size,
+      driver.magenta.chat.session.getPendingApprovals(thread.id).length,
     ).toBe(1);
 
     // Send a new message instead of explicitly aborting — this triggers
@@ -98,7 +98,7 @@ it("clears pending permissions when sending a new message during tool_use", asyn
     // The implicit abort should clear pending permissions
     await pollUntil(
       () =>
-        driver.magenta.chat.session.getPendingApprovals(thread.id).size === 0,
+        driver.magenta.chat.session.getPendingApprovals(thread.id).length === 0,
       { timeout: 2000, message: "waiting for pending permissions to clear" },
     );
 

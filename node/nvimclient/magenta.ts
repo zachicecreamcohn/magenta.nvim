@@ -373,7 +373,12 @@ export class Magenta {
           }
         },
       },
-      { session: this.session, host: this.host, server: this.server },
+      {
+        sessionId: this.session.id,
+        host: this.host,
+        server: this.server,
+        scriptRunner: this.scripts,
+      },
     );
     this.chat.getActiveReflectionId = () =>
       this.reflectionsOverview?.activeReflectionId ?? this.chat.rightThreadId;
@@ -480,7 +485,7 @@ export class Magenta {
             ? "failed"
             : "ok",
       sandboxBypassed:
-        threadId !== undefined && this.session.isSandboxBypassed(threadId),
+        threadId !== undefined && this.chat.isSandboxBypassed(threadId),
     };
   }
 
@@ -550,7 +555,7 @@ export class Magenta {
   }
 
   async createAndSwitchToNewThread(): Promise<ThreadId | Aborted> {
-    const threadId = await this.session.createRootThread();
+    const threadId = await this.chat.createThread({ type: "thread.create" });
     if (threadId === ABORTED) return ABORTED;
     await this.bufferManager.registerThread(threadId);
     this.dispatch({
@@ -564,7 +569,10 @@ export class Magenta {
   async createAndSwitchToAgentThread(
     agentName: string,
   ): Promise<ThreadId | Aborted> {
-    const threadId = await this.session.createAgentThread(agentName);
+    const threadId = await this.chat.createThread({
+      type: "thread.create",
+      agent: agentName,
+    });
     if (threadId === ABORTED) return ABORTED;
     await this.bufferManager.registerThread(threadId);
     this.dispatch({
@@ -608,10 +616,11 @@ export class Magenta {
       await notify(this.nvim, "This selection already has a reflection.");
       return ABORTED;
     }
-    const threadId = await this.chat.session.reflectThread(
-      sourceThreadId,
+    const threadId = await this.chat.createThread({
+      type: "thread.reflect",
+      threadId: sourceThreadId,
       anchor,
-    );
+    });
     if (threadId === ABORTED) return ABORTED;
     await this.bufferManager.registerThread(threadId);
     this.dispatch({
@@ -712,13 +721,14 @@ export class Magenta {
       },
       onDelete: (childId) => {
         const origin = this.chat.session.getOrigin(childId);
-        this.chat.session.deleteThread(childId);
-        this.reflectionsOverview?.render();
-        if (origin?.type === "reflect") {
-          this.bufferManager
-            .getMountedApp(threadKey(origin.sourceThreadId))
-            ?.render();
-        }
+        void this.chat.deleteThread(childId).then(() => {
+          this.reflectionsOverview?.render();
+          if (origin?.type === "reflect") {
+            this.bufferManager
+              .getMountedApp(threadKey(origin.sourceThreadId))
+              ?.render();
+          }
+        });
       },
     });
     return { overview: this.reflectionsOverview, retired };
@@ -1085,7 +1095,11 @@ export class Magenta {
       case "profile": {
         const profileName = rest.join(" ");
         try {
-          this.session.setActiveProfile(profileName);
+          await this.chat.execute({
+            type: "session.setActiveProfile",
+            sessionId: this.chat.sessionId,
+            name: profileName,
+          });
           void this.syncServerOptionsToLua();
         } catch (e) {
           this.nvim.logger.error(String(e));
@@ -1880,7 +1894,9 @@ ${lines.join("\n")}
 
     await magenta.syncServerOptionsToLua();
     // Create the first thread eagerly so there's always an active thread
-    const initialThreadId = await magenta.session.createRootThread();
+    const initialThreadId = await magenta.chat.createThread({
+      type: "thread.create",
+    });
     if (initialThreadId === ABORTED)
       throw new Error("initial thread creation was aborted");
     magenta.activeBuffers =

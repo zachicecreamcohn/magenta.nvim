@@ -1,8 +1,13 @@
 import type {
   MagentaServer,
   NativeMessageIdx,
+  Operation,
+  OperationResult,
+  ProtocolSessionState,
+  ReflectAnchor,
   Sandbox,
   ScriptRunner,
+  SessionId,
   StopReason,
   SubmissionResult,
   ThreadId,
@@ -15,7 +20,6 @@ import {
   deleteArchivedThread,
   listArchivedThreads,
   type ServerSessionHost,
-  type Session,
   threadCreatedAt,
 } from "@magenta/server";
 import type { Lsp } from "../capabilities/lsp.ts";
@@ -33,6 +37,7 @@ import { assertUnreachable } from "../utils/assertUnreachable.ts";
 import type { HomeDir, NvimCwd } from "../utils/files.ts";
 import { shortenPath } from "../utils/files.ts";
 import { formatTokenCount } from "../utils/tokens.ts";
+import { SessionView } from "./session-view.ts";
 import { NvimThread } from "./thread.ts";
 import { renderYield, view as threadView } from "./thread-view.ts";
 
@@ -66,7 +71,7 @@ type ThreadWrapper = (
     }
   | {
       state: "error";
-      error: Error;
+      error: { message: string };
     }
 ) & {
   parentThreadId: ThreadId | undefined;
@@ -286,7 +291,11 @@ export class Chat {
   recordCursorThread(id: ThreadId): void {
     if (this.wrapper(id)) this.cursorThreadId = id;
   }
-  readonly session: Session;
+  readonly session: SessionView;
+  readonly sessionId: SessionId;
+  private readonly sessionTopic: { type: "session"; sessionId: SessionId };
+  private unsubscribeSession: () => void;
+  private knownThreadIds = new Set<ThreadId>();
   readonly host: ServerSessionHost;
   readonly server: MagentaServer;
   /** View-local: the NvimThread wrapper per initialized thread. */
@@ -299,9 +308,7 @@ export class Chat {
    * which owns the overview. */
   getActiveReflectionId: () => ThreadId | undefined = () => undefined;
 
-  get scriptRunner(): ScriptRunner | undefined {
-    return this.session.scriptRunner;
-  }
+  readonly scriptRunner: ScriptRunner | undefined;
 
   constructor(
     readonly context: {
@@ -319,10 +326,16 @@ export class Chat {
     /** The session this view adapts. Magenta owns it; the view cache is
      * seeded from whatever records already exist. */
     {
-      session,
+      sessionId,
       host,
       server,
-    }: { session: Session; host: ServerSessionHost; server: MagentaServer },
+      scriptRunner,
+    }: {
+      sessionId: SessionId;
+      host: ServerSessionHost;
+      server: MagentaServer;
+      scriptRunner: ScriptRunner | undefined;
+    },
   ) {
     this.server = server;
     this.state = {
@@ -331,19 +344,34 @@ export class Chat {
     };
 
     this.host = host;
-    this.session = session;
-    this.session.on("changed", this.syncThread);
-    this.session.on("removed", this.removeThreadView);
-    for (const record of this.session.listThreads()) {
-      this.syncThread(record.id);
+    this.scriptRunner = scriptRunner;
+    this.sessionId = sessionId;
+    this.sessionTopic = { type: "session", sessionId };
+    const initial = server.getState(this.sessionTopic);
+    if (!initial) throw new Error(`Unknown session ${sessionId}`);
+    this.session = new SessionView(initial);
+    this.onSessionState(initial);
+    this.unsubscribeSession = server.subscribe(this.sessionTopic, (state) => {
+      if (state) this.onSessionState(state);
+    });
+  }
+
+  /** Adopt a delivered session state: build wrappers for newly ready threads,
+   * drop views of removed ones, and let every view re-render. */
+  private onSessionState(state: ProtocolSessionState): void {
+    this.session.set(state);
+    const ids = new Set(state.threads.map((t) => t.id));
+    for (const id of this.knownThreadIds) {
+      if (!ids.has(id)) this.removeThreadView(id);
     }
+    this.knownThreadIds = ids;
+    for (const id of ids) this.syncThread(id);
   }
 
   /** Detach the view from the session. Thread execution is session-owned, so
    * this only drops listeners and view-local wrappers; it destroys nothing. */
   dispose(): void {
-    this.session.off("changed", this.syncThread);
-    this.session.off("removed", this.removeThreadView);
+    this.unsubscribeSession();
     for (const view of this.threadViews.values()) view.dispose();
     this.threadViews.clear();
   }
@@ -363,7 +391,7 @@ export class Chat {
         return { ...fields, state: "pending" };
       case "error":
         return { ...fields, state: "error", error: record.error };
-      case "initialized": {
+      case "ready": {
         const thread = this.threadViews.get(id);
         return thread
           ? { ...fields, state: "initialized", thread }
@@ -411,7 +439,7 @@ export class Chat {
       this.state = { state: "thread-overview", left: id };
       return;
     }
-    if (record.state !== "initialized") return;
+    if (record.state !== "ready") return;
     let thread = this.threadViews.get(id);
     if (!thread) {
       const prepared = this.host.getPrepared(id);
@@ -467,10 +495,10 @@ export class Chat {
       thread.update(msg);
       // Activity is session state; the view only reports what it observed.
       if (msg.msg.type === "send-message") {
-        this.session.recordActivity(this.getRootAncestorId(msg.id));
+        this.recordActivity(this.getRootAncestorId(msg.id));
       }
       if (msg.msg.type === "submission-ended") {
-        this.session.recordActivity(msg.id);
+        this.recordActivity(msg.id);
       }
     }
   }
@@ -592,11 +620,11 @@ export class Chat {
         return;
 
       case "delete-thread":
-        this.session.deleteThread(this.session.getRootAncestorId(msg.id));
+        void this.deleteThread(this.session.getRootAncestorId(msg.id));
         return;
 
       case "delete-thread-subtree":
-        this.session.deleteThread(msg.id);
+        void this.deleteThread(msg.id);
         return;
 
       case "toggle-thread-expand":
@@ -748,6 +776,38 @@ export class Chat {
     this.context.dispatch({ type: "chat-msg", msg });
   }
 
+  /** Pull the current session state synchronously. Operations that create or
+   * delete threads call this so the result is visible before the next
+   * (microtask-coalesced) delivery. */
+  refreshSession(): void {
+    const state = this.server.getState(this.sessionTopic);
+    if (state) this.onSessionState(state);
+  }
+
+  /** Create a thread through the server; it is visible in the view once this
+   * resolves. */
+  async createThread(
+    op:
+      | { type: "thread.create"; agent?: string }
+      | { type: "thread.reflect"; threadId: ThreadId; anchor: ReflectAnchor },
+  ): Promise<ThreadId | Aborted> {
+    const result = await this.execute(
+      op.type === "thread.create" ? { ...op, sessionId: this.sessionId } : op,
+    );
+    if (result.type !== "created") return ABORTED;
+    this.refreshSession();
+    return result.threadId;
+  }
+
+  /** Execute an operation, turning an error result into a thrown Error. */
+  async execute(
+    op: Operation,
+  ): Promise<Exclude<OperationResult, { type: "error" }>> {
+    const result = await this.server.execute(op);
+    if (result.type === "error") throw new Error(result.message);
+    return result;
+  }
+
   getMessages() {
     const shown = this.leftThreadId;
     if (shown && this.session.getThread(shown)) {
@@ -778,21 +838,38 @@ export class Chat {
     return map;
   }
 
-  /** Abort a thread and its descendants. */
-  abortThread(threadId: ThreadId): ReturnType<Session["abortThread"]> {
-    return this.session.abortThread(threadId);
+  private recordActivity(threadId: ThreadId): void {
+    void this.server.execute({ type: "thread.recordActivity", threadId });
+  }
+
+  /** Delete a thread and its subtree; the view drops it right away. */
+  async deleteThread(threadId: ThreadId): Promise<void> {
+    await this.server.execute({ type: "thread.delete", threadId });
+    this.refreshSession();
+  }
+
+  /** Abort a thread and its descendants, returning its unsent input. */
+  async abortThread(
+    threadId: ThreadId,
+  ): Promise<{ unsent: ReadonlyArray<string> }> {
+    const result = await this.execute({ type: "thread.abort", threadId });
+    return { unsent: result.type === "threadAborted" ? result.unsent : [] };
   }
 
   isSandboxBypassed(threadId: ThreadId | undefined): boolean {
     return threadId !== undefined && this.session.isSandboxBypassed(threadId);
   }
 
-  toggleSandboxBypass(threadId: ThreadId): void {
-    this.session.toggleSandboxBypass(threadId);
+  async toggleSandboxBypass(threadId: ThreadId): Promise<void> {
+    await this.server.execute({ type: "sandbox.toggleBypass", threadId });
+    this.refreshSession();
   }
 
   approveAllPendingInSubtree(threadId: ThreadId): void {
-    this.session.approveAllPendingInSubtree(threadId);
+    void this.server.execute({
+      type: "approval.approveAllInSubtree",
+      threadId,
+    });
   }
 
   private collectSubtreeViolationViews(
@@ -800,8 +877,10 @@ export class Chat {
     childrenMap: Map<ThreadId, ThreadId[]>,
   ): VDOMNode[] {
     const views: VDOMNode[] = [];
-    if (this.session.getPendingApprovals(threadId).size > 0) {
-      views.push(renderApprovals(sessionApprovals(this.session, threadId)));
+    if (this.session.getPendingApprovals(threadId).length > 0) {
+      views.push(
+        renderApprovals(sessionApprovals(this.session, this.server, threadId)),
+      );
     }
     const children = childrenMap.get(threadId) ?? [];
     for (const childId of children) {
@@ -1206,7 +1285,7 @@ ${rows}${loadMore}`;
       lastCursorThreadId: this.cursorThreadId,
       threadIds: this.session
         .listThreads()
-        .filter((t) => t.state === "initialized" && !t.parentThreadId)
+        .filter((t) => t.state === "ready" && !t.parentThreadId)
         .map((t) => t.id),
     });
   }
@@ -1234,18 +1313,19 @@ ${rows}${loadMore}`;
       throw new Error(`Thread ${sourceThreadId} not available for forking`);
     }
     const sourceThread = sourceWrapper.thread;
-    const source = this.session.getThread(sourceThreadId);
-    const idx =
-      truncateAtMessageIdx ??
-      (source?.state === "initialized"
-        ? source.thread.nativeMessageIdx
-        : undefined);
-    if (idx === undefined) {
-      throw new Error(`Thread ${sourceThreadId} not available for forking`);
-    }
-
-    const newThreadId = await this.session.forkThread(sourceThreadId, idx);
-    if (newThreadId === ABORTED) return ABORTED;
+    const result = await this.execute({
+      type: "thread.fork",
+      threadId: sourceThreadId,
+      ...(truncateAtMessageIdx !== undefined
+        ? { nativeMessageIdx: truncateAtMessageIdx }
+        : {}),
+    });
+    if (result.type !== "created") return ABORTED;
+    const newThreadId = result.threadId;
+    this.refreshSession();
+    const origin = this.session.getOrigin(newThreadId);
+    if (origin?.type !== "fork") return newThreadId;
+    const idx = origin.nativeMessageIdx;
     const wrapper = this.wrapper(newThreadId);
     if (!wrapper || wrapper.state !== "initialized") return newThreadId;
     const thread = wrapper.thread;
@@ -1270,7 +1350,7 @@ ${rows}${loadMore}`;
 
   threadHasPendingApprovals(threadId: ThreadId): boolean {
     if (this.getThreadPendingApprovalTools(threadId).length > 0) return true;
-    return this.session.getPendingApprovals(threadId).size > 0;
+    return this.session.getPendingApprovals(threadId).length > 0;
   }
   getThreadPendingApprovalTools(_threadId: ThreadId): never[] {
     return [];
@@ -1322,7 +1402,8 @@ ${rows}${loadMore}`;
           title: thread.threadState.title,
           status: (() => {
             // Check mode for thread-specific states first
-            const teardownMessage = this.session.teardownMessages.get(threadId);
+            const teardownMessage =
+              this.session.getThread(threadId)?.teardownMessage;
             if (teardownMessage) {
               return {
                 type: "running" as const,

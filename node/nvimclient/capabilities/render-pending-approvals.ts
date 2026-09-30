@@ -1,9 +1,10 @@
-import {
-  deduplicateViolations,
-  type SandboxViolationHandler,
-  type Session,
-  type ThreadId,
+import type {
+  ApprovalId,
+  MagentaServer,
+  PendingApproval,
+  ThreadId,
 } from "@magenta/server";
+import type { SessionView } from "../chat/session-view.ts";
 import {
   d,
   type VDOMNode,
@@ -14,47 +15,52 @@ import {
 
 /** What an approvals view reads and acts on. Pending approvals are session
  * state; the view only renders them and routes the user's decision back. */
-export type ApprovalActions = Pick<
-  SandboxViolationHandler,
-  "getPendingViolations" | "approve" | "reject" | "approveAll" | "rejectAll"
->;
+export type ApprovalActions = {
+  pending: ReadonlyArray<PendingApproval>;
+  approve: (id: ApprovalId) => void;
+  reject: (id: ApprovalId) => void;
+  approveAll: () => void;
+  rejectAll: () => void;
+};
 
 export function sessionApprovals(
-  session: Session,
+  session: SessionView,
+  server: MagentaServer,
   threadId: ThreadId,
 ): ApprovalActions {
   return {
-    getPendingViolations: () => session.getPendingApprovals(threadId),
-    approve: (id) => session.approve(threadId, id),
-    reject: (id) => session.reject(threadId, id),
-    approveAll: () => session.approveAll(threadId),
-    rejectAll: () => session.rejectAll(threadId),
+    pending: session.getPendingApprovals(threadId),
+    approve: (approvalId) =>
+      void server.execute({ type: "approval.approve", threadId, approvalId }),
+    reject: (approvalId) =>
+      void server.execute({ type: "approval.reject", threadId, approvalId }),
+    approveAll: () =>
+      void server.execute({ type: "approval.approveAll", threadId }),
+    rejectAll: () =>
+      void server.execute({ type: "approval.rejectAll", threadId }),
   };
 }
 
 export function renderPendingApprovals(
-  session: Session,
+  session: SessionView,
+  server: MagentaServer,
   threadId: ThreadId,
 ): VDOMNode | undefined {
-  if (session.getPendingApprovals(threadId).size === 0) return undefined;
-  return d`\n${renderApprovals(sessionApprovals(session, threadId))}`;
+  if (session.getPendingApprovals(threadId).length === 0) return undefined;
+  return d`\n${renderApprovals(sessionApprovals(session, server, threadId))}`;
 }
 export function renderApprovals(handler: ApprovalActions): VDOMNode {
-  const pending = handler.getPendingViolations();
-  if (pending.size === 0) {
+  const entries = handler.pending;
+  if (entries.length === 0) {
     return d``;
   }
 
-  const entries = [...pending.entries()];
-
   return d`
-${entries.map(([id, entry]) => {
+${entries.map((entry) => {
+  const { id } = entry;
   if (entry.prompt.kind === "violation") {
-    const dedupedViolations = deduplicateViolations(
-      entry.prompt.violation.violations,
-    );
-    return d`🔒 Sandbox blocked: ${withInlineCode(d`\`${entry.prompt.violation.command}\``)}
-${dedupedViolations.map(
+    return d`🔒 Sandbox blocked: ${withInlineCode(d`\`${entry.prompt.command}\``)}
+${entry.prompt.violations.map(
   (v) =>
     d`${withExtmark(d`> ${v.line}${v.count > 1 ? ` (x${v.count})` : ""}`, {
       hl_group: "WarningMsg",

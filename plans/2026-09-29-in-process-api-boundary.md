@@ -352,6 +352,22 @@ Decisions/deviations:
 
 ## Session and approvals views on session state
 
+Status: done.
+
+- [x] `chat/session-view.ts`: `SessionView` holds the latest `ProtocolSessionState` and the hierarchy lookups (`getThread`, `getOrigin`, `getRootAncestorId`, `buildChildrenMap`, `listDerived`, `getPendingApprovals`, `isSandboxBypassed`). `Chat.session` is a `SessionView`; Chat subscribes to the session topic and builds/drops `NvimThread` wrappers from each delivery.
+- [x] Chat takes `{ sessionId, host, server, scriptRunner }` (no `Session`). Create/fork/reflect/delete, recordActivity, abort, sandbox bypass, approvals and profile switching go through `execute`.
+- [x] `render-pending-approvals.ts`: `ApprovalActions` is `{ pending: PendingApproval[], approve/reject/approveAll/rejectAll }` routed to `approval.*` operations; `reflections-overview.ts` takes a `SessionView`.
+- [x] Tier A: `approval.approveAllInSubtree resolves approvals of child threads` in `protocol/server.test.ts`.
+
+Decisions/deviations:
+
+- Deliveries are microtask-coalesced, so Chat methods that create or delete threads (`createThread`, `handleForkThread`, `deleteThread`, `toggleSandboxBypass`) await `execute` and then call `refreshSession()`, which pulls `server.getState` synchronously so the result is visible to the caller. `Chat.execute` throws on error results.
+- `thread.abort` returns `{ type: "threadAborted", unsent: string[] }` (unsent input rendered via `renderPending`), used to restore the input buffer.
+- Fork reads the fork point from the new thread's `origin.nativeMessageIdx` (session state) instead of the source thread's live `nativeMessageIdx`.
+- `registerSandboxRoot` is server-to-server wiring (ScriptManager → Session) in the composition root; no view uses it. It moves with the composition root in the boundary stage.
+- `magenta.ts` still owns `Session`/`ScriptManager`/host (composition root) and reads `session.getActiveProfile()` for options; `Chat` still uses `host.getPrepared`/`mcpToolManager` for `NvimThread` context. Both are left for the boundary stage.
+- Tests reach the live session through `serverSession(chat)` in `test/left-thread.ts` (registered by the test driver). `pendingApproval` and `ApprovalId` are exported from the server barrel.
+
 - Goal: `Chat`, `reflections-overview.ts`, and `render-pending-approvals.ts` render from `SessionState`, and hierarchy helpers (`rootAncestorId`, children, derived) come from the state. Thread create/fork/reflect/delete, recordActivity, sandbox bypass, approvals, and profile switching go through `execute`. `registerSandboxRoot` is replaced with data or moved server-side.
 - Tests:
   - The existing tier-C chat/thread-list, fork, reflect, approval, sandbox bypass, and `can switch profiles` tests pass.

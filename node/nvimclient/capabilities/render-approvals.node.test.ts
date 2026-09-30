@@ -1,10 +1,27 @@
 import {
+  pendingApproval,
   type SandboxViolation,
   SandboxViolationHandler,
   type ShellResult,
+  type ThreadId,
 } from "@magenta/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { renderApprovals } from "./render-pending-approvals.ts";
+import {
+  type ApprovalActions,
+  renderApprovals,
+} from "./render-pending-approvals.ts";
+
+function actions(handler: SandboxViolationHandler): ApprovalActions {
+  return {
+    pending: [...handler.getPendingViolations().values()].map((entry) =>
+      pendingApproval("t" as ThreadId, entry),
+    ),
+    approve: (id) => handler.approve(id),
+    reject: (id) => handler.reject(id),
+    approveAll: () => handler.approveAll(),
+    rejectAll: () => handler.rejectAll(),
+  };
+}
 
 function makeShellResult(overrides?: Partial<ShellResult>): ShellResult {
   return {
@@ -47,7 +64,7 @@ describe("renderApprovals", () => {
     handler = new SandboxViolationHandler(vi.fn());
   });
   it("returns empty node when no violations", () => {
-    const node = renderApprovals(handler);
+    const node = renderApprovals(actions(handler));
     expect(node.type).toBe("node");
     if (node.type === "node") {
       const hasContent = node.children.some(
@@ -61,7 +78,7 @@ describe("renderApprovals", () => {
     const retryFn = vi.fn().mockResolvedValue(makeShellResult());
     void handler.addViolation(makeViolation("cat ~/.ssh/id_rsa"), retryFn);
 
-    const node = renderApprovals(handler);
+    const node = renderApprovals(actions(handler));
     const text = serializeVDOM(node);
 
     expect(text).toContain("Sandbox blocked");
@@ -75,7 +92,7 @@ describe("renderApprovals", () => {
     void handler.addViolation(makeViolation("cmd1"), retryFn);
     void handler.addViolation(makeViolation("cmd2"), retryFn);
 
-    const node = renderApprovals(handler);
+    const node = renderApprovals(actions(handler));
     const text = serializeVDOM(node);
 
     expect(text).toContain("APPROVE ALL");
@@ -86,7 +103,7 @@ describe("renderApprovals", () => {
     const retryFn = vi.fn().mockResolvedValue(makeShellResult());
     void handler.addViolation(makeViolation("cmd1"), retryFn);
 
-    const node = renderApprovals(handler);
+    const node = renderApprovals(actions(handler));
     const text = serializeVDOM(node);
 
     expect(text).not.toContain("APPROVE ALL");
@@ -95,7 +112,7 @@ describe("renderApprovals", () => {
   it("renders host:port prompt", () => {
     void handler.promptForNetworkAccess({ host: "example.com", port: 443 });
 
-    const text = serializeVDOM(renderApprovals(handler));
+    const text = serializeVDOM(renderApprovals(actions(handler)));
     expect(text).toContain("Allow network access");
     expect(text).toContain("example.com:443");
     expect(text).toContain("APPROVE");
@@ -106,7 +123,7 @@ describe("renderApprovals", () => {
       "npm install",
       vi.fn().mockResolvedValue(makeShellResult()),
     );
-    const node = renderApprovals(handler);
+    const node = renderApprovals(actions(handler));
     const text = serializeVDOM(node);
 
     expect(text).toContain("May I run command");
