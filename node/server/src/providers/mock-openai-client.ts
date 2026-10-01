@@ -246,7 +246,6 @@ export class MockResponseStream implements AsyncIterable<ResponseStreamEvent> {
         type: "response.function_call_arguments.done",
         output_index: outputIndex,
         item_id: itemId,
-        name,
         arguments: args,
       });
     });
@@ -499,6 +498,7 @@ export function mockResponse(
 ): OpenAI.Responses.Response {
   return {
     id: "resp_mock",
+    access_programs: null,
     object: "response",
     created_at: 0,
     model: "mock-model",

@@ -363,6 +363,7 @@ describe("OpenAIInferenceManager incomplete responses", () => {
 function mockFailedResponse() {
   return {
     id: "resp_mock",
+    access_programs: null,
     object: "response" as const,
     created_at: 0,
     model: "mock-model",
