@@ -140,6 +140,7 @@ export class MockStream {
           stop_sequence: null,
           container: null,
           stop_details: null,
+          diagnostics: null,
           usage: {
             input_tokens: 0,
             output_tokens: 0,

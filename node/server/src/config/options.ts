@@ -38,7 +38,7 @@ const DEFAULT_MODELS: Record<
 > = {
   anthropic: {
     model: "claude-sonnet-5",
-    fastModel: "claude-haiku-4-5",
+    fastModel: "claude-haiku-5-5",
     thinkingModel: "claude-opus-5",
   },
   openai: {
@@ -54,7 +54,7 @@ const DEFAULT_MODELS: Record<
   },
   copilot: {
     model: "claude-sonnet-5",
-    fastModel: "claude-haiku-4-5",
+    fastModel: "claude-haiku-5-5",
     thinkingModel: "claude-opus-5",
   },
   mock: {
