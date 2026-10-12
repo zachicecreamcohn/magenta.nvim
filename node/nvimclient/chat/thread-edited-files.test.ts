@@ -57,8 +57,8 @@ test("summary shows edited file, opens on <CR>, and persists on next turn", asyn
       await driver.triggerDisplayBufferKeyOnContent("▼ modified a.txt", "=");
       await driver.assertDisplayBufferDoesNotContain("+bye");
 
-      // `<CR>` opens the before-vs-after diffsplit.
-      await driver.triggerDisplayBufferKeyOnContent("▶ modified a.txt", "<CR>");
+      // `<CR>` on `[diff]` opens the before-vs-after diffsplit.
+      await driver.triggerDisplayBufferKeyOnContent("[diff]", "<CR>");
 
       // The scratch snapshot buffer opens alongside the recorded after-content, both in diff
       // mode, and the scratch buffer holds the pre-edit snapshot content.
@@ -161,7 +161,7 @@ test("created file shows 'created' and opens directly on <CR>", async () => {
     await driver.assertDisplayBufferContains("▶ created c.txt");
 
     // `<CR>` opens the file directly (no snapshot diff buffer).
-    await driver.triggerDisplayBufferKeyOnContent("▶ created c.txt", "<CR>");
+    await driver.triggerDisplayBufferKeyOnContent("c.txt", "<CR>");
 
     const fileWindow = await driver.findWindow(async (w) => {
       const name = await (await w.buffer()).getName();

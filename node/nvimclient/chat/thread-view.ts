@@ -398,23 +398,29 @@ function editedFilesSummaryView(
       const expanded =
         thread.state.editedFilesExpanded[`${group.id}:${filePath}`];
       const marker = expanded ? "▼" : "▶";
-      const row = withBindings(d`  ${marker} ${label} ${display}\n`, {
-        "=": () =>
-          dispatch({
-            type: "toggle-edited-file-expanded",
-            groupId: group.id,
-            filePath,
-          }),
-        "<CR>": () =>
-          created
-            ? dispatch({ type: "open-edit-file", filePath })
-            : dispatch({
+      const toggle = () =>
+        dispatch({
+          type: "toggle-edited-file-expanded",
+          groupId: group.id,
+          filePath,
+        });
+      const pathLink = withBindings(d`${display}`, {
+        "=": toggle,
+        "<CR>": () => dispatch({ type: "open-edit-file", filePath }),
+      });
+      const diffLink = created
+        ? d``
+        : d` ${withBindings(d`[diff]`, {
+            "=": toggle,
+            "<CR>": () =>
+              dispatch({
                 type: "open-edit-file-diff",
                 filePath,
                 snapshot,
                 content,
               }),
-      });
+          })}`;
+      const row = d`  ${withBindings(d`${marker} ${label} `, { "=": toggle })}${pathLink}${diffLink}\n`;
       const body = expanded
         ? withExtmark(d`${expanded.patch}\n`, { hl_group: "@comment" })
         : d``;
